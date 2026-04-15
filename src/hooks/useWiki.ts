@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
 // Hook pour récupérer la liste des catégories uniques
@@ -37,5 +37,69 @@ export function useWikiRules(category: string | null) {
     },
     // Ne s'exécute que si une catégorie est sélectionnée
     enabled: !!category 
+  })
+}
+
+export function useSaveWikiEntity() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (entity: { id?: string, name: string, category: string, type: string, stats: Record<string, unknown> }) => {
+      if (entity.id) {
+        // Mise à jour
+        const { data, error } = await supabase
+          .from('wiki_entities')
+          .update(entity)
+          .eq('id', entity.id)
+          .select()
+        if (error) throw error
+        return data[0]
+      } else {
+        // Création
+        const { data, error } = await supabase
+          .from('wiki_entities')
+          .insert([entity])
+          .select()
+        if (error) throw error
+        return data[0]
+      }
+    },
+    onSuccess: () => {
+      // Invalide le cache pour forcer le rechargement immédiat de l'UI
+      queryClient.invalidateQueries({ queryKey: ['wikiRules'] })
+      queryClient.invalidateQueries({ queryKey: ['wikiCategories'] })
+    }
+  })
+}
+
+// Hook pour supprimer un article unique
+export function useDeleteWikiEntity() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('wiki_entities').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wikiRules'] })
+      queryClient.invalidateQueries({ queryKey: ['wikiCategories'] })
+    }
+  })
+}
+
+// Hook pour supprimer TOUTE une catégorie (Suppression en cascade)
+export function useDeleteWikiCategory() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (category: string) => {
+      const { error } = await supabase.from('wiki_entities').delete().eq('category', category)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wikiRules'] })
+      queryClient.invalidateQueries({ queryKey: ['wikiCategories'] })
+    }
   })
 }
