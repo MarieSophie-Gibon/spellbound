@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Login } from "@/components/auth/Login";
-import { Wiki } from "@/pages/Wiki";
 import { SideNav } from "@/components/layout/SideNav";
 import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
@@ -43,19 +42,25 @@ function App() {
         <SideNav />
 
         {/* ZONE DE CONTENU PRINCIPALE */}
-       <main className="flex-1 overflow-auto flex flex-col">
+        <main className="flex-1 overflow-auto flex flex-col">
           {!session ? (
             // 1. Si non connecté
             <Login />
           ) : !activeCampaign ? (
             // 2. Si connecté mais aucune campagne choisie
-            <Lobby 
-              onSelectCampaign={setActiveCampaign} 
-              onCreateCampaign={() => console.log("Afficher la création de campagne")} 
+            <Lobby
+              onSelectCampaign={setActiveCampaign}
+              onCreateCampaign={() =>
+                console.log("Afficher la création de campagne")
+              }
             />
           ) : (
-            // 3. Si connecté ET campagne choisie
-            <Wiki />
+            // 3. Si connecté et campagne active (Affichage du tableau de bord de la campagne)
+            <div className="flex-1 flex items-center justify-center">
+              <h2 className="text-2xl font-serif text-white/80">
+                Bienvenue dans la campagne : {activeCampaign.nom}
+              </h2>
+            </div>
           )}
         </main>
       </div>

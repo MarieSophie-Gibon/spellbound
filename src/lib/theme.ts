@@ -17,5 +17,9 @@ export const theme = {
   },
   gradientCard: {
     background: "linear-gradient(to bottom, rgba(102, 102, 102, 0) 0%, rgba(55, 42, 132, 0.72) 47%, rgba(36, 27, 89, 0.79) 63%, rgba(18, 13, 47, 1) 100%)"
+  },
+  gradientTab: {
+    background: "linear-gradient(to right, rgba(18, 24, 62, 0.9), rgba(87, 105, 214, 0.9))",
+    inactive: "linear-gradient(to right, rgba(18, 24, 62, 0.8), rgba(87, 105, 214, 0.8))"
   }
 }
