@@ -6,10 +6,14 @@ import { SideNav } from "@/components/layout/SideNav";
 import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
+import { Grimoire } from "@/pages/Grimoire";
+
+type TabType = 'grimoire' | 'compendium' | 'none';
 
 function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
+const [activeTab, setActiveTab] = useState<TabType>('none');
 
   useEffect(() => {
     const unsubscribe = initializeAuth();
@@ -21,7 +25,6 @@ function App() {
   if (isLoading) return <div className="min-h-screen bg-slate-950" />;
 
   return (
-    // Structure globale en colonne (Haut = Nav+Contenu / Bas = Footer)
     <div className="relative min-h-screen flex flex-col overflow-hidden font-sans text-slate-200">
       {/* BACKGROUNDS & OVERLAYS */}
       <div className="absolute inset-0 z-0">
@@ -36,18 +39,14 @@ function App() {
         />
       </div>
 
-      {/* ZONE CENTRALE (Prend l'espace restant) */}
+      {/* ZONE CENTRALE */}
       <div className="relative z-10 flex flex-1 overflow-hidden">
-        {/* NAVIGATION GAUCHE (Collée en haut grâce à self-start, hauteur 60vh) */}
-        <SideNav />
+        <SideNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {/* ZONE DE CONTENU PRINCIPALE */}
         <main className="flex-1 overflow-auto flex flex-col">
           {!session ? (
-            // 1. Si non connecté
             <Login />
           ) : !activeCampaign ? (
-            // 2. Si connecté mais aucune campagne choisie
             <Lobby
               onSelectCampaign={setActiveCampaign}
               onCreateCampaign={() =>
@@ -55,12 +54,11 @@ function App() {
               }
             />
           ) : (
-            // 3. Si connecté et campagne active (Affichage du tableau de bord de la campagne)
-            <div className="flex-1 flex items-center justify-center">
-              <h2 className="text-2xl font-serif text-white/80">
-                Bienvenue dans la campagne : {activeCampaign.nom}
-              </h2>
-            </div>
+           <>
+              {activeTab === 'grimoire' && <Grimoire />}
+              {activeTab === 'compendium' && <div className="text-white p-20">Page Compendium en construction...</div>}
+              {activeTab === 'none' && <div className="flex-1 flex items-center justify-center italic text-white/30">Sélectionnez un onglet pour commencer...</div>}
+            </>
           )}
         </main>
       </div>

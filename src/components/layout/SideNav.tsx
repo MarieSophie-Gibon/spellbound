@@ -3,18 +3,15 @@ import { theme } from "@/lib/theme";
 import { BookMarked, Telescope } from "lucide-react";
 import { useAuthStore } from "@/stores/useAuthStore";
 
-const NavItem = ({
-  label,
-  icon: Icon,
-  active = false,
-}: {
-  label: string;
-  icon: any;
-  active?: boolean;
-}) => {
+interface SideNavProps {
+  activeTab: string;
+  onTabChange: (tab: 'grimoire' | 'compendium' | 'none') => void;
+}
+
+const NavItem = ({ label, icon: Icon, active, onClick }: any) => {
   return (
-    // La largeur w-44 (176px) est volontairement plus grande que la barre w-24 (96px)
     <div
+      onClick={onClick}
       className={`relative flex items-center h-10 w-44 cursor-pointer transition-all duration-300 ${active ? "opacity-100" : "opacity-60 hover:opacity-100"}`}
       style={{
         clipPath:
@@ -24,7 +21,7 @@ const NavItem = ({
     >
       {/* Le fond intérieur de l'onglet, décalé de 1px pour laisser apparaître la "bordure" */}
       <div
-        className="absolute inset-[1px] left-0 flex items-center px-4"
+        className="absolute inset-px left-0 flex items-center px-4"
         style={{
           clipPath:
             "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)",
@@ -45,7 +42,7 @@ const NavItem = ({
   );
 };
 
-export function SideNav() {
+export function SideNav({ activeTab, onTabChange }: SideNavProps) {
   const { session } = useAuthStore();
 
   return (
@@ -54,17 +51,16 @@ export function SideNav() {
       style={theme.gradientNav}
     >
       <div className={theme.strokeRight} />
-
-      {/* Logo */}
       <img
         src="/logo.svg"
         alt="Spellbound Logo"
         className="relative z-5 w-24 h-24 object-contain"
       />
+
       {session && (
         <div className="w-full flex flex-col gap-4 relative z-10 pl-0">
-          <NavItem icon={BookMarked} label="Grimoire" active={true} />
-          <NavItem icon={Telescope} label="Compendium" active={false} />
+          <NavItem icon={BookMarked} label="Grimoire" active={activeTab === 'grimoire'} onClick={() => onTabChange('grimoire')} />
+          <NavItem icon={Telescope} label="Compendium" active={activeTab === 'compendium'} onClick={() => onTabChange('compendium')} />
         </div>
       )}
     </aside>
