@@ -1,58 +1,71 @@
-import { useEffect } from 'react'
-import { useAuthStore } from '@/stores/useAuthStore'
-import { Login } from '@/components/auth/Login'
-import { Button } from '@/components/ui/button'
-import { Wiki} from '@/pages/Wiki'
+import { useEffect, useState } from "react";
+import { theme } from "@/lib/theme";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { Login } from "@/components/auth/Login";
+import { Wiki } from "@/pages/Wiki";
+import { SideNav } from "@/components/layout/SideNav";
+import { Footer } from "@/components/layout/Footer";
+import { Lobby } from "./pages/Lobby";
+import type { Campaign } from "@/hooks/useCampaigns";
 
 function App() {
-  // On récupère l'état et les actions depuis notre store Zustand
-  const { session, isLoading, initializeAuth, signOut } = useAuthStore()
+  const { session, isLoading, initializeAuth } = useAuthStore();
+  const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
 
   useEffect(() => {
-    // On lance l'écouteur Supabase au chargement de l'app
-    const unsubscribe = initializeAuth()
-    
-    // Nettoyage à la destruction du composant
+    const unsubscribe = initializeAuth();
     return () => {
-      if (unsubscribe) unsubscribe()
-    }
-  }, [initializeAuth])
+      if (unsubscribe) unsubscribe();
+    };
+  }, [initializeAuth]);
 
-  // 1. Écran de chargement le temps que Supabase vérifie le token
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 font-serif text-amber-200/50 animate-pulse tracking-widest uppercase">
-        Consultation des astres...
-      </div>
-    )
-  }
+  if (isLoading) return <div className="min-h-screen bg-slate-950" />;
 
-  // 2. Si pas de session, on affiche l'écran de connexion HoYoverse-style
-  if (!session) {
-    return <Login />
-  }
-
-  // 3. Si connecté, on affiche le tableau de bord (temporaire pour le test)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 font-sans p-4 relative overflow-hidden flex flex-col">
-      {/* Navbar temporaire */}
-      <header className="w-full max-w-7xl mx-auto flex justify-between items-center py-4 px-6 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl">
-        <div className="text-xl font-serif text-amber-300 tracking-widest uppercase">
-          Spellbound <span className="text-xs text-slate-400 normal-case tracking-normal ml-2">Connecté en tant que {session.user.email}</span>
-        </div>
-        <Button 
-          onClick={signOut} 
-          variant="ghost"
-          className="text-red-400 hover:text-red-300 hover:bg-red-950/50"
-        >
-          Se déconnecter
-        </Button>
-      </header>
+    // Structure globale en colonne (Haut = Nav+Contenu / Bas = Footer)
+    <div className="relative min-h-screen flex flex-col overflow-hidden font-sans text-slate-200">
+      {/* BACKGROUNDS & OVERLAYS */}
+      <div className="absolute inset-0 z-0">
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url('/default-bg.jpg')" }}
+        />
+        <div className={`absolute inset-0 ${theme.glassOverlay}`} />
+        <div
+          className="absolute inset-0 bg-contain bg-right pointer-events-none opacity-80 bg-no-repeat"
+          style={{ backgroundImage: "url('/overlay.svg')" }}
+        />
+      </div>
 
-      {/* Contenu principal */}
-      <Wiki />
+      {/* ZONE CENTRALE (Prend l'espace restant) */}
+      <div className="relative z-10 flex flex-1 overflow-hidden">
+        {/* NAVIGATION GAUCHE (Collée en haut grâce à self-start, hauteur 60vh) */}
+        <SideNav />
+
+        {/* ZONE DE CONTENU PRINCIPALE */}
+       <main className="flex-1 overflow-auto flex flex-col">
+          {!session ? (
+            // 1. Si non connecté
+            <Login />
+          ) : !activeCampaign ? (
+            // 2. Si connecté mais aucune campagne choisie
+            <Lobby 
+              onSelectCampaign={setActiveCampaign} 
+              onCreateCampaign={() => console.log("Afficher la création de campagne")} 
+            />
+          ) : (
+            // 3. Si connecté ET campagne choisie
+            <Wiki />
+          )}
+        </main>
+      </div>
+
+      {/* FOOTER (Prend 100% de la largeur de l'écran en bas) */}
+      <div className="relative z-10 w-full shrink-0">
+        <Footer />
+      </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

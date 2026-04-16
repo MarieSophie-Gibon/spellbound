@@ -1,20 +1,13 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { 
-  Card, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription, 
-  CardContent, 
-  CardFooter 
-} from '@/components/ui/card'
+import { Mail, MoreHorizontal, Zap } from 'lucide-react'
+import { theme } from '@/lib/theme'
 
 export function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -22,92 +15,93 @@ export function Login() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setError("Les astres ne reconnaissent pas ces identifiants.")
-    }
-    
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) setError("Les astres ne reconnaissent pas ces identifiants.")
     setLoading(false)
   }
 
   return (
-    // Fond astral avec dégradé subtil
-    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 p-4 font-sans overflow-hidden">
-      
-      {/* Effets de lueur magique en arrière-plan (Orbes) */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[120px] pointer-events-none" />
-
-      {/* Carte effet "Glassmorphism" (Verre dépoli) */}
-      <Card className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden">
+    // Le pr-24 compense la SideNav pour un centrage parfait
+    <div className="flex-1 flex items-center justify-center w-full h-full p-4 md:pr-24 font-sans">
+      <div className="w-full max-w-sm relative">
         
-        {/* Petit accent doré en haut de la carte */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-300 to-transparent opacity-50" />
-
-        <CardHeader className="space-y-3 pb-8 pt-8">
-          <CardTitle className="text-4xl font-serif text-center tracking-wide text-transparent bg-clip-text bg-gradient-to-b from-amber-50 to-amber-300 drop-shadow-sm">
-            Spellbound
-          </CardTitle>
-          <CardDescription className="text-center text-slate-300/80 text-sm tracking-widest uppercase">
-            Passerelle Astrale
-          </CardDescription>
-        </CardHeader>
+        {/* Glow effect subtil derrière la carte */}
+        <div className="absolute -inset-0.5 bg-linear-to-r from-indigo-500/10 to-purple-500/10 rounded-2xl blur-lg opacity-50 pointer-events-none"></div>
         
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-6">
+        {/* Carte principale avec le gradient du footer */}
+        <div 
+          className="relative rounded-2xl p-7 overflow-hidden shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] border border-white/20"
+          style={theme.gradientFooter}
+        >
+          
+          <div className={theme.stroke} />
+
+          <form onSubmit={handleLogin} className="relative z-10 space-y-5">
             {error && (
-              <div className="p-3 text-sm font-medium text-amber-200 bg-red-950/40 border border-red-900/50 rounded-lg text-center backdrop-blur-sm">
+              <div className="p-2 text-[10px] font-medium text-amber-200 bg-red-950/40 border border-red-900/50 rounded text-center backdrop-blur-sm uppercase tracking-wider">
                 {error}
               </div>
             )}
             
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-200 font-medium tracking-wide">
-                Email
-              </Label>
-              <Input 
-                id="email" 
+            {/* Input Email */}
+            <div className="relative flex items-center bg-black/20 border border-white/10 rounded-lg overflow-hidden focus-within:border-white/40 transition-colors">
+              <div className="pl-3 pr-2 py-2.5 text-slate-300">
+                <Mail className="w-4 h-4" />
+              </div>
+              <input 
                 type="email" 
-                placeholder="voyageur@teyvat.com"
+                placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-black/20 border-white/10 text-slate-100 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-amber-400/50 focus-visible:border-amber-400/50 transition-all rounded-lg h-12"
+                className="w-full bg-transparent text-sm text-white placeholder:text-slate-400 focus:outline-none py-2.5"
                 required 
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-200 font-medium tracking-wide">
-                Mot de passe
-              </Label>
-              <Input 
-                id="password" 
-                type="password"
-                placeholder="••••••••"
+            {/* Input Mot de passe */}
+            <div className="relative flex items-center bg-black/20 border border-white/10 rounded-lg overflow-hidden focus-within:border-white/40 transition-colors">
+              <div className="pl-3 pr-2 py-2.5 text-slate-300">
+                <MoreHorizontal className="w-4 h-4" />
+              </div>
+              <input 
+                type="password" 
+                placeholder="Mot de passe"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-black/20 border-white/10 text-slate-100 placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-amber-400/50 focus-visible:border-amber-400/50 transition-all rounded-lg h-12"
+                className="w-full bg-transparent text-sm text-white placeholder:text-slate-400 focus:outline-none py-2.5"
                 required 
               />
             </div>
-          </CardContent>
-          
-          <CardFooter className="pt-4 pb-8">
-            <Button 
-              type="submit" 
-              className="w-full h-12 bg-gradient-to-r from-amber-100 via-amber-200 to-amber-400 text-amber-950 hover:opacity-90 font-bold tracking-widest uppercase rounded-full shadow-[0_0_20px_rgba(251,191,36,0.3)] transition-all" 
-              disabled={loading}
-            >
-              {loading ? 'Résonance...' : 'Se Connecter'}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+
+            {/* Se souvenir de moi */}
+            <div className="flex items-center justify-end space-x-2">
+              <input 
+                type="checkbox" 
+                id="remember" 
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-3.5 h-3.5 rounded-sm border-white/30 bg-transparent text-indigo-300 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              />
+              <label htmlFor="remember" className="text-[11px] text-slate-300 font-light cursor-pointer select-none">
+                Se souvenir de moi
+              </label>
+            </div>
+            
+            {/* Bouton Connexion */}
+            <div className="flex justify-end pt-2">
+              <Button 
+                type="submit" 
+                variant="outline"
+                className="h-8 px-6 bg-white/5 border-white/30 hover:bg-white/20 text-white text-[11px] font-light tracking-[0.15em] uppercase rounded-lg transition-all flex items-center"
+                disabled={loading}
+              >
+                <Zap className="w-3.5 h-3.5 mr-2" />
+                {loading ? '...' : 'Connexion'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }
