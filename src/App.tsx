@@ -8,12 +8,12 @@ import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
 
-type TabType = 'grimoire' | 'compendium' | 'none';
+type TabType = "grimoire" | "compendium" | "none";
 
 function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
-const [activeTab, setActiveTab] = useState<TabType>('none');
+  const [activeTab, setActiveTab] = useState<TabType>("none");
 
   useEffect(() => {
     const unsubscribe = initializeAuth();
@@ -46,18 +46,42 @@ const [activeTab, setActiveTab] = useState<TabType>('none');
         <main className="flex-1 overflow-auto flex flex-col">
           {!session ? (
             <Login />
-          ) : !activeCampaign ? (
-            <Lobby
-              onSelectCampaign={setActiveCampaign}
-              onCreateCampaign={() =>
-                console.log("Afficher la création de campagne")
-              }
-            />
           ) : (
-           <>
-              {activeTab === 'grimoire' && <Grimoire />}
-              {activeTab === 'compendium' && <div className="text-white p-20">Page Compendium en construction...</div>}
-              {activeTab === 'none' && <div className="flex-1 flex items-center justify-center italic text-white/30">Sélectionnez un onglet pour commencer...</div>}
+            <>
+              {/* 1. Si on a cliqué sur un onglet, il prend la priorité */}
+              {activeTab === "grimoire" && (
+                <Grimoire isGlobal={!activeCampaign} onBack={() => setActiveTab("none")} />
+              )}
+
+              {activeTab === "compendium" && (
+                <div className="flex-1 flex items-center justify-center text-white/30 italic">
+                  Page Compendium en construction...
+                </div>
+              )}
+
+              {/* 2. Si aucun onglet n'est sélectionné ('none'), on gère l'affichage de base */}
+              {activeTab === "none" &&
+                (!activeCampaign ? (
+                  <Lobby
+                    onSelectCampaign={(campaign) => {
+                      setActiveCampaign(campaign);
+                      // Optionnel : on peut décider de rester sur 'none'
+                      // ou d'ouvrir le grimoire de la campagne direct
+                    }}
+                    onCreateCampaign={() =>
+                      console.log("Afficher la création de campagne")
+                    }
+                  />
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
+                    <h2 className="text-2xl font-serif text-white uppercase tracking-widest">
+                      {activeCampaign.nom}
+                    </h2>
+                    <p className="text-white/40 italic mt-2">
+                      Sélectionnez un onglet dans la navigation pour commencer.
+                    </p>
+                  </div>
+                ))}
             </>
           )}
         </main>
