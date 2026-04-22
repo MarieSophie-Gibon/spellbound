@@ -162,6 +162,7 @@ interface Category {
   id: string;
   name: string;
   parent_id: string | null;
+  position_index: number;
 }
 interface WikiPage {
   id: string;
@@ -177,8 +178,8 @@ interface GrimoireProps {
   campaignId?: string;
 }
 
-// Type unique pour les suppressions
 type DeleteTarget = { type: "page" | "category"; id: string } | null;
+type DraggedItem = { type: "page" | "category"; id: string } | null;
 
 export function Grimoire({
   isGlobal = true,
@@ -211,7 +212,8 @@ export function Grimoire({
   const [tableCols, setTableCols] = useState(3);
 
   // États Drag & Drop et Accordéon
-  const [draggedPageId, setDraggedPageId] = useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
 
   const toggleCat = (id: string) =>
@@ -236,12 +238,17 @@ export function Grimoire({
   });
 
   const fetchData = async () => {
+    // Si la colonne position_index manque, cela plantera. Avertissement donné dans le prompt.
     const { data: catData } = await supabase
       .from("categories")
       .select("*")
+      .order("position_index", { ascending: true })
       .order("name");
     if (catData) setCategories(catData);
-    let query = supabase.from("wiki_pages").select("*").order("position_index");
+    let query = supabase
+      .from("wiki_pages")
+      .select("*")
+      .order("position_index", { ascending: true });
     if (isGlobal) query = query.is("campaign_id", null);
     else if (campaignId) query = query.eq("campaign_id", campaignId);
     const { data: pagesData } = await query;
@@ -252,8 +259,12 @@ export function Grimoire({
     fetchData();
   }, [isGlobal, campaignId]);
 
-  const mainCategories = categories.filter((c) => !c.parent_id);
-  const subCategories = categories.filter((c) => c.parent_id === selectedCatId);
+  const mainCategories = categories
+    .filter((c) => !c.parent_id)
+    .sort((a, b) => a.position_index - b.position_index);
+  const subCategories = categories
+    .filter((c) => c.parent_id === selectedCatId)
+    .sort((a, b) => a.position_index - b.position_index);
   const selectedPage = pages.find((p) => p.id === selectedPageId);
 
   const handleEdit = () => {
@@ -268,7 +279,6 @@ export function Grimoire({
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-
     if (deleteTarget.type === "page") {
       const { error } = await supabase
         .from("wiki_pages")
@@ -289,9 +299,10 @@ export function Grimoire({
         if (selectedSubCatId === deleteTarget.id) setSelectedSubCatId("");
         setDeleteTarget(null);
         fetchData();
-      } else {
-        alert("Erreur: La catégorie contient probablement des éléments.");
-      }
+      } else
+        alert(
+          "Erreur: La catégorie contient probablement des éléments (Vérifiez la règle ON DELETE CASCADE dans Supabase).",
+        );
     }
   };
 
@@ -304,9 +315,7 @@ export function Grimoire({
     if (!error) {
       setCatToRename(null);
       fetchData();
-    } else {
-      alert("Erreur lors du renommage.");
-    }
+    } else alert("Erreur lors du renommage.");
   };
 
   const handleCancel = () => {
@@ -328,7 +337,11 @@ export function Grimoire({
       if (isCreatingCat && newCatName.trim() !== "") {
         const { data: nCat } = await supabase
           .from("categories")
-          .insert({ name: newCatName.trim(), parent_id: null })
+          .insert({
+            name: newCatName.trim(),
+            parent_id: null,
+            position_index: mainCategories.length,
+          })
           .select()
           .single();
         fCatId = nCat.id;
@@ -336,7 +349,11 @@ export function Grimoire({
       if (isCreatingSubCat && newSubCatName.trim() !== "") {
         const { data: nSub } = await supabase
           .from("categories")
-          .insert({ name: newSubCatName.trim(), parent_id: fCatId })
+          .insert({
+            name: newSubCatName.trim(),
+            parent_id: fCatId,
+            position_index: subCategories.length,
+          })
           .select()
           .single();
         fSubCatId = nSub.id;
@@ -360,7 +377,6 @@ export function Grimoire({
           .from("wiki_pages")
           .insert({ ...payload, position_index: pages.length });
 
-      // Ouvre l'accordéon pour montrer le nouvel article
       if (fCatId) setExpandedCats((prev) => ({ ...prev, [fCatId]: true }));
       if (fSubCatId)
         setExpandedCats((prev) => ({ ...prev, [fSubCatId]: true }));
@@ -372,69 +388,170 @@ export function Grimoire({
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
-    setDraggedPageId(id);
+  // --- LOGIQUE DRAG & DROP AVANCÉE ---
+  const handleDragStart = (
+    e: React.DragEvent,
+    type: "page" | "category",
+    id: string,
+  ) => {
+    e.stopPropagation();
+    setDraggedItem({ type, id });
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDrop = async (e: React.DragEvent, targetId: string) => {
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
-    if (!draggedPageId || draggedPageId === targetId) {
-      setDraggedPageId(null);
+    e.stopPropagation();
+    if (dragOverTarget !== targetId) setDragOverTarget(targetId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverTarget(null);
+  };
+
+  const handleDrop = async (
+    e: React.DragEvent,
+    targetType: "page" | "category",
+    targetId: string,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTarget(null);
+
+    if (!draggedItem || draggedItem.id === targetId) {
+      setDraggedItem(null);
       return;
     }
 
-    const draggedPage = pages.find((p) => p.id === draggedPageId);
-    const targetPage = pages.find((p) => p.id === targetId);
+    // 1. REORGANISER LES CATÉGORIES (Entre elles)
+    if (draggedItem.type === "category" && targetType === "category") {
+      const draggedCat = categories.find((c) => c.id === draggedItem.id);
+      const targetCat = categories.find((c) => c.id === targetId);
+      // On ne réordonne qu'au même niveau
+      if (
+        !draggedCat ||
+        !targetCat ||
+        draggedCat.parent_id !== targetCat.parent_id
+      ) {
+        setDraggedItem(null);
+        return;
+      }
 
-    if (!draggedPage || !targetPage) return;
+      const siblings = categories
+        .filter((c) => c.parent_id === draggedCat.parent_id)
+        .sort((a, b) => a.position_index - b.position_index);
+      const oldIndex = siblings.findIndex((c) => c.id === draggedCat.id);
+      const newIndex = siblings.findIndex((c) => c.id === targetCat.id);
 
-    // Ne permet de réordonner que si on est dans la même catégorie/sous-catégorie
-    if (
-      draggedPage.category_id !== targetPage.category_id ||
-      draggedPage.subcategory_id !== targetPage.subcategory_id
-    ) {
-      setDraggedPageId(null);
-      return;
+      const newSiblings = [...siblings];
+      const [moved] = newSiblings.splice(oldIndex, 1);
+      newSiblings.splice(newIndex, 0, moved);
+
+      const updatedSiblings = newSiblings.map((c, i) => ({
+        ...c,
+        position_index: i,
+      }));
+      setCategories((prev) =>
+        prev.map((c) => updatedSiblings.find((s) => s.id === c.id) || c),
+      );
+
+      const updates = updatedSiblings.map((c) =>
+        supabase
+          .from("categories")
+          .update({ position_index: c.position_index })
+          .eq("id", c.id),
+      );
+      await Promise.all(updates);
     }
 
-    // Isoler les pages de ce groupe spécifique
-    const groupPages = pages
-      .filter(
-        (p) =>
-          p.category_id === draggedPage.category_id &&
-          p.subcategory_id === draggedPage.subcategory_id,
-      )
-      .sort((a, b) => a.position_index - b.position_index);
+    // 2. DÉPLACER / RÉORGANISER LES ARTICLES
+    else if (draggedItem.type === "page") {
+      const draggedPage = pages.find((p) => p.id === draggedItem.id);
+      if (!draggedPage) {
+        setDraggedItem(null);
+        return;
+      }
 
-    const oldIndex = groupPages.findIndex((p) => p.id === draggedPageId);
-    const newIndex = groupPages.findIndex((p) => p.id === targetId);
-    if (oldIndex === -1 || newIndex === -1) return;
+      let newCatId = draggedPage.category_id;
+      let newSubCatId = draggedPage.subcategory_id;
+      let targetIndex = -1;
 
-    const newGroupPages = [...groupPages];
-    const [movedPage] = newGroupPages.splice(oldIndex, 1);
-    newGroupPages.splice(newIndex, 0, movedPage);
+      if (targetType === "page") {
+        const targetPage = pages.find((p) => p.id === targetId);
+        if (!targetPage) return;
+        newCatId = targetPage.category_id;
+        newSubCatId = targetPage.subcategory_id;
+        const groupPages = pages
+          .filter(
+            (p) =>
+              p.category_id === newCatId && p.subcategory_id === newSubCatId,
+          )
+          .sort((a, b) => a.position_index - b.position_index);
+        targetIndex = groupPages.findIndex((p) => p.id === targetId);
+      } else if (targetType === "category") {
+        if (targetId === "uncategorized") {
+          newCatId = null;
+          newSubCatId = null;
+        } else {
+          const targetCat = categories.find((c) => c.id === targetId);
+          if (!targetCat) return;
+          const isSub = targetCat.parent_id !== null;
+          newCatId = isSub ? targetCat.parent_id : targetCat.id;
+          newSubCatId = isSub ? targetCat.id : null;
+          setExpandedCats((prev) => ({ ...prev, [targetId]: true }));
+        }
+      }
 
-    const updatedGroupPages = newGroupPages.map((p, index) => ({
-      ...p,
-      position_index: index,
-    }));
+      const newPages = [...pages];
+      const oldIndexGlobal = newPages.findIndex((p) => p.id === draggedPage.id);
+      const [movedPage] = newPages.splice(oldIndexGlobal, 1);
 
-    setPages((prev) =>
-      prev.map((p) => {
-        const updated = updatedGroupPages.find((up) => up.id === p.id);
-        return updated ? updated : p;
-      }),
-    );
-    setDraggedPageId(null);
+      movedPage.category_id = newCatId;
+      movedPage.subcategory_id = newSubCatId;
 
-    const updates = updatedGroupPages.map((p) =>
-      supabase
+      const groupPages = newPages
+        .filter(
+          (p) => p.category_id === newCatId && p.subcategory_id === newSubCatId,
+        )
+        .sort((a, b) => a.position_index - b.position_index);
+
+      if (targetIndex === -1) groupPages.push(movedPage);
+      else groupPages.splice(targetIndex, 0, movedPage);
+
+      const updatedGroupPages = groupPages.map((p, idx) => ({
+        ...p,
+        position_index: idx,
+      }));
+
+      setPages((prev) => {
+        const filtered = prev.filter(
+          (p) =>
+            p.id !== movedPage.id &&
+            !(p.category_id === newCatId && p.subcategory_id === newSubCatId),
+        );
+        return [...filtered, ...updatedGroupPages];
+      });
+
+      await supabase
         .from("wiki_pages")
-        .update({ position_index: p.position_index })
-        .eq("id", p.id),
-    );
-    await Promise.all(updates);
+        .update({
+          category_id: newCatId,
+          subcategory_id: newSubCatId,
+          position_index: updatedGroupPages.find((p) => p.id === movedPage.id)
+            ?.position_index,
+        })
+        .eq("id", movedPage.id);
+      const updates = updatedGroupPages.map((p) =>
+        supabase
+          .from("wiki_pages")
+          .update({ position_index: p.position_index })
+          .eq("id", p.id),
+      );
+      await Promise.all(updates);
+    }
+
+    setDraggedItem(null);
   };
 
   const MenuBar = ({ editor }: { editor: Editor }) => {
@@ -499,7 +616,6 @@ export function Grimoire({
     );
   };
 
-  // Sous-composant pour rendre une liste d'articles
   const renderPageList = (pageList: WikiPage[]) => {
     if (pageList.length === 0) return null;
     return (
@@ -510,10 +626,11 @@ export function Grimoire({
             <div
               key={page.id}
               draggable
-              onDragStart={(e) => handleDragStart(e, page.id)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDrop(e, page.id)}
-              className={`w-full group text-left px-3 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center justify-between cursor-grab active:cursor-grabbing border ${selectedPageId === page.id ? "bg-white/10 text-white border-white/20 shadow-inner" : "hover:bg-white/5 text-white/70 hover:text-white border-transparent"} ${draggedPageId === page.id ? "opacity-50" : ""}`}
+              onDragStart={(e) => handleDragStart(e, "page", page.id)}
+              onDragOver={(e) => handleDragOver(e, page.id)}
+              onDrop={(e) => handleDrop(e, "page", page.id)}
+              onDragEnd={handleDragEnd}
+              className={`w-full group text-left px-3 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center justify-between cursor-grab active:cursor-grabbing border ${selectedPageId === page.id ? "bg-white/10 text-white border-white/20 shadow-inner" : "hover:bg-white/5 text-white/70 hover:text-white border-transparent"} ${draggedItem?.id === page.id ? "opacity-30" : ""} ${dragOverTarget === page.id ? "border-t-[#E3CCCD] bg-white/5" : ""}`}
             >
               <button
                 onClick={() => {
@@ -542,34 +659,43 @@ export function Grimoire({
         {pages.length === 0 && categories.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-30 px-4 text-center">
             <FileText className="w-8 h-8 mb-2" />
-            <p className="text-[11px] italic font-light">
-              Aucun article dans ce grimoire.
-            </p>
+            <p className="text-[11px] italic font-light">Aucun contenu.</p>
           </div>
         ) : (
-          <div className="space-y-1 px-1 py-1">
-            {/* 1. Affichage en Accordéon des Catégories */}
+          <div className="space-y-1.5 px-1">
             {mainCategories.map((cat) => {
               const directPages = pages.filter(
                 (p) => p.category_id === cat.id && !p.subcategory_id,
               );
-              const subs = categories.filter((c) => c.parent_id === cat.id);
+              const subs = categories
+                .filter((c) => c.parent_id === cat.id)
+                .sort((a, b) => a.position_index - b.position_index);
               const isOpen = expandedCats[cat.id];
 
               return (
                 <div key={cat.id} className="w-full">
-                  <button
-                    onClick={() => toggleCat(cat.id)}
-                    className="flex items-center justify-between w-full p-2.5 text-white/90 hover:border-[#E3CCCD]/40 hover:bg-[#1E1941]/20 rounded-lg transition-colors text-[13px] font-medium"
+                  <div
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, "category", cat.id)}
+                    onDragOver={(e) => handleDragOver(e, cat.id)}
+                    onDrop={(e) => handleDrop(e, "category", cat.id)}
+                    onDragEnd={handleDragEnd}
+                    className={`flex items-center justify-between w-full px-2 py-1.5 bg-[#1E1941]/40 border ${dragOverTarget === cat.id ? "border-[#E3CCCD] bg-[#1E1941]/80 shadow-[0_0_10px_rgba(227,204,205,0.2)]" : "border-[#E3CCCD]/20 hover:border-[#E3CCCD]/40"} rounded-lg transition-colors group cursor-grab active:cursor-grabbing ${draggedItem?.id === cat.id ? "opacity-30" : ""}`}
                   >
-                    <span className="truncate pr-2">{cat.name}</span>
-                    <ChevronDown
-                      className={`w-4 h-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
+                    <GripVertical className="w-3.5 h-3.5 text-white/20 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-1.5" />
+                    <button
+                      onClick={() => toggleCat(cat.id)}
+                      className="flex-1 flex items-center justify-between text-[13px] text-white/90 font-medium text-left"
+                    >
+                      <span className="truncate pr-2">{cat.name}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 shrink-0 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                  </div>
 
                   {isOpen && (
-                    <div className="pl-3 mt-1.5 border-l border-[#E3CCCD]/20 ml-2.5 space-y-1 mb-3">
+                    <div className="pl-3 mt-1.5 border-l border-[#E3CCCD]/20 ml-3.5 space-y-1 mb-3">
                       {subs.map((sub) => {
                         const subPages = pages.filter(
                           (p) => p.subcategory_id === sub.id,
@@ -577,17 +703,29 @@ export function Grimoire({
                         const isSubOpen = expandedCats[sub.id];
                         return (
                           <div key={sub.id} className="w-full mt-1">
-                            <button
-                              onClick={() => toggleCat(sub.id)}
-                              className="flex items-center justify-between w-full px-2 py-1.5 text-white/70 hover:text-white transition-colors text-[12px] font-medium"
+                            <div
+                              draggable
+                              onDragStart={(e) =>
+                                handleDragStart(e, "category", sub.id)
+                              }
+                              onDragOver={(e) => handleDragOver(e, sub.id)}
+                              onDrop={(e) => handleDrop(e, "category", sub.id)}
+                              onDragEnd={handleDragEnd}
+                              className={`flex items-center justify-between w-full px-1.5 py-1 rounded-md transition-colors group cursor-grab active:cursor-grabbing border ${dragOverTarget === sub.id ? "border-[#E3CCCD]/50 bg-white/5" : "border-transparent hover:bg-white/5"} ${draggedItem?.id === sub.id ? "opacity-30" : ""}`}
                             >
-                              <span className="truncate pr-2">
-                                - {sub.name}
-                              </span>
-                              <ChevronDown
-                                className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isSubOpen ? "rotate-180" : ""}`}
-                              />
-                            </button>
+                              <GripVertical className="w-3 h-3 text-white/10 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-1" />
+                              <button
+                                onClick={() => toggleCat(sub.id)}
+                                className="flex-1 flex items-center justify-between text-white/70 hover:text-white text-[12px] font-medium text-left"
+                              >
+                                <span className="truncate pr-2">
+                                  {sub.name}
+                                </span>
+                                <ChevronDown
+                                  className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isSubOpen ? "rotate-180" : ""}`}
+                                />
+                              </button>
+                            </div>
                             {isSubOpen && (
                               <div className="pl-3 ml-2 border-l border-white/10 mt-1">
                                 {renderPageList(subPages)}
@@ -603,15 +741,17 @@ export function Grimoire({
               );
             })}
 
-            {/* 2. Articles sans catégorie */}
-            {uncategorizedPages.length > 0 && (
-              <div className="pt-3 border-t border-white/10 mt-3">
-                <span className="text-[10px] uppercase tracking-widest text-white/30 ml-2 mb-2 block">
-                  Sans catégorie
-                </span>
-                {renderPageList(uncategorizedPages)}
-              </div>
-            )}
+            {/* Zone pour les articles sans catégorie */}
+            <div
+              onDragOver={(e) => handleDragOver(e, "uncategorized")}
+              onDrop={(e) => handleDrop(e, "category", "uncategorized")}
+              className={`pt-3 border-t border-white/10 mt-3 rounded-lg pb-2 transition-colors ${dragOverTarget === "uncategorized" ? "bg-white/5 border-[#E3CCCD]/40" : ""}`}
+            >
+              <span className="text-[10px] uppercase tracking-widest text-white/30 ml-2 mb-2 block">
+                Sans catégorie
+              </span>
+              {renderPageList(uncategorizedPages)}
+            </div>
           </div>
         )}
       </div>
@@ -695,7 +835,6 @@ export function Grimoire({
         </div>
       )}
 
-      {/* POPUP DE RENOMMAGE CATÉGORIE */}
       {catToRename && (
         <div className="fixed inset-0 z-300 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1E1941] border border-[#E3CCCD]/30 p-6 rounded-2xl shadow-2xl w-full max-w-75 animate-in zoom-in duration-200">
@@ -728,7 +867,6 @@ export function Grimoire({
         </div>
       )}
 
-      {/* MODAL SUPPRESSION MUTUALISÉE */}
       {deleteTarget && (
         <div className="fixed inset-0 z-300 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1E1941] border border-[#ff6b6b]/30 p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-in fade-in scale-95">
