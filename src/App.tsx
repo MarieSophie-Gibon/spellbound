@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
+import { Compendium } from "@/pages/Compendium"; // <-- Ajout de l'import
 
 type TabType = "grimoire" | "compendium" | "none";
 
@@ -54,9 +55,10 @@ function App() {
               )}
 
               {activeTab === "compendium" && (
-                <div className="flex-1 flex items-center justify-center text-white/30 italic">
-                  Page Compendium en construction...
-                </div>
+                <Compendium 
+                  campaignId={activeCampaign?.id} 
+                  onBack={() => setActiveTab("none")} 
+                />
               )}
 
               {/* 2. Si aucun onglet n'est sélectionné ('none'), on gère l'affichage de base */}
