@@ -5,10 +5,11 @@ import { BookLayout } from "@/components/layout/BookLayout";
 import { supabase } from "@/lib/supabase";
 import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
 import { PeupleDetail } from "@/components/compendium/PeupleDetail";
+import { FamilleDetail } from "@/components/compendium/FamilleDetail";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { PeupleWizard } from "@/components/compendium/PeupleWizard";
 import { ProfilWizard } from "@/components/compendium/ProfilWizard";
-import type { Peuple, Voie, Famille, Section } from "@/types/compendium";
+import type { Peuple, Voie, Famille, FamilleVoie, Section } from "@/types/compendium";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -22,13 +23,17 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [selectedVoie, setSelectedVoie] = useState<Voie | null>(null);
   const [familles, setFamilles] = useState<Famille[]>([]);
   const [selectedFamilleId, setSelectedFamilleId] = useState<string | null>(null);
+  const [selectedFamilleVoies, setSelectedFamilleVoies] = useState<FamilleVoie[]>([]);
 
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [showEditWizard, setShowEditWizard] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteFamilleConfirm, setShowDeleteFamilleConfirm] = useState(false);
+  const [isDeletingFamille, setIsDeletingFamille] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showCreateProfil, setShowCreateProfil] = useState(false);
+  const [showEditProfil, setShowEditProfil] = useState(false);
 
   const fetchPeuples = async () => {
     let query = supabase.from('peuples').select('*').order('nom');
@@ -52,6 +57,12 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     setSelectedVoie(data as Voie);
   };
 
+  const fetchVoiesForFamille = async (familleId: string) => {
+    const { data } = await supabase
+      .from('voies').select('*').eq('famille_id', familleId).order('nom');
+    setSelectedFamilleVoies((data as FamilleVoie[]) ?? []);
+  };
+
   useEffect(() => {
     if (activeSection === 'peuples') fetchPeuples();
     if (activeSection === 'familles') fetchFamilles();
@@ -61,6 +72,11 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     if (selectedPeupleId) fetchVoieForPeuple(selectedPeupleId);
     else setSelectedVoie(null);
   }, [selectedPeupleId]);
+
+  useEffect(() => {
+    if (selectedFamilleId) fetchVoiesForFamille(selectedFamilleId);
+    else setSelectedFamilleVoies([]);
+  }, [selectedFamilleId]);
 
   const handleSectionChange = (section: Section) => {
     setActiveSection(section);
@@ -85,6 +101,22 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const selectedPeuple = peuples.find(p => p.id === selectedPeupleId);
+  const selectedFamille = familles.find(f => f.id === selectedFamilleId);
+
+  const handleDeleteFamille = async () => {
+    if (!selectedFamille) return;
+    setIsDeletingFamille(true);
+    try {
+      await supabase.from('voies').delete().eq('famille_id', selectedFamille.id);
+      await supabase.from('familles').delete().eq('id', selectedFamille.id);
+      setSelectedFamilleId(null);
+      setShowDeleteFamilleConfirm(false);
+      setIsFullscreen(false);
+      fetchFamilles();
+    } finally {
+      setIsDeletingFamille(false);
+    }
+  };
 
   const sidebar = (
     <CompendiumSidebar
@@ -113,6 +145,15 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditWizard(true)}
             onDelete={() => setShowDeleteConfirm(true)}
+          />
+        ) : activeSection === 'familles' && selectedFamille ? (
+          <FamilleDetail
+            famille={selectedFamille}
+            voies={selectedFamilleVoies}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={() => setIsFullscreen(f => !f)}
+            onEdit={() => setShowEditProfil(true)}
+            onDelete={() => setShowDeleteFamilleConfirm(true)}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
@@ -159,6 +200,37 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           isDeleting={isDeleting}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {showDeleteFamilleConfirm && selectedFamille && (
+        <DeleteConfirmModal
+          name={selectedFamille.nom}
+          isDeleting={isDeletingFamille}
+          onConfirm={handleDeleteFamille}
+          onCancel={() => setShowDeleteFamilleConfirm(false)}
+        />
+      )}
+
+      {showEditProfil && selectedFamille && (
+        <ProfilWizard
+          campaignId={campaignId}
+          onClose={() => setShowEditProfil(false)}
+          onSuccess={() => { fetchFamilles(); fetchVoiesForFamille(selectedFamille.id); }}
+          initialData={{
+            id: selectedFamille.id,
+            nom: selectedFamille.nom,
+            groupe: selectedFamille.groupe,
+            description: selectedFamille.description,
+            pv_niveau: selectedFamille.pv_niveau,
+            de_recuperation: selectedFamille.de_recuperation,
+            bonus_chance: selectedFamille.bonus_chance,
+            equipement_base: selectedFamille.equipement_base,
+            maitrise_equipement: selectedFamille.maitrise_equipement,
+            image_url: selectedFamille.image_url,
+            data: selectedFamille.data,
+            voies: selectedFamilleVoies,
+          }}
         />
       )}
 

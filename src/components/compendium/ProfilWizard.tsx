@@ -22,6 +22,8 @@ export interface InitialFamilleData {
   pv_niveau: number;
   de_recuperation: string;
   bonus_chance: number;
+  equipement_base: string | null;
+  maitrise_equipement: string | null;
   image_url?: string;
   data: Record<string, unknown>;
   voies: FamilleVoie[];
@@ -89,6 +91,8 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
   const [pvNiveau, setPvNiveau] = useState(initialData?.pv_niveau ?? 4);
   const [deRecuperation, setDeRecuperation] = useState(initialData?.de_recuperation ?? "1d6");
   const [bonusChance, setBonusChance] = useState(initialData?.bonus_chance ?? 0);
+  const [equipementBase, setEquipementBase] = useState(initialData?.equipement_base ?? "");
+  const [maitriseEquipement, setMaitriseEquipement] = useState(initialData?.maitrise_equipement ?? "");
 
   // Step 3 – Voies (liste locale avec _rangs pour édition)
   const [voies, setVoies] = useState<(FamilleVoie & { _rangs: RangsState })[]>(
@@ -149,10 +153,10 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
       let uploadedImageUrl: string | undefined = initialData?.image_url;
       if (imageFile) {
         const ext = imageFile.name.split(".").pop();
-        const path = `familles/${Date.now()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("images").upload(path, imageFile, { upsert: true });
+        const path = `familles/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
         if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage.from("images").getPublicUrl(path);
+        const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
         uploadedImageUrl = urlData.publicUrl;
       }
 
@@ -167,6 +171,8 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             pv_niveau: pvNiveau,
             de_recuperation: deRecuperation.trim(),
             bonus_chance: bonusChance,
+            equipement_base: equipementBase.trim() || null,
+            maitrise_equipement: maitriseEquipement.trim() || null,
             image_url: uploadedImageUrl ?? null,
           })
           .eq("id", initialData.id);
@@ -205,6 +211,8 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             pv_niveau: pvNiveau,
             de_recuperation: deRecuperation.trim(),
             bonus_chance: bonusChance,
+            equipement_base: equipementBase.trim() || null,
+            maitrise_equipement: maitriseEquipement.trim() || null,
             image_url: uploadedImageUrl ?? null,
             campaign_id: campaignId || null,
             is_custom: !!campaignId,
@@ -398,6 +406,26 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
                   </div>
                   <p className="text-[11px] text-white/40 italic">Modificateur appliqué aux jets de chance.</p>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Équipement de base</label>
+                <textarea
+                  value={equipementBase}
+                  onChange={(e) => setEquipementBase(e.target.value)}
+                  placeholder="ex: Armure de cuir, épée courte, bouclier, 10 po..."
+                  className="w-full h-28 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Maîtrise d'équipement</label>
+                <textarea
+                  value={maitriseEquipement}
+                  onChange={(e) => setMaitriseEquipement(e.target.value)}
+                  placeholder="ex: Armures légères, armes simples, arcs..."
+                  className="w-full h-20 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                />
               </div>
             </div>
           )}

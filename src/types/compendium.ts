@@ -43,6 +43,8 @@ export interface Famille {
   pv_niveau: number;
   de_recuperation: string;
   bonus_chance: number;
+  equipement_base: string | null;
+  maitrise_equipement: string | null;
   is_custom: boolean;
   data: Record<string, unknown>;
   campaign_id: string | null;

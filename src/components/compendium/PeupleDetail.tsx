@@ -36,7 +36,7 @@ export function PeupleDetail({ peuple, voie, isFullscreen, onToggleFullscreen, o
         <div className="flex gap-3 items-stretch">
           <PeupleCard peuple={peuple} />
 
-          <div className="flex-1 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
+          <div className="flex-1 max-h-66.25 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
             <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
             <div className="whitespace-pre-wrap">{peuple.description || "Aucune description renseignée."}</div>
           </div>
@@ -50,18 +50,18 @@ export function PeupleDetail({ peuple, voie, isFullscreen, onToggleFullscreen, o
             <StatRow label="Taille" value={peuple.data?.taille} />
             <StatRow label="Poids" value={peuple.data?.poids} />
           </div>
-          <div className="flex gap-2 mt-4 pt-4 border-t border-dashed border-white/10">
+          <div className="flex gap-2 mt-3 pt-3 border-t border-dashed border-white/10">
             <span className="font-bold shrink-0">• Traits :</span>
             <span className="font-light">{peuple.data?.traits || "Aucun"}</span>
+          </div>
+          <div className="flex gap-2 mt-3 pt-3 border-t border-dashed border-white/10">
+            <span className="font-bold shrink-0">• Caractéristiques :</span>
+            <span className="font-light">{peuple.data?.caracteristiques || "N/A"}</span>
           </div>
         </div>
 
         {/* VOIE DU PEUPLE */}
         <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl p-6 shadow-inner">
-          <div className="mb-5 pb-5 border-b border-white/10 text-[13px]">
-            <span className="font-bold text-white">Caractéristiques : </span>
-            <span className="font-light text-white/90">{peuple.data?.caracteristiques || "N/A"}</span>
-          </div>
           <h3 className="font-serif text-xl text-white mb-5">{voie ? voie.nom : "Voie raciale non définie"}</h3>
           {voie ? (
             <div className="space-y-4">
@@ -87,22 +87,20 @@ export function PeupleDetail({ peuple, voie, isFullscreen, onToggleFullscreen, o
 
 function PeupleCard({ peuple }: { peuple: Peuple }) {
   return (
-    <div className="w-52 shrink-0 rounded-2xl overflow-hidden flex flex-col relative border border-white/10">
-      <div className="flex-1 overflow-hidden relative flex items-center justify-center bg-black/30 min-h-64">
-        {peuple.image_url ? (
-          <img src={peuple.image_url} alt={peuple.nom} className="absolute inset-0 w-full h-full object-cover opacity-90" />
-        ) : (
+    <div className="w-44 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
+      {peuple.image_url ? (
+        <img src={peuple.image_url} alt={peuple.nom} className="absolute inset-0 w-full h-full object-cover opacity-90" />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
           <ImageIcon className="w-10 h-10 text-white/10" />
-        )}
-        <div className="absolute inset-0 z-10 pointer-events-none"
-          style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
-        />
-        <div className="absolute inset-0 z-20 pointer-events-none opacity-80"
-          style={{ backgroundImage: "url('/card-overlay.svg')", backgroundSize: "cover", backgroundPosition: "center" }}
-        />
-        <div className="absolute bottom-15 inset-x-0 z-30 pb-4 text-center">
-          <h3 className="font-serif text-lg text-white tracking-widest">{peuple.nom}</h3>
         </div>
+      )}
+      <div className="absolute inset-0 z-10 pointer-events-none"
+        style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
+      />
+      <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
+      <div className="absolute bottom-0 inset-x-0 z-30 pb-4 text-center">
+        <h3 className="font-serif text-base text-white tracking-widest">{peuple.nom}</h3>
       </div>
     </div>
   );
