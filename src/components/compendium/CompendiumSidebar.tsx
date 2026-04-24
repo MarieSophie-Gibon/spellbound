@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2 } from "lucide-react";
-import type { Peuple, Famille, Monstre, Section } from "@/types/compendium";
+import type { Peuple, Famille, Monstre, Equipement, Section } from "@/types/compendium";
 
 function SectionPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
@@ -20,13 +20,17 @@ interface CompendiumSidebarProps {
   selectedFamilleId: string | null;
   monstres: Monstre[];
   selectedMonstreId: string | null;
+  equipements: Equipement[];
+  selectedEquipementId: string | null;
   onSectionChange: (section: Section | null) => void;
   onSelectPeuple: (id: string) => void;
   onSelectFamille: (id: string) => void;
   onSelectMonstre: (id: string) => void;
+  onSelectEquipement: (id: string) => void;
   onCreatePeuple: () => void;
   onCreateProfil: () => void;
   onCreateMonstre: () => void;
+  onCreateObjet: () => void;
   onBack: () => void;
 }
 
@@ -38,17 +42,39 @@ export function CompendiumSidebar({
   selectedFamilleId,
   monstres,
   selectedMonstreId,
+  equipements,
+  selectedEquipementId,
   onSectionChange,
   onSelectPeuple,
   onSelectFamille,
   onSelectMonstre,
+  onSelectEquipement,
   onCreatePeuple,
   onCreateProfil,
   onCreateMonstre,
+  onCreateObjet,
   onBack,
 }: CompendiumSidebarProps) {
   const [expandedGroupes, setExpandedGroupes] = useState<Set<string>>(new Set());
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategorie = (cat: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
+
+  const equipementsParCategorie = equipements.reduce<Record<string, Equipement[]>>((acc, e) => {
+    const c = e.categorie || "Autre";
+    if (!acc[c]) acc[c] = [];
+    acc[c].push(e);
+    return acc;
+  }, {});
+  const categoriesOrdonnees = Object.keys(equipementsParCategorie).sort();
 
   const toggleType = (type: string) => {
     setExpandedTypes(prev => {
@@ -223,20 +249,54 @@ export function CompendiumSidebar({
             <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === 'objets' ? 'rotate-180' : ''}`} />
           </button>
           <SectionPanel open={activeSection === 'objets'}>
-            <div className="mt-1 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
-              <div className="text-[11px] text-white/30 italic py-1.5 px-2 uppercase tracking-widest">En construction</div>
+            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+              {equipements.length === 0 ? (
+                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun objet.</div>
+              ) : (
+                categoriesOrdonnees.map(cat => {
+                  const isOpen = expandedCategories.has(cat);
+                  return (
+                    <div key={cat}>
+                      <button
+                        onClick={() => toggleCategorie(cat)}
+                        className="flex items-center justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold uppercase tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
+                      >
+                        <span>{cat}</span>
+                        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <SectionPanel open={isOpen}>
+                        <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
+                          {equipementsParCategorie[cat].map(eq => (
+                            <button
+                              key={eq.id}
+                              onClick={() => onSelectEquipement(eq.id)}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedEquipementId === eq.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                            >
+                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedEquipementId === eq.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                              <span className="truncate flex-1">{eq.nom}</span>
+                              {eq.data?.rarete && (
+                                <span className="text-[10px] text-white/30 shrink-0">{eq.data.rarete}</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </SectionPanel>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </SectionPanel>
         </div>
       </div>
 
       {/* ACTIONS */}
-      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onBack={onBack} />
+      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onBack={onBack} />
     </>
   );
 }
 
-function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onBack: () => void }) {
+function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCreateObjet, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: () => void; onBack: () => void }) {
   const [showMenu, setShowMenu] = React.useState(false);
 
   return (
@@ -261,8 +321,11 @@ function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onBac
           >
             <Swords className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Créature
           </button>
-          <button disabled className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white/30 cursor-not-allowed">
-            <Wand2 className="w-4 h-4" /> Créer un Objet <span className="text-[9px] uppercase tracking-widest ml-auto border border-white/10 px-1.5 rounded">Bientôt</span>
+          <button
+            onClick={() => { onCreateObjet(); setShowMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors"
+          >
+            <Wand2 className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Objet
           </button>
         </div>
       )}

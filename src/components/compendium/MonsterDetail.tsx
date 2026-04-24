@@ -82,7 +82,7 @@ export function MonsterDetail({ monstre, isFullscreen, onToggleFullscreen, onEdi
                     </div>
 
                     {/* Stats de combat */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-2 text-[13px] text-white/90 pt-3 border-t border-dashed border-white/10">
+                    <div className="flex justify-between gap-x-8 gap-y-2 text-[13px] text-white/90 pt-3 border-t border-dashed border-white/10">
                         <StatRow label="Points de Vie" value={String(monstre.combat.pv_max)} />
                         <StatRow label="Défense" value={String(monstre.combat.defense)} />
                         <StatRow label="Initiative" value={String(monstre.combat.initiative)} />

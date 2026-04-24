@@ -110,3 +110,25 @@ export interface Monstre {
   campaign_id: string | null;
   image_url?: string;
 }
+
+export interface EquipementPropriete {
+  label: string;
+  valeur: string;
+}
+
+export interface EquipementData {
+  rarete?: string;
+  description?: string;
+  proprietes?: EquipementPropriete[];
+  necessite_attunement?: boolean;
+}
+
+export interface Equipement {
+  id: string;
+  nom: string;
+  categorie: string;
+  prix: string | null;
+  is_custom: boolean;
+  data: EquipementData;
+  image_url?: string;
+}
