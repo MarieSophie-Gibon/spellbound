@@ -60,7 +60,7 @@ export function MonsterDetail({ monstre, isFullscreen, onToggleFullscreen, onEdi
                         </div>
                         <div className="border-t border-white/10 pt-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed">
                             <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
-                            <div>Créature de type <strong className="text-white/90">{monstre.type_creature}</strong>, taille <strong className="text-white/90">{monstre.taille}</strong>.</div>
+                            <div className="whitespace-pre-wrap">{monstre.description || <span className="italic text-white/40">Créature de type <strong className="not-italic text-white/70">{monstre.type_creature}</strong>, taille <strong className="not-italic text-white/70">{monstre.taille}</strong>.</span>}</div>
                         </div>
                     </div>
                 </div>
@@ -95,7 +95,7 @@ export function MonsterDetail({ monstre, isFullscreen, onToggleFullscreen, onEdi
                     <div className="space-y-2">
                         <h2 className="text-[10px] uppercase tracking-[0.2em] text-white/40 px-1">Attaques</h2>
                         {monstre.attaques.map((att, i) => (
-                            <AttaqueBlock key={i} attaque={att} defaultOpen={i === 0} />
+                            <AttaqueBlock key={i} attaque={att} />
                         ))}
                     </div>
                 )}
@@ -193,7 +193,7 @@ function MonstreCard({ monstre }: { monstre: Monstre }) {
                 style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
             />
             <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
-            <div className="absolute bottom-0 inset-x-0 z-30 pb-3 px-2 text-center">
+            <div className="absolute bottom-5 inset-x-0 z-30 pb-3 px-2 text-center">
                 <div className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60 mb-0.5">NC {monstre.nc}</div>
                 <h3 className="font-serif text-sm text-white tracking-widest leading-tight">{monstre.nom}</h3>
             </div>

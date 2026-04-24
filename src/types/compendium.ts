@@ -101,6 +101,7 @@ export interface Monstre {
   type_creature: string;
   taille: string;
   is_custom: boolean;
+  description: string | null;
   stats: MonstreStats;
   combat: MonstreCombat;
   attaques: MonstreAttaque[];

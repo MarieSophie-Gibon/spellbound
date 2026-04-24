@@ -20,6 +20,7 @@ export interface InitialMonstreData {
   nc: string;
   type_creature: string;
   taille: string;
+  description: string | null;
   stats: MonstreStats;
   combat: MonstreCombat;
   attaques: MonstreAttaque[];
@@ -62,6 +63,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
   const [nc, setNc] = useState(initialData?.nc ?? "1");
   const [typeCreature, setTypeCreature] = useState(initialData?.type_creature ?? "Vivant");
   const [taille, setTaille] = useState(initialData?.taille ?? "Moyenne");
+  const [description, setDescription] = useState(initialData?.description ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image_url ?? null);
 
@@ -118,6 +120,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
         nc: nc.trim(),
         type_creature: typeCreature,
         taille,
+        description: description.trim() || null,
         stats,
         combat: { ...combat, pv: combat.pv_max },
         attaques,
@@ -259,6 +262,15 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description</label>
+                <textarea
+                  value={description} onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Apparence, comportement, lore..."
+                  className="w-full h-32 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                />
               </div>
 
               <div className="space-y-1.5">

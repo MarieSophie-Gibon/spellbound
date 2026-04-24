@@ -306,6 +306,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             nc: selectedMonstre.nc,
             type_creature: selectedMonstre.type_creature,
             taille: selectedMonstre.taille,
+            description: selectedMonstre.description,
             stats: selectedMonstre.stats,
             combat: selectedMonstre.combat,
             attaques: selectedMonstre.attaques,

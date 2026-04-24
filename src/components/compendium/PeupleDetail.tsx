@@ -99,7 +99,7 @@ function PeupleCard({ peuple }: { peuple: Peuple }) {
         style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
       />
       <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
-      <div className="absolute bottom-0 inset-x-0 z-30 pb-4 text-center">
+      <div className="absolute bottom-5 inset-x-0 z-30 pb-4 text-center">
         <h3 className="font-serif text-base text-white tracking-widest">{peuple.nom}</h3>
       </div>
     </div>
