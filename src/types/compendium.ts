@@ -63,3 +63,49 @@ export interface FamilleVoie {
     rang5: VoieRangCapacite;
   };
 }
+
+export interface MonstreStats {
+  agi: { mod: number; sup: boolean };
+  cha: { mod: number; sup: boolean };
+  con: { mod: number; sup: boolean };
+  for: { mod: number; sup: boolean };
+  int: { mod: number; sup: boolean };
+  per: { mod: number; sup: boolean };
+  vol: { mod: number; sup: boolean };
+}
+
+export interface MonstreCombat {
+  pv: number;
+  rd: number;
+  pv_max: number;
+  defense: number;
+  initiative: number;
+  attaque_magique: number | null;
+}
+
+export interface MonstreAttaque {
+  attaque_base: string;
+  dm: string;
+}
+
+export interface MonstreCapacite {
+  nom: string;
+  type: string;
+  description: string;
+}
+
+export interface Monstre {
+  id: string;
+  nom: string;
+  nc: string;
+  type_creature: string;
+  taille: string;
+  is_custom: boolean;
+  stats: MonstreStats;
+  combat: MonstreCombat;
+  attaques: MonstreAttaque[];
+  capacites: MonstreCapacite[];
+  data: Record<string, unknown>;
+  campaign_id: string | null;
+  image_url?: string;
+}

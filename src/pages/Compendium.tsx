@@ -9,7 +9,9 @@ import { FamilleDetail } from "@/components/compendium/FamilleDetail";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { PeupleWizard } from "@/components/compendium/PeupleWizard";
 import { ProfilWizard } from "@/components/compendium/ProfilWizard";
-import type { Peuple, Voie, Famille, FamilleVoie, Section } from "@/types/compendium";
+import { MonsterWizard } from "@/components/compendium/MonsterWizard";
+import { MonsterDetail } from "@/components/compendium/MonsterDetail";
+import type { Peuple, Voie, Famille, FamilleVoie, Monstre, Section } from "@/types/compendium";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -17,13 +19,15 @@ interface CompendiumProps {
 }
 
 export function Compendium({ onBack, campaignId }: CompendiumProps) {
-  const [activeSection, setActiveSection] = useState<Section>('peuples');
+  const [activeSection, setActiveSection] = useState<Section | null>('peuples');
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [selectedPeupleId, setSelectedPeupleId] = useState<string | null>(null);
   const [selectedVoie, setSelectedVoie] = useState<Voie | null>(null);
   const [familles, setFamilles] = useState<Famille[]>([]);
   const [selectedFamilleId, setSelectedFamilleId] = useState<string | null>(null);
   const [selectedFamilleVoies, setSelectedFamilleVoies] = useState<FamilleVoie[]>([]);
+  const [monstres, setMonstres] = useState<Monstre[]>([]);
+  const [selectedMonstreId, setSelectedMonstreId] = useState<string | null>(null);
 
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [showEditWizard, setShowEditWizard] = useState(false);
@@ -34,6 +38,10 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showCreateProfil, setShowCreateProfil] = useState(false);
   const [showEditProfil, setShowEditProfil] = useState(false);
+  const [showCreateMonster, setShowCreateMonster] = useState(false);
+  const [showEditMonster, setShowEditMonster] = useState(false);
+  const [showDeleteMonsterConfirm, setShowDeleteMonsterConfirm] = useState(false);
+  const [isDeletingMonster, setIsDeletingMonster] = useState(false);
 
   const fetchPeuples = async () => {
     let query = supabase.from('peuples').select('*').order('nom');
@@ -51,6 +59,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     if (data) setFamilles(data as Famille[]);
   };
 
+  const fetchMonstres = async () => {
+    let query = supabase.from('bestiaire').select('*').order('nom');
+    if (campaignId) query = query.eq('campaign_id', campaignId);
+    else query = query.is('campaign_id', null);
+    const { data } = await query;
+    if (data) setMonstres(data as Monstre[]);
+  };
+
   const fetchVoieForPeuple = async (peupleId: string) => {
     const { data } = await supabase
       .from('voies').select('*').eq('peuple_id', peupleId).single();
@@ -66,6 +82,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   useEffect(() => {
     if (activeSection === 'peuples') fetchPeuples();
     if (activeSection === 'familles') fetchFamilles();
+    if (activeSection === 'bestiaire') fetchMonstres();
   }, [activeSection, campaignId]);
 
   useEffect(() => {
@@ -78,10 +95,11 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     else setSelectedFamilleVoies([]);
   }, [selectedFamilleId]);
 
-  const handleSectionChange = (section: Section) => {
+  const handleSectionChange = (section: Section | null) => {
     setActiveSection(section);
     setSelectedPeupleId(null);
     setSelectedFamilleId(null);
+    setSelectedMonstreId(null);
     setIsFullscreen(false);
   };
 
@@ -102,6 +120,21 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
 
   const selectedPeuple = peuples.find(p => p.id === selectedPeupleId);
   const selectedFamille = familles.find(f => f.id === selectedFamilleId);
+  const selectedMonstre = monstres.find(m => m.id === selectedMonstreId);
+
+  const handleDeleteMonstre = async () => {
+    if (!selectedMonstre) return;
+    setIsDeletingMonster(true);
+    try {
+      await supabase.from('bestiaire').delete().eq('id', selectedMonstre.id);
+      setSelectedMonstreId(null);
+      setShowDeleteMonsterConfirm(false);
+      setIsFullscreen(false);
+      fetchMonstres();
+    } finally {
+      setIsDeletingMonster(false);
+    }
+  };
 
   const handleDeleteFamille = async () => {
     if (!selectedFamille) return;
@@ -125,11 +158,15 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       selectedPeupleId={selectedPeupleId}
       familles={familles}
       selectedFamilleId={selectedFamilleId}
+      monstres={monstres}
+      selectedMonstreId={selectedMonstreId}
       onSectionChange={handleSectionChange}
       onSelectPeuple={setSelectedPeupleId}
       onSelectFamille={setSelectedFamilleId}
+      onSelectMonstre={setSelectedMonstreId}
       onCreatePeuple={() => setShowCreateWizard(true)}
       onCreateProfil={() => setShowCreateProfil(true)}
+      onCreateMonstre={() => setShowCreateMonster(true)}
       onBack={onBack}
     />
   );
@@ -154,6 +191,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditProfil(true)}
             onDelete={() => setShowDeleteFamilleConfirm(true)}
+          />
+        ) : activeSection === 'bestiaire' && selectedMonstre ? (
+          <MonsterDetail
+            monstre={selectedMonstre}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={() => setIsFullscreen(f => !f)}
+            onEdit={() => setShowEditMonster(true)}
+            onDelete={() => setShowDeleteMonsterConfirm(true)}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
@@ -239,6 +284,44 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           campaignId={campaignId}
           onClose={() => setShowCreateProfil(false)}
           onSuccess={() => { fetchFamilles(); setActiveSection('familles'); }}
+        />
+      )}
+
+      {showCreateMonster && (
+        <MonsterWizard
+          campaignId={campaignId}
+          onClose={() => setShowCreateMonster(false)}
+          onSuccess={() => { fetchMonstres(); setActiveSection('bestiaire'); }}
+        />
+      )}
+
+      {showEditMonster && selectedMonstre && (
+        <MonsterWizard
+          campaignId={campaignId}
+          onClose={() => setShowEditMonster(false)}
+          onSuccess={() => fetchMonstres()}
+          initialData={{
+            id: selectedMonstre.id,
+            nom: selectedMonstre.nom,
+            nc: selectedMonstre.nc,
+            type_creature: selectedMonstre.type_creature,
+            taille: selectedMonstre.taille,
+            stats: selectedMonstre.stats,
+            combat: selectedMonstre.combat,
+            attaques: selectedMonstre.attaques,
+            capacites: selectedMonstre.capacites,
+            image_url: selectedMonstre.image_url,
+            data: selectedMonstre.data,
+          }}
+        />
+      )}
+
+      {showDeleteMonsterConfirm && selectedMonstre && (
+        <DeleteConfirmModal
+          name={selectedMonstre.nom}
+          isDeleting={isDeletingMonster}
+          onConfirm={handleDeleteMonstre}
+          onCancel={() => setShowDeleteMonsterConfirm(false)}
         />
       )}
     </>

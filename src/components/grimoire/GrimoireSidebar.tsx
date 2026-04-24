@@ -1,5 +1,16 @@
+import React from "react";
 import { FileText, Plus, ArrowLeft, GripVertical, ChevronDown } from "lucide-react";
 import type { Category, WikiPage, DraggedItem } from "@/types/grimoire";
+
+function SectionPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`grid transition-all duration-200 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}>
+      <div className="overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 interface GrimoireSidebarProps {
   pages: WikiPage[];
@@ -101,7 +112,7 @@ export function GrimoireSidebar({
                     <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`} />
                   </button>
 
-                  {isOpen && (
+                  <SectionPanel open={!!isOpen}>
                     <div className="mt-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1 space-y-0.5">
                       {subs.map((sub) => {
                         const subPages = pages.filter((p) => p.subcategory_id === sub.id);
@@ -125,19 +136,19 @@ export function GrimoireSidebar({
                                 <GripVertical className="w-3 h-3 shrink-0 opacity-0 group-hover/sub:opacity-40 transition-opacity" />
                                 <span className="truncate">{sub.name}</span>
                               </div>
-                              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isSubOpen ? "rotate-180" : ""}`} />
+                              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isSubOpen ? "rotate-180" : ""}`} />
                             </button>
-                            {isSubOpen && (
+                            <SectionPanel open={!!isSubOpen}>
                               <div className="mt-0.5 ml-2 border-l border-white/10 pl-2">
                                 {renderPageList(subPages)}
                               </div>
-                            )}
+                            </SectionPanel>
                           </div>
                         );
                       })}
                       {renderPageList(directPages)}
                     </div>
-                  )}
+                  </SectionPanel>
                 </div>
               );
             })}

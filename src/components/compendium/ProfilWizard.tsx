@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, ArrowRight, ArrowLeft, Save, Plus, Trash2, ChevronDown, Image as ImageIcon, UploadCloud } from "lucide-react";
+import { X, ArrowRight, ArrowLeft, Save, Plus, Trash2, ChevronDown, Image as ImageIcon, UploadCloud, Copy } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { FamilleVoie, VoieRangCapacite } from "@/types/compendium";
 
@@ -45,7 +45,7 @@ const EMPTY_RANGS: RangsState = {
   rang5: { nom: "", type: "passif", description: "" },
 };
 
-const GROUPES = ["Combattant", "Expert", "Magicien", "Hybride", "Autre"];
+const FALLBACK_GROUPES = ["Combattant", "Expert", "Magicien", "Hybride", "Autre"];
 
 const TYPE_LABELS: Record<string, string> = {
   principale: "Voie Principale",
@@ -70,6 +70,61 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
   const isEditing = !!initialData;
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Template picker (création seulement)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [templates, setTemplates] = useState<{ id: string; nom: string; groupe: string }[]>([]);
+  const [groupes, setGroupes] = useState<string[]>(FALLBACK_GROUPES);
+
+  useEffect(() => {
+    if (isEditing) return;
+    supabase.from("familles").select("id, nom, groupe").is("campaign_id", null).order("nom")
+      .then(({ data }) => {
+        if (data) {
+          setTemplates(data);
+          const distinct = Array.from(new Set(data.map((f: { groupe: string }) => f.groupe).filter(Boolean))).sort() as string[];
+          if (distinct.length > 0) setGroupes(distinct);
+        }
+      });
+  }, [isEditing]);
+
+  // En mode édition, charger aussi les groupes existants
+  useEffect(() => {
+    if (!isEditing) return;
+    supabase.from("familles").select("groupe").is("campaign_id", null)
+      .then(({ data }) => {
+        if (data) {
+          const distinct = Array.from(new Set(data.map((f: { groupe: string }) => f.groupe).filter(Boolean))).sort() as string[];
+          if (distinct.length > 0) setGroupes(distinct);
+        }
+      });
+  }, [isEditing]);
+
+  const applyTemplate = async (templateId: string) => {
+    const { data: fam } = await supabase.from("familles").select("*").eq("id", templateId).single();
+    if (!fam) return;
+    setNom(fam.nom + " (copie)");
+    setGroupe(fam.groupe ?? "");
+    setDescription(fam.description ?? "");
+    setImagePreview(fam.image_url ?? null);
+    setImageFile(null);
+    setPvNiveau(fam.pv_niveau ?? 4);
+    setDeRecuperation(fam.de_recuperation ?? "1d6");
+    setBonusChance(fam.bonus_chance ?? 0);
+    setEquipementBase(fam.equipement_base ?? "");
+    setMaitriseEquipement(fam.maitrise_equipement ?? "");
+    // Charger les voies du template
+    const { data: voiesData } = await supabase.from("voies").select("*").eq("famille_id", templateId).order("nom");
+    if (voiesData?.length) {
+      setVoies(voiesData.map((v: any) => ({
+        nom: v.nom,
+        type: v.type,
+        capacites: v.capacites,
+        _rangs: v.capacites as RangsState,
+      })));
+    }
+    setShowTemplatePicker(false);
+  };
 
   // Step 1 – Identité
   const [nom, setNom] = useState(initialData?.nom ?? "");
@@ -301,6 +356,45 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
           {/* STEP 1 – Identité */}
           {step === 1 && (
             <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
+
+              {/* TEMPLATE PICKER (création seulement) */}
+              {!isEditing && (
+                <div className="border border-white/10 rounded-xl overflow-hidden bg-white/3">
+                  <button
+                    onClick={() => setShowTemplatePicker(o => !o)}
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 text-[12px] text-white/50">
+                      <Copy className="w-3.5 h-3.5 text-[#E3CCCD]/40" />
+                      <span>Partir d'un modèle existant</span>
+                      {templates.length > 0 && (
+                        <span className="text-[10px] text-white/30 border border-white/15 rounded-full px-1.5">{templates.length}</span>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 text-white/30 transition-transform duration-200 ${showTemplatePicker ? "rotate-180" : ""}`} />
+                  </button>
+                  {showTemplatePicker && (
+                    <div className="border-t border-white/10 px-4 py-3 max-h-52 overflow-y-auto scrollbar-thin scrollbar-thumb-white/8">
+                      {templates.length === 0 ? (
+                        <p className="text-[12px] text-white/30 italic text-center py-2">Aucun profil dans le compendium global.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {templates.map(t => (
+                            <button
+                              key={t.id}
+                              onClick={() => applyTemplate(t.id)}
+                              className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#E3CCCD]/10 hover:border-[#E3CCCD]/20 border border-transparent transition-all text-left group"
+                            >
+                              <span className="text-[13px] text-white/80 group-hover:text-white transition-colors">{t.nom}</span>
+                              <span className="text-[10px] text-white/30 uppercase tracking-widest">{t.groupe}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Nom du Profil *</label>
                 <input
@@ -313,7 +407,7 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
               <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Groupe *</label>
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {GROUPES.map((g) => (
+                  {groupes.map((g) => (
                     <button
                       key={g}
                       onClick={() => setGroupe(g)}
@@ -322,7 +416,7 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
                       {g}
                     </button>
                   ))}
-                  {!GROUPES.includes(groupe) && groupe && (
+                  {!groupes.includes(groupe) && groupe && (
                     <span className="px-3.5 py-1.5 rounded-full border border-[#E3CCCD]/60 bg-[#E3CCCD]/10 text-[#E3CCCD] text-[12px]">{groupe}</span>
                   )}
                 </div>
