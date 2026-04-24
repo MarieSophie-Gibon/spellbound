@@ -26,14 +26,16 @@ function App() {
   if (isLoading) return <div className="min-h-screen bg-slate-950" />;
 
   return (
-    <div className="relative min-h-screen flex flex-col overflow-hidden font-sans text-slate-200">
+    <div className="relative h-screen flex flex-col font-sans text-slate-200" style={{ overflow: "clip" }}>
       {/* BACKGROUNDS & OVERLAYS */}
       <div className="absolute inset-0 z-0">
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('/default-bg.jpg')" }}
         />
-        <div className={`absolute inset-0 ${theme.glassOverlay}`} />
+        {/* backdrop-blur and mix-blend-mode must be on separate elements for Firefox */}
+        <div className="absolute inset-0 backdrop-blur-[12px]" />
+        <div className="absolute inset-0 bg-[#d9d9d9]/20 mix-blend-overlay" />
         <div
           className="absolute inset-0 bg-contain bg-right pointer-events-none opacity-80 bg-no-repeat"
           style={{ backgroundImage: "url('/overlay.svg')" }}
@@ -44,7 +46,7 @@ function App() {
       <div className="relative z-10 flex flex-1 overflow-hidden">
         <SideNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <main className="flex-1 overflow-auto flex flex-col">
+        <main className="flex-1 overflow-hidden flex flex-col">
           {!session ? (
             <Login />
           ) : (
@@ -90,7 +92,7 @@ function App() {
       </div>
 
       {/* FOOTER (Prend 100% de la largeur de l'écran en bas) */}
-      <div className="relative z-10 w-full shrink-0">
+      <div className="relative z-20 w-full shrink-0">
         <Footer />
       </div>
     </div>

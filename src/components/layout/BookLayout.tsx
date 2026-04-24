@@ -3,10 +3,11 @@ import type { ReactNode } from "react";
 interface BookLayoutProps {
   spineTitle: string;
   sidebar?: ReactNode;
+  hideSidebar?: boolean;
   children: ReactNode;
 }
 
-export function BookLayout({ spineTitle, sidebar, children }: BookLayoutProps) {
+export function BookLayout({ spineTitle, sidebar, hideSidebar = false, children }: BookLayoutProps) {
   return (
     <div className="flex-1 flex items-center justify-center w-full h-full p-8 md:pr-24">
       <div className="w-full h-full max-w-362.5 flex rounded-[1rem] relative bg-[#1E1941]/40 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden">
@@ -45,7 +46,7 @@ export function BookLayout({ spineTitle, sidebar, children }: BookLayoutProps) {
           </div>
 
           {/* 2. LE SOMMAIRE */}
-          {sidebar && (
+          {sidebar && !hideSidebar && (
             <div className="w-65 shrink-0 flex flex-col border-r border-[#E3CCCD]/20 bg-black/10">
               {sidebar}
             </div>
