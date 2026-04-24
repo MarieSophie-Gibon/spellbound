@@ -1,32 +1,53 @@
-import React from "react";
+import React, { useState } from "react";
 import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2 } from "lucide-react";
-import type { Peuple, Section } from "@/types/compendium";
+import type { Peuple, Famille, Section } from "@/types/compendium";
 
 interface CompendiumSidebarProps {
   activeSection: Section;
   peuples: Peuple[];
   selectedPeupleId: string | null;
+  familles: Famille[];
+  selectedFamilleId: string | null;
   onSectionChange: (section: Section) => void;
   onSelectPeuple: (id: string) => void;
+  onSelectFamille: (id: string) => void;
   onCreatePeuple: () => void;
+  onCreateProfil: () => void;
   onBack: () => void;
 }
-
-const OTHER_SECTIONS: { id: Section; label: string }[] = [
-  { id: 'familles', label: 'Familles' },
-  { id: 'bestiaire', label: 'Bestiaire' },
-  { id: 'objets', label: 'Objets Magiques' },
-];
 
 export function CompendiumSidebar({
   activeSection,
   peuples,
   selectedPeupleId,
+  familles,
+  selectedFamilleId,
   onSectionChange,
   onSelectPeuple,
+  onSelectFamille,
   onCreatePeuple,
+  onCreateProfil,
   onBack,
 }: CompendiumSidebarProps) {
+  const [expandedGroupes, setExpandedGroupes] = useState<Set<string>>(new Set());
+
+  const toggleGroupe = (groupe: string) => {
+    setExpandedGroupes(prev => {
+      const next = new Set(prev);
+      if (next.has(groupe)) next.delete(groupe);
+      else next.add(groupe);
+      return next;
+    });
+  };
+
+  // Regrouper les familles par groupe
+  const famillesParGroupe = familles.reduce<Record<string, Famille[]>>((acc, f) => {
+    const g = f.groupe || "Autre";
+    if (!acc[g]) acc[g] = [];
+    acc[g].push(f);
+    return acc;
+  }, {});
+  const groupesOrdonnes = Object.keys(famillesParGroupe).sort();
   return (
     <>
       <div className="flex-1 overflow-y-auto py-2 px-3 scrollbar-thin scrollbar-thumb-white/5">
@@ -61,32 +82,84 @@ export function CompendiumSidebar({
           )}
         </div>
 
+        {/* SECTION FAMILLES */}
+        <div className="w-full">
+          <button
+            onClick={() => onSectionChange('familles')}
+            className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'familles' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+          >
+            <span>Familles</span>
+            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === 'familles' ? 'rotate-180' : ''}`} />
+          </button>
+          {activeSection === 'familles' && (
+            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+              {familles.length === 0 ? (
+                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune famille.</div>
+              ) : (
+                groupesOrdonnes.map(groupe => {
+                  const isOpen = expandedGroupes.has(groupe);
+                  return (
+                    <div key={groupe}>
+                      {/* Groupe header */}
+                      <button
+                        onClick={() => toggleGroupe(groupe)}
+                        className="flex items-center justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold uppercase tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
+                      >
+                        <span>{groupe}</span>
+                        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      {/* Liste des profils du groupe */}
+                      {isOpen && (
+                        <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
+                          {famillesParGroupe[groupe].map(famille => (
+                            <button
+                              key={famille.id}
+                              onClick={() => onSelectFamille(famille.id)}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedFamilleId === famille.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                            >
+                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedFamilleId === famille.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                              <span className="truncate">{famille.nom}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+
         {/* AUTRES SECTIONS */}
-        {OTHER_SECTIONS.map(section => (
-          <div key={section.id} className="w-full">
-            <button
-              onClick={() => onSectionChange(section.id)}
-              className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === section.id ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
-            >
-              <span>{section.label}</span>
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === section.id ? 'rotate-180' : ''}`} />
-            </button>
-            {activeSection === section.id && (
-              <div className="mt-1 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2 uppercase tracking-widest">En construction</div>
-              </div>
-            )}
-          </div>
-        ))}
+        {(['bestiaire', 'objets'] as Section[]).map(id => {
+          const label = id === 'bestiaire' ? 'Bestiaire' : 'Objets Magiques';
+          return (
+            <div key={id} className="w-full">
+              <button
+                onClick={() => onSectionChange(id)}
+                className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === id ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+              >
+                <span>{label}</span>
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === id ? 'rotate-180' : ''}`} />
+              </button>
+              {activeSection === id && (
+                <div className="mt-1 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+                  <div className="text-[11px] text-white/30 italic py-1.5 px-2 uppercase tracking-widest">En construction</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* ACTIONS */}
-      <SidebarActions onCreatePeuple={onCreatePeuple} onBack={onBack} />
+      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateProfil={onCreateProfil} onBack={onBack} />
     </>
   );
 }
 
-function SidebarActions({ onCreatePeuple, onBack }: { onCreatePeuple: () => void; onBack: () => void }) {
+function SidebarActions({ onCreatePeuple, onCreateProfil, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onBack: () => void }) {
   const [showMenu, setShowMenu] = React.useState(false);
 
   return (
@@ -99,8 +172,11 @@ function SidebarActions({ onCreatePeuple, onBack }: { onCreatePeuple: () => void
           >
             <Users className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Peuple
           </button>
-          <button disabled className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white/30 cursor-not-allowed border-b border-white/5">
-            <BookOpenIcon className="w-4 h-4" /> Ajouter une Famille <span className="text-[9px] uppercase tracking-widest ml-auto border border-white/10 px-1.5 rounded">Bientôt</span>
+          <button
+            onClick={() => { onCreateProfil(); setShowMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+          >
+            <BookOpenIcon className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Profil
           </button>
           <button disabled className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white/30 cursor-not-allowed border-b border-white/5">
             <Swords className="w-4 h-4" /> Créer un Monstre <span className="text-[9px] uppercase tracking-widest ml-auto border border-white/10 px-1.5 rounded">Bientôt</span>

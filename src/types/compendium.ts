@@ -34,3 +34,30 @@ export interface Voie {
 }
 
 export type Section = 'peuples' | 'familles' | 'bestiaire' | 'objets';
+
+export interface Famille {
+  id: string;
+  nom: string;
+  groupe: string;
+  description: string | null;
+  pv_niveau: number;
+  de_recuperation: string;
+  bonus_chance: number;
+  is_custom: boolean;
+  data: Record<string, unknown>;
+  campaign_id: string | null;
+  image_url?: string;
+}
+
+export interface FamilleVoie {
+  id?: string;
+  nom: string;
+  type: string;
+  capacites: {
+    rang1: VoieRangCapacite;
+    rang2: VoieRangCapacite;
+    rang3: VoieRangCapacite;
+    rang4: VoieRangCapacite;
+    rang5: VoieRangCapacite;
+  };
+}

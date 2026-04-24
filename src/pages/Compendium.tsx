@@ -7,7 +7,8 @@ import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
 import { PeupleDetail } from "@/components/compendium/PeupleDetail";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { PeupleWizard } from "@/components/compendium/PeupleWizard";
-import type { Peuple, Voie, Section } from "@/types/compendium";
+import { ProfilWizard } from "@/components/compendium/ProfilWizard";
+import type { Peuple, Voie, Famille, Section } from "@/types/compendium";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -19,12 +20,15 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [selectedPeupleId, setSelectedPeupleId] = useState<string | null>(null);
   const [selectedVoie, setSelectedVoie] = useState<Voie | null>(null);
+  const [familles, setFamilles] = useState<Famille[]>([]);
+  const [selectedFamilleId, setSelectedFamilleId] = useState<string | null>(null);
 
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [showEditWizard, setShowEditWizard] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showCreateProfil, setShowCreateProfil] = useState(false);
 
   const fetchPeuples = async () => {
     let query = supabase.from('peuples').select('*').order('nom');
@@ -32,6 +36,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     else query = query.is('campaign_id', null);
     const { data } = await query;
     if (data) setPeuples(data as Peuple[]);
+  };
+
+  const fetchFamilles = async () => {
+    let query = supabase.from('familles').select('*').order('nom');
+    if (campaignId) query = query.eq('campaign_id', campaignId);
+    else query = query.is('campaign_id', null);
+    const { data } = await query;
+    if (data) setFamilles(data as Famille[]);
   };
 
   const fetchVoieForPeuple = async (peupleId: string) => {
@@ -42,6 +54,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
 
   useEffect(() => {
     if (activeSection === 'peuples') fetchPeuples();
+    if (activeSection === 'familles') fetchFamilles();
   }, [activeSection, campaignId]);
 
   useEffect(() => {
@@ -52,6 +65,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const handleSectionChange = (section: Section) => {
     setActiveSection(section);
     setSelectedPeupleId(null);
+    setSelectedFamilleId(null);
     setIsFullscreen(false);
   };
 
@@ -77,9 +91,13 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       activeSection={activeSection}
       peuples={peuples}
       selectedPeupleId={selectedPeupleId}
+      familles={familles}
+      selectedFamilleId={selectedFamilleId}
       onSectionChange={handleSectionChange}
       onSelectPeuple={setSelectedPeupleId}
+      onSelectFamille={setSelectedFamilleId}
       onCreatePeuple={() => setShowCreateWizard(true)}
+      onCreateProfil={() => setShowCreateProfil(true)}
       onBack={onBack}
     />
   );
@@ -141,6 +159,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           isDeleting={isDeleting}
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
+
+      {showCreateProfil && (
+        <ProfilWizard
+          campaignId={campaignId}
+          onClose={() => setShowCreateProfil(false)}
+          onSuccess={() => { fetchFamilles(); setActiveSection('familles'); }}
         />
       )}
     </>

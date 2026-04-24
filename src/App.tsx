@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Login } from "@/components/auth/Login";
 import { SideNav } from "@/components/layout/SideNav";
@@ -33,8 +32,7 @@ function App() {
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('/default-bg.jpg')" }}
         />
-        {/* backdrop-blur and mix-blend-mode must be on separate elements for Firefox */}
-        <div className="absolute inset-0 backdrop-blur-[12px]" />
+        <div className="absolute inset-0 backdrop-blur-md" />
         <div className="absolute inset-0 bg-[#d9d9d9]/20 mix-blend-overlay" />
         <div
           className="absolute inset-0 bg-contain bg-right pointer-events-none opacity-80 bg-no-repeat"
