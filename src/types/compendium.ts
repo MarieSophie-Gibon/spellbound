@@ -11,6 +11,7 @@ export interface Peuple {
   id: string;
   nom: string;
   description: string;
+  lore?: string | null;
   data: PeupleData;
   image_url?: string;
 }
@@ -45,6 +46,7 @@ export interface Famille {
   bonus_chance: number;
   equipement_base: string | null;
   maitrise_equipement: string | null;
+  lore?: string | null;
   is_custom: boolean;
   data: Record<string, unknown>;
   campaign_id: string | null;

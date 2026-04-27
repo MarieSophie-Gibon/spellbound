@@ -15,6 +15,7 @@ interface InitialPeupleData {
   id: string;
   nom: string;
   description: string;
+  lore?: string | null;
   image_url?: string;
   data: PeupleData;
   voie?: {
@@ -70,6 +71,7 @@ export function PeupleWizard({
   // --- ÉTAPE 1 : LORE ---
   const [nom, setNom] = useState(initialData?.nom ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
+  const [lore, setLore] = useState(initialData?.lore ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image_url ?? null);
 
@@ -150,6 +152,7 @@ export function PeupleWizard({
           .update({
             nom: nom.trim(),
             description: description.trim(),
+            lore: lore.trim() || null,
             image_url: finalImageUrl,
             data: data,
           })
@@ -183,6 +186,7 @@ export function PeupleWizard({
           .insert({
             nom: nom.trim(),
             description: description.trim(),
+            lore: lore.trim() || null,
             image_url: finalImageUrl,
             data: data,
             campaign_id: publicMode ? null : (campaignId || null),
@@ -320,7 +324,15 @@ export function PeupleWizard({
                 <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description et Lore</label>
                 <textarea
                   value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Histoire, mode de vie, relations avec les autres peuples..."
-                  className="w-full h-44 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                  className="w-full h-28 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Lore approfondi</label>
+                <textarea
+                  value={lore} onChange={(e) => setLore(e.target.value)} placeholder="Mythes, légendes, culture, religion, histoire ancienne..."
+                  className="w-full h-32 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
                 />
               </div>
             </div>

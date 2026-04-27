@@ -285,6 +285,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             id: selectedPeuple.id,
             nom: selectedPeuple.nom,
             description: selectedPeuple.description,
+            lore: selectedPeuple.lore,
             image_url: selectedPeuple.image_url,
             data: selectedPeuple.data,
             voie: selectedVoie ? {
@@ -329,6 +330,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             bonus_chance: selectedFamille.bonus_chance,
             equipement_base: selectedFamille.equipement_base,
             maitrise_equipement: selectedFamille.maitrise_equipement,
+            lore: selectedFamille.lore,
             image_url: selectedFamille.image_url,
             data: selectedFamille.data,
             voies: selectedFamilleVoies,

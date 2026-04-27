@@ -41,9 +41,14 @@ export function FamilleDetail({ famille, voies, isFullscreen, onToggleFullscreen
                 {/* IMAGE + DESCRIPTION */}
                 <div className="flex gap-3 items-stretch">
                     <FamilleCard famille={famille} />
-                    <div className="flex-1 min-h-0 max-h-66.25 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
+                    <div className="flex-1 max-h-66.25 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
                         <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
-                        <div className="whitespace-pre-wrap">{famille.description || "Aucune description renseignée."}</div>
+                        <div>
+                            <div className="whitespace-pre-wrap">{famille.description || "Aucune description renseignée."}</div>
+                            {famille.lore && (
+                                <div className="whitespace-pre-wrap mt-4 pt-4 border-t border-white/10 text-white/70 italic">{famille.lore}</div>
+                            )}
+                        </div>
                     </div>
                 </div>
 

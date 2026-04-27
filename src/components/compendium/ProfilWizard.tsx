@@ -24,6 +24,8 @@ export interface InitialFamilleData {
   bonus_chance: number;
   equipement_base: string | null;
   maitrise_equipement: string | null;
+  lore?: string | null;
+  campaign_id?: string | null;
   image_url?: string;
   data: Record<string, unknown>;
   voies: FamilleVoie[];
@@ -149,6 +151,7 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
   const [bonusChance, setBonusChance] = useState(initialData?.bonus_chance ?? 0);
   const [equipementBase, setEquipementBase] = useState(initialData?.equipement_base ?? "");
   const [maitriseEquipement, setMaitriseEquipement] = useState(initialData?.maitrise_equipement ?? "");
+  const [lore, setLore] = useState(initialData?.lore ?? "");
 
   // Step 3 – Voies (liste locale avec _rangs pour édition)
   const [voies, setVoies] = useState<(FamilleVoie & { _rangs: RangsState })[]>(
@@ -229,6 +232,7 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             bonus_chance: bonusChance,
             equipement_base: equipementBase.trim() || null,
             maitrise_equipement: maitriseEquipement.trim() || null,
+            lore: lore.trim() || null,
             image_url: uploadedImageUrl ?? null,
           })
           .eq("id", initialData.id);
@@ -270,6 +274,7 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             bonus_chance: bonusChance,
             equipement_base: equipementBase.trim() || null,
             maitrise_equipement: maitriseEquipement.trim() || null,
+            lore: lore.trim() || null,
             image_url: uploadedImageUrl ?? null,
             campaign_id: publicMode ? null : (campaignId || null),
             is_custom: !!(campaignId && isPrivate),
@@ -471,7 +476,16 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
                 <textarea
                   value={description} onChange={(e) => setDescription(e.target.value)}
                   placeholder="Présentation du profil, fantaisie, rôle dans le groupe..."
-                  className="w-full h-40 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                  className="w-full h-28 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Lore approfondi</label>
+                <textarea
+                  value={lore} onChange={(e) => setLore(e.target.value)}
+                  placeholder="Mythes, culture, histoire, place dans le monde..."
+                  className="w-full h-32 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
                 />
               </div>
             </div>
@@ -538,6 +552,8 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
                   className="w-full h-20 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
                 />
               </div>
+
+
             </div>
           )}
 

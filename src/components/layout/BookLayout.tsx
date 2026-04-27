@@ -31,7 +31,7 @@ export function BookLayout({ spineTitle, sidebar, hideSidebar = false, children 
               <span className="text-xs">✦</span>
             </div>
             <div className="flex-1 flex items-center justify-center">
-              <span className="font-serif text-3xl tracking-[0.3em] text-white/90 -rotate-90 whitespace-nowrap uppercase select-none">
+              <span className="font-serif text-xl tracking-[0.3em] text-white/90 -rotate-90 whitespace-nowrap uppercase select-none">
                 {spineTitle}
               </span>
             </div>
