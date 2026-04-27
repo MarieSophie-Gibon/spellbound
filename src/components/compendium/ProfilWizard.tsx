@@ -68,6 +68,7 @@ function makeEmptyVoie(): FamilleVoie & { _rangs: RangsState } {
 
 export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: ProfilWizardProps) {
   const isEditing = !!initialData;
+  const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -257,6 +258,7 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
         }
       } else {
         // Create famille
+        const publicMode = campaignId && !isPrivate;
         const { data: newFamille, error: famErr } = await supabase
           .from("familles")
           .insert({
@@ -269,8 +271,8 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             equipement_base: equipementBase.trim() || null,
             maitrise_equipement: maitriseEquipement.trim() || null,
             image_url: uploadedImageUrl ?? null,
-            campaign_id: campaignId || null,
-            is_custom: !!campaignId,
+            campaign_id: publicMode ? null : (campaignId || null),
+            is_custom: !!(campaignId && isPrivate),
           })
           .select()
           .single();
@@ -282,8 +284,8 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             nom: v.nom.trim(),
             type: v.type,
             famille_id: newFamille.id,
-            campaign_id: campaignId || null,
-            is_custom: !!campaignId,
+            campaign_id: publicMode ? null : (campaignId || null),
+            is_custom: !!(campaignId && isPrivate),
             capacites: v._rangs,
           });
           if (voieErr) throw voieErr;
@@ -331,6 +333,21 @@ export function ProfilWizard({ onClose, onSuccess, campaignId, initialData }: Pr
             </button>
           </div>
 
+          {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
+          {campaignId && (!isEditing || (isEditing && initialData?.campaign_id === campaignId)) && (
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                id="profil-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={e => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label htmlFor="profil-private" className="text-xs text-white/70 select-none cursor-pointer">
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
           {/* Steps */}
           <div className="flex items-center gap-0">
             {STEPS.map((s, i) => (

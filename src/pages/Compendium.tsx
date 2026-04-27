@@ -53,30 +53,45 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
 
   const fetchPeuples = async () => {
     let query = supabase.from('peuples').select('*').order('nom');
-    if (campaignId) query = query.eq('campaign_id', campaignId);
-    else query = query.is('campaign_id', null);
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      query = query.is('campaign_id', null);
+    }
     const { data } = await query;
     if (data) setPeuples(data as Peuple[]);
   };
 
   const fetchFamilles = async () => {
     let query = supabase.from('familles').select('*').order('nom');
-    if (campaignId) query = query.eq('campaign_id', campaignId);
-    else query = query.is('campaign_id', null);
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      query = query.is('campaign_id', null);
+    }
     const { data } = await query;
     if (data) setFamilles(data as Famille[]);
   };
 
   const fetchMonstres = async () => {
     let query = supabase.from('bestiaire').select('*').order('nom');
-    if (campaignId) query = query.eq('campaign_id', campaignId);
-    else query = query.is('campaign_id', null);
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      query = query.is('campaign_id', null);
+    }
     const { data } = await query;
     if (data) setMonstres(data as Monstre[]);
   };
 
   const fetchEquipements = async () => {
-    const { data } = await supabase.from('equipements').select('*').order('nom');
+    let query = supabase.from('equipements').select('*').order('nom');
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      query = query.is('campaign_id', null);
+    }
+    const { data } = await query;
     if (data) setEquipements(data as Equipement[]);
   };
 

@@ -6,14 +6,16 @@ import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
-import { Compendium } from "@/pages/Compendium"; // <-- Ajout de l'import
-
-type TabType = "grimoire" | "compendium" | "none";
+import { Compendium } from "@/pages/Compendium";
+import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
+import { CreateCampaign } from "@/components/compendium/CreateCampaign";
 
 function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("none");
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = initializeAuth();
@@ -22,7 +24,42 @@ function App() {
     };
   }, [initializeAuth]);
 
+  // Redirect to login if not authenticated
   if (isLoading) return <div className="min-h-screen bg-slate-950" />;
+
+  // Determine active tab from route
+  // Détermine les onglets visibles selon la route
+  const isCampaignRoute = location.pathname.startsWith("/campaign");
+  const getActiveTab = () => {
+    if (isCampaignRoute && location.pathname.includes("grimoire")) return "grimoire";
+    if (isCampaignRoute && location.pathname.includes("compendium")) return "compendium";
+    if (isCampaignRoute && location.pathname.includes("scenarios")) return "scenarios";
+    if (isCampaignRoute && location.pathname.includes("personnages")) return "personnages";
+    if (!isCampaignRoute && location.pathname === "/grimoire") return "grimoire";
+    if (!isCampaignRoute && location.pathname === "/compendium") return "compendium";
+    return "none";
+  };
+
+  // Onglets visibles selon le contexte
+  const getTabs = () => {
+    if (isCampaignRoute) return ["grimoire", "compendium", "scenarios", "personnages"];
+    return ["grimoire", "compendium"];
+  };
+
+  // Navigation handler pour SideNav (global ou campagne)
+  const handleTabChange = (tab: string) => {
+    if (isCampaignRoute) {
+      if (tab === "grimoire") navigate("/campaign/grimoire");
+      else if (tab === "compendium") navigate("/campaign/compendium");
+      else if (tab === "scenarios") navigate("/campaign/scenarios");
+      else if (tab === "personnages") navigate("/campaign/personnages");
+      else navigate("/campaign");
+    } else {
+      if (tab === "grimoire") navigate("/grimoire");
+      else if (tab === "compendium") navigate("/compendium");
+      else navigate("/");
+    }
+  };
 
   return (
     <div className="relative h-screen flex flex-col font-sans text-slate-200" style={{ overflow: "clip" }}>
@@ -42,56 +79,128 @@ function App() {
 
       {/* ZONE CENTRALE */}
       <div className="relative z-10 flex flex-1 overflow-hidden">
-        <SideNav activeTab={activeTab} onTabChange={setActiveTab} />
+        {/* Affiche la SideNav sur / (lobby), /grimoire, /compendium, /campaign et ses sous-routes */}
+        {(location.pathname === "/" || location.pathname === "/grimoire" || location.pathname === "/compendium" || isCampaignRoute) && (
+          <SideNav
+            activeTab={getActiveTab()}
+            onTabChange={handleTabChange}
+            tabs={getTabs()}
+          />
+        )}
 
         <main className="flex-1 overflow-hidden flex flex-col">
           {!session ? (
             <Login />
           ) : (
-            <>
-              {/* 1. Si on a cliqué sur un onglet, il prend la priorité */}
-              {activeTab === "grimoire" && (
-                <Grimoire isGlobal={!activeCampaign} onBack={() => setActiveTab("none")} />
-              )}
-
-              {activeTab === "compendium" && (
-                <Compendium 
-                  campaignId={activeCampaign?.id} 
-                  onBack={() => setActiveTab("none")} 
-                />
-              )}
-
-              {/* 2. Si aucun onglet n'est sélectionné ('none'), on gère l'affichage de base */}
-              {activeTab === "none" &&
-                (!activeCampaign ? (
-                  <Lobby
-                    onSelectCampaign={(campaign) => {
-                      setActiveCampaign(campaign);
-                      // Optionnel : on peut décider de rester sur 'none'
-                      // ou d'ouvrir le grimoire de la campagne direct
-                    }}
-                    onCreateCampaign={() =>
-                      console.log("Afficher la création de campagne")
-                    }
+            <Routes>
+              <Route
+                path="/"
+                element={
+                  !activeCampaign ? (
+                    <>
+                      <CreateCampaign
+                        open={showCreateCampaign}
+                        onOpenChange={setShowCreateCampaign}
+                        onCreated={(campaign: Campaign) => {
+                          setShowCreateCampaign(false);
+                          setActiveCampaign(campaign);
+                        }}
+                      />
+                      <Lobby
+                        onSelectCampaign={(campaign: Campaign) => {
+                          setActiveCampaign(campaign);
+                          navigate("/campaign");
+                        }}
+                        onCreateCampaign={() => setShowCreateCampaign(true)}
+                      />
+                    </>
+                  ) : (
+                    <Navigate to="/campaign" />
+                  )
+                }
+              />
+              <Route
+                path="/campaign"
+                element={
+                  activeCampaign ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
+                      <h2 className="text-2xl font-serif text-white uppercase tracking-widest">
+                        {activeCampaign.nom}
+                      </h2>
+                      <p className="text-white/40 italic mt-2">
+                        {activeCampaign.description}
+                      </p>
+                      {activeCampaign.image_url && (
+                        <img src={activeCampaign.image_url} alt={activeCampaign.nom} className="mt-6 rounded-xl max-w-xs border border-white/20 shadow-lg" />
+                      )}
+                      <p className="text-white/50 italic mt-8">Sélectionnez un onglet dans la navigation pour commencer.</p>
+                    </div>
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
+              />
+              <Route
+                path="/grimoire"
+                element={
+                  <Grimoire
+                    isGlobal={true}
+                    onBack={() => navigate("/")}
                   />
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-                    <h2 className="text-2xl font-serif text-white uppercase tracking-widest">
-                      {activeCampaign.nom}
-                    </h2>
-                    <p className="text-white/40 italic mt-2">
-                      Sélectionnez un onglet dans la navigation pour commencer.
-                    </p>
-                  </div>
-                ))}
-            </>
+                }
+              />
+              <Route
+                path="/compendium"
+                element={
+                  <Compendium
+                    onBack={() => navigate("/")}
+                  />
+                }
+              />
+              <Route
+                path="/campaign/grimoire"
+                element={
+                  <Grimoire
+                    isGlobal={false}
+                    campaignId={activeCampaign?.id}
+                    onBack={() => navigate("/campaign")}
+                  />
+                }
+              />
+              <Route
+                path="/campaign/compendium"
+                element={
+                  <Compendium
+                    campaignId={activeCampaign?.id}
+                    onBack={() => navigate("/campaign")}
+                  />
+                }
+              />
+              {/* Placeholders pour scenarios/personnages */}
+              <Route
+                path="/campaign/scenarios"
+                element={<div className="flex-1 flex flex-col items-center justify-center text-center p-10 text-white/60">Scénarios (à implémenter)</div>}
+              />
+              <Route
+                path="/campaign/personnages"
+                element={<div className="flex-1 flex flex-col items-center justify-center text-center p-10 text-white/60">Personnages (à implémenter)</div>}
+              />
+              {/* Redirect unknown routes to / */}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
           )}
         </main>
       </div>
 
       {/* FOOTER (Prend 100% de la largeur de l'écran en bas) */}
       <div className="relative z-20 w-full shrink-0">
-        <Footer />
+        <Footer
+          activeCampaign={activeCampaign}
+          onCampaignClick={() => {
+            setActiveCampaign(null);
+            navigate("/");
+          }}
+        />
       </div>
     </div>
   );

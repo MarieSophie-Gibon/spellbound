@@ -22,6 +22,7 @@ interface InitialPeupleData {
     nom: string;
     capacites: Record<string, { nom: string; type: string; description: string }>;
   };
+  campaign_id?: string | null;
 }
 
 interface PeupleWizardProps {
@@ -62,6 +63,7 @@ export function PeupleWizard({
   initialData,
 }: PeupleWizardProps) {
   const isEditing = !!initialData;
+  const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -175,6 +177,7 @@ export function PeupleWizard({
         }
       } else {
         // --- MODE CRÉATION ---
+        const publicMode = campaignId && !isPrivate;
         const { data: newPeuple, error: peupleErr } = await supabase
           .from("peuples")
           .insert({
@@ -182,8 +185,8 @@ export function PeupleWizard({
             description: description.trim(),
             image_url: finalImageUrl,
             data: data,
-            campaign_id: campaignId || null,
-            is_custom: !!campaignId,
+            campaign_id: publicMode ? null : (campaignId || null),
+            is_custom: !!(campaignId && isPrivate),
           })
           .select()
           .single();
@@ -195,8 +198,8 @@ export function PeupleWizard({
           type: "peuple",
           peuple_id: newPeuple.id,
           famille_id: null,
-          campaign_id: campaignId || null,
-          is_custom: !!campaignId,
+          campaign_id: publicMode ? null : (campaignId || null),
+          is_custom: !!(campaignId && isPrivate),
           capacites: rangs,
         });
 
@@ -239,6 +242,21 @@ export function PeupleWizard({
             </button>
           </div>
 
+          {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
+          {campaignId && (!isEditing || (isEditing && initialData?.campaign_id === campaignId)) && (
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                id="peuple-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={e => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label htmlFor="peuple-private" className="text-xs text-white/70 select-none cursor-pointer">
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
           {/* STEPS */}
           <div className="flex items-center gap-0">
             {[

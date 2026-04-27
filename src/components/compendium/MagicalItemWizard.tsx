@@ -41,6 +41,10 @@ const RARETES = ["Commun", "Peu Commun", "Rare", "Très Rare", "Légendaire", "A
 
 export function MagicalItemWizard({ onClose, onSuccess, initialData }: MagicalItemWizardProps) {
   const isEditing = !!initialData;
+  // campaignId est passé par le parent (Compendium)
+  // @ts-ignore
+  const campaignId = arguments[0]?.campaignId;
+  const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -89,12 +93,14 @@ export function MagicalItemWizard({ onClose, onSuccess, initialData }: MagicalIt
         uploadedImageUrl = urlData.publicUrl;
       }
 
+      const publicMode = campaignId && !isPrivate;
       const payload = {
         nom: nom.trim(),
         categorie,
         prix: prix.trim() || null,
-        is_custom: false,
+        is_custom: !!(campaignId && isPrivate),
         image_url: uploadedImageUrl ?? null,
+        campaign_id: publicMode ? null : (campaignId || null),
         data: {
           rarete,
           description: description.trim() || undefined,
@@ -139,7 +145,7 @@ export function MagicalItemWizard({ onClose, onSuccess, initialData }: MagicalIt
         <div className="relative z-10 shrink-0 px-8 pt-7 pb-6 border-b border-white/8 bg-black/10">
           <div className="flex items-center justify-between mb-7">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">Compendium Global</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">{campaignId ? "Compendium Custom" : "Compendium Global"}</p>
               <h2 className="font-serif text-2xl text-white tracking-wide">
                 {isEditing ? "Modifier l'Objet" : "Nouvel Objet Magique"}
               </h2>
@@ -148,6 +154,22 @@ export function MagicalItemWizard({ onClose, onSuccess, initialData }: MagicalIt
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
+          {campaignId && (!isEditing || (isEditing && initialData?.campaign_id === campaignId)) && (
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                id="equipement-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={e => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label htmlFor="equipement-private" className="text-xs text-white/70 select-none cursor-pointer">
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
 
           {/* Steps */}
           <div className="flex items-center gap-0">

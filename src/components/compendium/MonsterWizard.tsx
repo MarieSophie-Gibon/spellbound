@@ -55,6 +55,7 @@ function makeEmptyCapacite(): MonstreCapacite {
 
 export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: MonsterWizardProps) {
   const isEditing = !!initialData;
+  const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -115,6 +116,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
         uploadedImageUrl = urlData.publicUrl;
       }
 
+      const publicMode = campaignId && !isPrivate;
       const payload = {
         nom: nom.trim(),
         nc: nc.trim(),
@@ -126,8 +128,8 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
         attaques,
         capacites,
         image_url: uploadedImageUrl ?? null,
-        campaign_id: campaignId || null,
-        is_custom: !!campaignId,
+        campaign_id: publicMode ? null : (campaignId || null),
+        is_custom: !!(campaignId && isPrivate),
       };
 
       if (isEditing && initialData) {
@@ -180,6 +182,21 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
             </button>
           </div>
 
+          {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
+          {campaignId && (!isEditing || (isEditing && initialData?.campaign_id === campaignId)) && (
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                id="monster-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={e => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label htmlFor="monster-private" className="text-xs text-white/70 select-none cursor-pointer">
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
           {/* Steps */}
           <div className="flex items-center gap-0">
             {STEPS.map((s, i) => (

@@ -2,38 +2,58 @@ import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/useProfile";
-import { User, UserStar } from "lucide-react";
+import { User, UserStar, BookOpen } from "lucide-react";
+import { useCampaigns } from "@/hooks/useCampaigns";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
-export function Footer() {
+// Nouvelle prop pour la campagne active
+interface FooterProps {
+  activeCampaign?: { id: string; nom: string } | null;
+  onCampaignClick?: () => void;
+}
+
+
+export function Footer({ activeCampaign, onCampaignClick }: FooterProps) {
   const { session, signOut } = useAuthStore();
   const profile = useProfile();
 
   const isMJ = profile?.role === "mj";
   const displayName = session?.user?.email?.split("@")[0] || "Voyageur";
 
-  // --- Gestion du Hover + Click ---
-  const [isOpen, setIsOpen] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setIsOpen(true);
+  // --- Gestion du Hover + Click pour profil ---
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const profileTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleProfileMouseEnter = () => {
+    if (profileTimeoutRef.current) clearTimeout(profileTimeoutRef.current);
+    setIsProfileOpen(true);
   };
-
-  const handleMouseLeave = () => {
-    // On laisse 200ms à l'utilisateur pour déplacer sa souris vers le menu
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
+  const handleProfileMouseLeave = () => {
+    profileTimeoutRef.current = setTimeout(() => {
+      setIsProfileOpen(false);
     }, 200);
   };
-  // --------------------------------
+
+  // --- Gestion du Hover + Click pour campagne ---
+  const [isCampaignOpen, setIsCampaignOpen] = useState(false);
+  const campaignTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleCampaignMouseEnter = () => {
+    if (campaignTimeoutRef.current) clearTimeout(campaignTimeoutRef.current);
+    setIsCampaignOpen(true);
+  };
+  const handleCampaignMouseLeave = () => {
+    campaignTimeoutRef.current = setTimeout(() => {
+      setIsCampaignOpen(false);
+    }, 200);
+  };
+
+  const { data: campaigns } = useCampaigns();
 
   return (
     <footer
@@ -46,14 +66,73 @@ export function Footer() {
         alt="Spellbound Logo"
         className="relative z-5 w-24 h-24 object-contain"
       />
+
+      {/* Onglet campagne placé à gauche du profil avec 1.5rem de gap */}
+      {activeCampaign && (
+        <div
+          className="absolute top-0 right-70 -translate-y-1/2 z-20"
+          onMouseEnter={handleCampaignMouseEnter}
+          onMouseLeave={handleCampaignMouseLeave}
+        >
+          <DropdownMenu open={isCampaignOpen} onOpenChange={setIsCampaignOpen} modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="relative flex items-center justify-center h-8 px-6 cursor-pointer group outline-none border-none opacity-90 hover:opacity-100 transition-opacity"
+                style={{
+                  clipPath:
+                    "polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%)",
+                  background: theme.colors.blanc,
+                }}
+              >
+                <div
+                  className="absolute inset-px"
+                  style={{
+                    clipPath:
+                      "polygon(12px 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 12px 100%, 0 50%)",
+                    background: theme.gradientTab.background,
+                  }}
+                />
+                <div className="relative z-10 flex items-center gap-2 whitespace-nowrap">
+                  <BookOpen className="w-3 h-3 text-indigo-200 shrink-0" />
+                  <span className="text-[11px] font-serif text-white tracking-widest px-1">
+                    {activeCampaign.nom}
+                  </span>
+                  <div className="w-1 h-1 rotate-45 bg-white/70 shrink-0" />
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" onMouseEnter={handleCampaignMouseEnter} onMouseLeave={handleCampaignMouseLeave} className="w-56 bg-[#1E1941]/95 backdrop-blur-xl border-[#E3CCCD]/20 text-slate-200 mb-2 rounded-xl">
+              <DropdownMenuItem onClick={onCampaignClick} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10">
+                Revenir au lobby
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-white/10" />
+              <DropdownMenuLabel className="text-xs text-white/60">Changer de campagne</DropdownMenuLabel>
+              {campaigns?.map((c) => (
+                <DropdownMenuItem
+                  key={c.id}
+                  onClick={() => {
+                    if (c.id !== activeCampaign.id && typeof window !== 'undefined') {
+                      window.location.reload(); // force le reload pour tout réinitialiser
+                    }
+                  }}
+                  className={`cursor-pointer text-xs focus:bg-white/10 ${c.id === activeCampaign.id ? 'opacity-60 pointer-events-none' : ''}`}
+                >
+                  {c.nom}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      {/* Onglet profil (toujours à droite) */}
       {session && (
         <div
           className="absolute top-0 right-10 -translate-y-1/2 z-20"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={handleProfileMouseEnter}
+          onMouseLeave={handleProfileMouseLeave}
         >
-          {/* On lie l'état "open" et "onOpenChange" au composant */}
-          <DropdownMenu open={isOpen} onOpenChange={setIsOpen} modal={false}>
+          <DropdownMenu open={isProfileOpen} onOpenChange={setIsProfileOpen} modal={false}>
             <DropdownMenuTrigger asChild>
               <button
                 onClick={(e) => e.preventDefault()}
@@ -67,7 +146,6 @@ export function Footer() {
                     background: theme.colors.blanc,
                   }}
                 />
-
                 <div
                   className="absolute inset-px"
                   style={{
@@ -76,14 +154,12 @@ export function Footer() {
                     background: theme.gradientTab.background,
                   }}
                 />
-
                 <div className="relative z-10 flex items-center gap-2 whitespace-nowrap">
                   {isMJ ? (
                     <UserStar className="w-3 h-3 text-amber-200 shrink-0" />
                   ) : (
                     <User className="w-3 h-3 text-white/90 shrink-0" />
                   )}
-
                   <span className="text-[11px] font-serif text-white tracking-widest capitalize px-1">
                     {displayName}
                   </span>
@@ -91,12 +167,10 @@ export function Footer() {
                 </div>
               </button>
             </DropdownMenuTrigger>
-
-            {/* On remet les événements souris sur le menu pour qu'il reste ouvert au survol */}
             <DropdownMenuContent
               align="end"
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
+              onMouseEnter={handleProfileMouseEnter}
+              onMouseLeave={handleProfileMouseLeave}
               className="w-48 bg-[#1E1941]/95 backdrop-blur-xl border-[#E3CCCD]/20 text-slate-200 mb-2 rounded-xl"
             >
               <DropdownMenuItem className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10">

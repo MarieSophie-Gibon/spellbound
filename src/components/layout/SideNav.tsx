@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { theme } from "@/lib/theme";
-import { BookMarked, Telescope } from "lucide-react";
+import { BookMarked, Telescope, ScrollText, Users } from "lucide-react";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 interface SideNavProps {
-  activeTab: 'grimoire' | 'compendium' | 'none';
-  onTabChange: (tab: 'grimoire' | 'compendium' | 'none') => void;
+  activeTab: 'grimoire' | 'compendium' | 'scenarios' | 'personnages' | 'none';
+  onTabChange: (tab: 'grimoire' | 'compendium' | 'scenarios' | 'personnages' | 'none') => void;
+  tabs?: string[];
 }
 
 // On ajoute la prop isCollapsed
@@ -46,7 +47,7 @@ const NavItem = ({ label, icon: Icon, active, onClick, isCollapsed }: any) => {
   );
 };
 
-export function SideNav({ activeTab, onTabChange }: SideNavProps) {
+export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendium", "scenarios", "personnages"] }: SideNavProps) {
   const { session } = useAuthStore();
   
   // LOGIQUE DE RÉTRACTION : Rétracté si un onglet est actif !
@@ -66,20 +67,42 @@ export function SideNav({ activeTab, onTabChange }: SideNavProps) {
 
       {session && (
         <div className="w-full flex flex-col gap-4 relative z-10 pl-0">
-          <NavItem 
-            icon={BookMarked} 
-            label="Grimoire" 
-            active={activeTab === 'grimoire'} 
-            onClick={() => onTabChange('grimoire')} 
-            isCollapsed={isCollapsed}
-          />
-          <NavItem 
-            icon={Telescope} 
-            label="Compendium" 
-            active={activeTab === 'compendium'} 
-            onClick={() => onTabChange('compendium')}
-            isCollapsed={isCollapsed} 
-          />
+          {tabs.includes("grimoire") && (
+            <NavItem
+              icon={BookMarked}
+              label="Grimoire"
+              active={activeTab === 'grimoire'}
+              onClick={() => onTabChange('grimoire')}
+              isCollapsed={isCollapsed}
+            />
+          )}
+          {tabs.includes("compendium") && (
+            <NavItem
+              icon={Telescope}
+              label="Compendium"
+              active={activeTab === 'compendium'}
+              onClick={() => onTabChange('compendium')}
+              isCollapsed={isCollapsed}
+            />
+          )}
+          {tabs.includes("scenarios") && (
+            <NavItem
+              icon={ScrollText}
+              label="Scénarios"
+              active={activeTab === 'scenarios'}
+              onClick={() => onTabChange('scenarios')}
+              isCollapsed={isCollapsed}
+            />
+          )}
+          {tabs.includes("personnages") && (
+            <NavItem
+              icon={Users}
+              label="Personnages"
+              active={activeTab === 'personnages'}
+              onClick={() => onTabChange('personnages')}
+              isCollapsed={isCollapsed}
+            />
+          )}
         </div>
       )}
     </aside>
