@@ -20,6 +20,7 @@ export interface InitialEquipementData {
   prix: string | null;
   is_custom: boolean;
   image_url?: string;
+  campaign_id?: string | null;
   data: {
     rarete?: string;
     description?: string;

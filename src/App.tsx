@@ -7,6 +7,8 @@ import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
 import { Compendium } from "@/pages/Compendium";
+import { CampaignHome } from "@/pages/Campaign";
+import { Personnages } from "@/pages/Personnages";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/compendium/CreateCampaign";
 
@@ -123,18 +125,7 @@ function App() {
                 path="/campaign"
                 element={
                   activeCampaign ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center p-10">
-                      <h2 className="text-2xl font-serif text-white uppercase tracking-widest">
-                        {activeCampaign.nom}
-                      </h2>
-                      <p className="text-white/40 italic mt-2">
-                        {activeCampaign.description}
-                      </p>
-                      {activeCampaign.image_url && (
-                        <img src={activeCampaign.image_url} alt={activeCampaign.nom} className="mt-6 rounded-xl max-w-xs border border-white/20 shadow-lg" />
-                      )}
-                      <p className="text-white/50 italic mt-8">Sélectionnez un onglet dans la navigation pour commencer.</p>
-                    </div>
+                    <CampaignHome campaign={activeCampaign} />
                   ) : (
                     <Navigate to="/" />
                   )
@@ -183,7 +174,16 @@ function App() {
               />
               <Route
                 path="/campaign/personnages"
-                element={<div className="flex-1 flex flex-col items-center justify-center text-center p-10 text-white/60">Personnages (à implémenter)</div>}
+                element={
+                  activeCampaign ? (
+                    <Personnages
+                      campaignId={activeCampaign.id}
+                      onBack={() => navigate("/campaign")}
+                    />
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
               />
               {/* Redirect unknown routes to / */}
               <Route path="*" element={<Navigate to="/" />} />
