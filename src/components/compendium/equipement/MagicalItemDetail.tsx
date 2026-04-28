@@ -1,13 +1,14 @@
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, Wand2 } from "lucide-react";
+
 import type { Equipement } from "@/types/compendium";
 
-interface MagicalItemDetailProps {
-    equipement: Equipement;
+type EquipementDetailProps = {
+    equipement: any; // Accepts any equipment type (arme_contact, arme_distance, armure, equipement)
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
     onEdit: () => void;
     onDelete: () => void;
-}
+};
 
 const RARETE_COLORS: Record<string, string> = {
     "Commun": "text-white/50 border-white/20",
@@ -18,23 +19,32 @@ const RARETE_COLORS: Record<string, string> = {
     "Artefact": "text-red-400/80 border-red-400/30",
 };
 
-export function MagicalItemDetail({ equipement, isFullscreen, onToggleFullscreen, onEdit, onDelete }: MagicalItemDetailProps) {
+
+export function EquipementDetail({ equipement, isFullscreen, onToggleFullscreen, onEdit, onDelete }: EquipementDetailProps) {
+    // Detect type by presence of fields
+    const isArmeContact = equipement.dm !== undefined && equipement.type_de_dm !== undefined && equipement.portee === undefined;
+    const isArmeDistance = equipement.dm !== undefined && equipement.type_de_dm !== undefined && equipement.portee !== undefined;
+    const isArmure = equipement.bonus_def !== undefined && equipement.agi_max !== undefined;
+    const isMagical = equipement.data && (equipement.data.rarete || equipement.data.proprietes || equipement.data.necessite_attunement);
+
+    // Magical fields
     const rarete = equipement.data?.rarete ?? "Commun";
     const rareteColor = RARETE_COLORS[rarete] ?? "text-white/50 border-white/20";
     const proprietes = equipement.data?.proprietes ?? [];
-    const description = equipement.data?.description;
+    const description = equipement.data?.description ?? equipement.notes ?? "";
     const necessite = equipement.data?.necessite_attunement;
 
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
-
             {/* HEADER */}
             <div className="flex items-center justify-between border-b border-[#E3CCCD]/20 pb-3 mb-3 shrink-0">
                 <div className="flex items-baseline gap-3 min-w-0">
                     <h1 className="font-serif text-3xl text-white tracking-wider truncate">{equipement.nom}</h1>
-                    <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2.5 py-0.5 shrink-0">
-                        {equipement.categorie}
-                    </span>
+                    {equipement.categorie && (
+                        <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2.5 py-0.5 shrink-0">
+                            {equipement.categorie}
+                        </span>
+                    )}
                 </div>
                 <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl shrink-0">
                     <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
@@ -50,15 +60,14 @@ export function MagicalItemDetail({ equipement, isFullscreen, onToggleFullscreen
             </div>
 
             <div className="space-y-3 flex-1">
-
                 {/* IMAGE + INFO */}
                 <div className="flex gap-3 items-stretch">
                     <EquipementCard equipement={equipement} rareteColor={rareteColor} rarete={rarete} />
                     <div className="flex-1 min-h-0 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex flex-col gap-3 shadow-inner">
                         <div className="flex flex-wrap gap-3 text-[12px]">
-                            <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${rareteColor}`}>
-                                {rarete}
-                            </span>
+                            {isMagical && (
+                                <span className={`text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${rareteColor}`}>{rarete}</span>
+                            )}
                             {equipement.prix && (
                                 <>
                                     <span className="text-white/20 self-center">·</span>
@@ -72,13 +81,44 @@ export function MagicalItemDetail({ equipement, isFullscreen, onToggleFullscreen
                                     <span className="text-[11px] px-2.5 py-0.5 rounded-full border border-amber-400/30 text-amber-300/70">✦ Harmonisation</span>
                                 </>
                             )}
+                            {isArmeContact && (
+                                <>
+                                    <span className="text-white/20 self-center">·</span>
+                                    <span className="text-[#E3CCCD]/50 font-semibold uppercase tracking-widest self-center">Dégâts</span>
+                                    <span className="text-white/70 self-center">{equipement.dm} {equipement.type_de_dm}</span>
+                                    {equipement.notes && <span className="text-white/40 self-center">({equipement.notes})</span>}
+                                </>
+                            )}
+                            {isArmeDistance && (
+                                <>
+                                    <span className="text-white/20 self-center">·</span>
+                                    <span className="text-[#E3CCCD]/50 font-semibold uppercase tracking-widest self-center">Dégâts</span>
+                                    <span className="text-white/70 self-center">{equipement.dm} {equipement.type_de_dm}</span>
+                                    <span className="text-white/20 self-center">·</span>
+                                    <span className="text-[#E3CCCD]/50 font-semibold uppercase tracking-widest self-center">Portée</span>
+                                    <span className="text-white/70 self-center">{equipement.portee}</span>
+                                    {equipement.notes && <span className="text-white/40 self-center">({equipement.notes})</span>}
+                                </>
+                            )}
+                            {isArmure && (
+                                <>
+                                    <span className="text-white/20 self-center">·</span>
+                                    <span className="text-[#E3CCCD]/50 font-semibold uppercase tracking-widest self-center">Bonus DEF</span>
+                                    <span className="text-white/70 self-center">{equipement.bonus_def}</span>
+                                    <span className="text-white/20 self-center">·</span>
+                                    <span className="text-[#E3CCCD]/50 font-semibold uppercase tracking-widest self-center">AGI Max</span>
+                                    <span className="text-white/70 self-center">{equipement.agi_max}</span>
+                                </>
+                            )}
                         </div>
                         <div className="border-t border-white/10 pt-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed flex-1">
                             <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
                             <div className="whitespace-pre-wrap">
                                 {description || (
                                     <span className="italic text-white/40">
-                                        {equipement.categorie} de rareté <strong className="not-italic text-white/70">{rarete}</strong>.
+                                        {equipement.categorie ? `${equipement.categorie}` : "Équipement"}
+                                        {isMagical && <> de rareté <strong className="not-italic text-white/70">{rarete}</strong></>}
+                                        .
                                     </span>
                                 )}
                             </div>
@@ -86,11 +126,11 @@ export function MagicalItemDetail({ equipement, isFullscreen, onToggleFullscreen
                     </div>
                 </div>
 
-                {/* PROPRIÉTÉS */}
-                {proprietes.length > 0 && (
+                {/* PROPRIÉTÉS MAGIQUES */}
+                {isMagical && proprietes.length > 0 && (
                     <div className="border border-dashed border-[#E3CCCD]/25 rounded-2xl px-5 py-4 space-y-2">
                         <h2 className="text-[10px] uppercase tracking-[0.2em] text-white/40 mb-3">Propriétés Magiques</h2>
-                        {proprietes.map((p, i) => (
+                        {proprietes.map((p: any, i: number) => (
                             <div key={i} className="flex items-start gap-3 text-[13px]">
                                 <span className="text-[#E3CCCD]/50 shrink-0 mt-0.5">•</span>
                                 <span className="font-semibold text-white/80 shrink-0">{p.label} :</span>
@@ -100,19 +140,19 @@ export function MagicalItemDetail({ equipement, isFullscreen, onToggleFullscreen
                     </div>
                 )}
 
-                {proprietes.length === 0 && !description && (
+                {/* Message si aucune propriété */}
+                {isMagical && proprietes.length === 0 && !description && (
                     <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl p-6 text-center text-[13px] text-white/30 italic flex flex-col items-center gap-2">
                         <Wand2 className="w-5 h-5 opacity-30" />
                         Aucune propriété définie pour cet objet.
                     </div>
                 )}
-
             </div>
         </div>
     );
 }
 
-function EquipementCard({ equipement, rareteColor, rarete }: { equipement: Equipement; rareteColor: string; rarete: string }) {
+function EquipementCard({ equipement, rareteColor, rarete }: { equipement: any; rareteColor: string; rarete: string }) {
     return (
         <div className="w-44 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
             {equipement.image_url ? (

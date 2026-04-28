@@ -4,15 +4,15 @@ import { BookOpen as BookOpenIcon } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
 import { supabase } from "@/lib/supabase";
 import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
-import { PeupleDetail } from "@/components/compendium/PeupleDetail";
-import { FamilleDetail } from "@/components/compendium/FamilleDetail";
+import { PeupleDetail } from "@/components/compendium/peuple/PeupleDetail";
+import { FamilleDetail } from "@/components/compendium/famille/FamilleDetail";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
-import { PeupleWizard } from "@/components/compendium/PeupleWizard";
-import { ProfilWizard } from "@/components/compendium/ProfilWizard";
-import { MonsterWizard } from "@/components/compendium/MonsterWizard";
-import { MonsterDetail } from "@/components/compendium/MonsterDetail";
-import { MagicalItemWizard } from "@/components/compendium/MagicalItemWizard";
-import { MagicalItemDetail } from "@/components/compendium/MagicalItemDetail";
+import { PeupleWizard } from "@/components/compendium/peuple/PeupleWizard";
+import { ProfilWizard } from "@/components/compendium/famille/ProfilWizard";
+import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
+import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
+import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
+import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
 import type { Peuple, Voie, Famille, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 
 interface CompendiumProps {
@@ -40,8 +40,11 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [isDeletingFamille, setIsDeletingFamille] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showCreateProfil, setShowCreateProfil] = useState(false);
+  // ProfilWizard modals removed (unused)
+  // Add missing state for commented ProfilWizard modals (to avoid TS errors if uncommented)
+  // Remove if not needed
   const [showEditProfil, setShowEditProfil] = useState(false);
+  const [showCreateProfil, setShowCreateProfil] = useState(false);
   const [showCreateMonster, setShowCreateMonster] = useState(false);
   const [showEditMonster, setShowEditMonster] = useState(false);
   const [showDeleteMonsterConfirm, setShowDeleteMonsterConfirm] = useState(false);
@@ -250,7 +253,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onDelete={() => setShowDeleteMonsterConfirm(true)}
           />
         ) : activeSection === 'objets' && selectedEquipement ? (
-          <MagicalItemDetail
+          <EquipementDetail
             equipement={selectedEquipement}
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
@@ -386,24 +389,19 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       )}
 
       {showCreateObjet && (
-        <MagicalItemWizard
+        <EquipementWizard
           onClose={() => setShowCreateObjet(false)}
           onSuccess={() => { fetchEquipements(); setActiveSection('objets'); }}
         />
       )}
 
       {showEditObjet && selectedEquipement && (
-        <MagicalItemWizard
+        <EquipementWizard
           onClose={() => setShowEditObjet(false)}
           onSuccess={() => fetchEquipements()}
           initialData={{
-            id: selectedEquipement.id,
-            nom: selectedEquipement.nom,
-            categorie: selectedEquipement.categorie,
-            prix: selectedEquipement.prix,
-            is_custom: selectedEquipement.is_custom,
-            image_url: selectedEquipement.image_url,
-            data: selectedEquipement.data,
+            ...selectedEquipement,
+            table_source: "equipement", // fallback, or infer from context if available
           }}
         />
       )}

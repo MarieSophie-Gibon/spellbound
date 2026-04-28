@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from "react";
-import { createPortal } from "react-dom";
+// import { createPortal } from "react-dom";
+import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, ArrowRight, ArrowLeft, Save, Plus, Trash2, ChevronDown, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { MonstreStats, MonstreCombat, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
@@ -27,6 +28,7 @@ export interface InitialMonstreData {
   capacites: MonstreCapacite[];
   image_url?: string;
   data: Record<string, unknown>;
+  campaign_id?: string | null;
 }
 
 // --- Constants ---
@@ -156,18 +158,10 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
     { num: 4, label: "Capacités" },
   ];
 
-  return createPortal(
-    <div className="fixed inset-0 z-9999 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div
-        className="relative w-full max-w-3xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex flex-col h-[85vh] animate-in zoom-in-95 duration-200 border border-white/10 overflow-hidden"
-        style={{ background: "linear-gradient(160deg, rgba(80,95,200,0.38) 0%, rgba(55,48,130,0.42) 50%, rgba(70,80,175,0.38) 100%)" }}
-      >
-        <div className="absolute inset-0 backdrop-blur-3xl -z-10" />
-        <div className="absolute inset-0 bg-white/3 -z-10" />
-        <div className="absolute inset-px rounded-2xl border border-white/10 pointer-events-none z-0" />
-
-        {/* HEADER */}
-        <div className="relative z-10 shrink-0 px-8 pt-7 pb-6 border-b border-white/8 bg-black/10">
+  return (
+    <ModalLayout>
+      {/* HEADER */}
+      <div className="relative z-10 shrink-0 px-8 pt-7 pb-6 border-b border-white/8 bg-black/10">
           <div className="flex items-center justify-between mb-7">
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
@@ -572,8 +566,6 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
             </button>
           )}
         </div>
-      </div>
-    </div>,
-    document.body
+    </ModalLayout>
   );
 }

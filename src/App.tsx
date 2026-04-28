@@ -10,7 +10,7 @@ import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
-import { CreateCampaign } from "@/components/compendium/CreateCampaign";
+import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 
 function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
