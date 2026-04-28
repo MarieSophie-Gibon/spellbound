@@ -76,6 +76,111 @@ const RARETES = [
 
 // --- Main Component ---
 
+function ImageUploader({
+  imagePreview,
+  onImageChange,
+}: {
+  imagePreview: string | null;
+  onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="w-14 h-14 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center overflow-hidden shrink-0">
+        {imagePreview ? (
+          <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon className="w-5 h-5 text-white/15" />
+        )}
+      </div>
+      <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-white/20 text-[11px] text-white/40 hover:border-white/40 hover:text-white/60 cursor-pointer transition-colors">
+        <UploadCloud className="w-3.5 h-3.5" />
+        Choisir une image...
+        <input type="file" accept="image/*" className="hidden" onChange={onImageChange} />
+      </label>
+    </div>
+  );
+}
+
+function ArmeContactFields({
+  dm, setDm, typeDeDm, setTypeDeDm, categorie, setCategorie, notes, setNotes,
+}: any) {
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Dégâts (DM)</label>
+        <input type="text" value={dm} onChange={(e: any) => setDm(e.target.value)} placeholder="ex: 1d8+2"
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Type de DM</label>
+        <input type="text" value={typeDeDm} onChange={(e: any) => setTypeDeDm(e.target.value)} placeholder="Tranchant, contondant..."
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Catégorie</label>
+        <input type="text" value={categorie} onChange={(e: any) => setCategorie(e.target.value)} placeholder="Épée, Masse, Hache..."
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1 col-span-2">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Notes</label>
+        <textarea value={notes} onChange={(e: any) => setNotes(e.target.value)} placeholder="Lourde, 2 mains..." rows={2}
+          className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-lg p-2.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed" />
+      </div>
+    </div>
+  );
+}
+
+function ArmeDistanceFields({
+  dm, setDm, typeDeDm, setTypeDeDm, categorie, setCategorie, portee, setPortee, notes, setNotes,
+}: any) {
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Dégâts (DM)</label>
+        <input type="text" value={dm} onChange={(e: any) => setDm(e.target.value)} placeholder="ex: 1d8+2"
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Type de DM</label>
+        <input type="text" value={typeDeDm} onChange={(e: any) => setTypeDeDm(e.target.value)} placeholder="Perforant, contondant..."
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Catégorie</label>
+        <input type="text" value={categorie} onChange={(e: any) => setCategorie(e.target.value)} placeholder="Arc, Arbalète..."
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Portée</label>
+        <input type="text" value={portee} onChange={(e: any) => setPortee(e.target.value)} placeholder="30/120m"
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1 col-span-2">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Notes</label>
+        <textarea value={notes} onChange={(e: any) => setNotes(e.target.value)} placeholder="Lancer, 2 mains..." rows={2}
+          className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-lg p-2.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed" />
+      </div>
+    </div>
+  );
+}
+
+function ArmureFields({ bonusDef, setBonusDef, agiMax, setAgiMax }: any) {
+  return (
+    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Bonus de DEF</label>
+        <input type="text" value={bonusDef} onChange={(e: any) => setBonusDef(e.target.value)} placeholder="ex: +2"
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+      <div className="space-y-1">
+        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">AGI Max</label>
+        <input type="text" value={agiMax} onChange={(e: any) => setAgiMax(e.target.value)} placeholder="ex: 2"
+          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+      </div>
+    </div>
+  );
+}
+
 export default function EquipementWizard({
   onClose,
   onSuccess,
@@ -117,125 +222,6 @@ export default function EquipementWizard({
     }
   }
 
-  // --- Subcomponents ---
-  function ImageUploader({
-    imagePreview,
-    onImageChange,
-  }: {
-    imagePreview: string | null;
-    onImageChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  }) {
-    return (
-      <div className="flex items-center gap-4">
-        <div className="w-14 h-14 rounded-xl border border-white/15 bg-white/5 flex items-center justify-center overflow-hidden shrink-0">
-          {imagePreview ? (
-            <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-          ) : (
-            <ImageIcon className="w-5 h-5 text-white/15" />
-          )}
-        </div>
-        <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-white/20 text-[11px] text-white/40 hover:border-white/40 hover:text-white/60 cursor-pointer transition-colors">
-          <UploadCloud className="w-3.5 h-3.5" />
-          Choisir une image...
-          <input type="file" accept="image/*" className="hidden" onChange={onImageChange} />
-        </label>
-      </div>
-    );
-  }
-  function ArmeContactFields({
-    dm,
-    setDm,
-    typeDeDm,
-    setTypeDeDm,
-    categorie,
-    setCategorie,
-    notes,
-    setNotes,
-  }: any) {
-    return (
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Dégâts (DM)</label>
-          <input type="text" value={dm} onChange={(e) => setDm(e.target.value)} placeholder="ex: 1d8+2"
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Type de DM</label>
-          <input type="text" value={typeDeDm} onChange={(e) => setTypeDeDm(e.target.value)} placeholder="Tranchant, contondant..."
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Catégorie</label>
-          <input type="text" value={categorie} onChange={(e) => setCategorie(e.target.value)} placeholder="Épée, Masse, Hache..."
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1 col-span-2">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Lourde, 2 mains..." rows={2}
-            className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-lg p-2.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed" />
-        </div>
-      </div>
-    );
-  }
-  function ArmeDistanceFields({
-    dm,
-    setDm,
-    typeDeDm,
-    setTypeDeDm,
-    categorie,
-    setCategorie,
-    portee,
-    setPortee,
-    notes,
-    setNotes,
-  }: any) {
-    return (
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Dégâts (DM)</label>
-          <input type="text" value={dm} onChange={(e) => setDm(e.target.value)} placeholder="ex: 1d8+2"
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Type de DM</label>
-          <input type="text" value={typeDeDm} onChange={(e) => setTypeDeDm(e.target.value)} placeholder="Perforant, contondant..."
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Catégorie</label>
-          <input type="text" value={categorie} onChange={(e) => setCategorie(e.target.value)} placeholder="Arc, Arbalète..."
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Portée</label>
-          <input type="text" value={portee} onChange={(e) => setPortee(e.target.value)} placeholder="30/120m"
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1 col-span-2">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Lancer, 2 mains..." rows={2}
-            className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-lg p-2.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed" />
-        </div>
-      </div>
-    );
-  }
-  function ArmureFields({ bonusDef, setBonusDef, agiMax, setAgiMax }: any) {
-    return (
-      <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Bonus de DEF</label>
-          <input type="text" value={bonusDef} onChange={(e) => setBonusDef(e.target.value)} placeholder="ex: +2"
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">AGI Max</label>
-          <input type="text" value={agiMax} onChange={(e) => setAgiMax(e.target.value)} placeholder="ex: 2"
-            className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
-        </div>
-      </div>
-    );
-  }
-
   // --- Submit ---
   const handleSubmit = async () => {
     if (!nom.trim()) return alert("Le nom est obligatoire.");
@@ -268,8 +254,8 @@ export default function EquipementWizard({
             categorie: categorie.trim() || null,
             notes: notes.trim() || null,
             prix: prix.trim() || null,
-            is_custom: !!(campaignId && isPrivate),
             image_url: uploadedImageUrl ?? null,
+            is_custom: !!(campaignId && isPrivate),
             campaign_id: publicMode ? null : campaignId || null,
           };
           break;
@@ -283,8 +269,8 @@ export default function EquipementWizard({
             portee: portee.trim() || null,
             notes: notes.trim() || null,
             prix: prix.trim() || null,
-            is_custom: !!(campaignId && isPrivate),
             image_url: uploadedImageUrl ?? null,
+            is_custom: !!(campaignId && isPrivate),
             campaign_id: publicMode ? null : campaignId || null,
           };
           break;
@@ -295,8 +281,8 @@ export default function EquipementWizard({
             bonus_def: bonusDef.trim() || null,
             agi_max: agiMax.trim() || null,
             prix: prix.trim() || null,
-            is_custom: !!(campaignId && isPrivate),
             image_url: uploadedImageUrl ?? null,
+            is_custom: !!(campaignId && isPrivate),
             campaign_id: publicMode ? null : campaignId || null,
           };
           break;

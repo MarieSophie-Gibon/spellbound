@@ -133,4 +133,14 @@ export interface Equipement {
   is_custom: boolean;
   data: EquipementData;
   image_url?: string;
+  table_source: "arme_contact" | "arme_distance" | "armure" | "equipement";
+  // Arme fields
+  dm?: string;
+  type_de_dm?: string;
+  notes?: string;
+  portee?: string;
+  // Armure fields
+  bonus_def?: string;
+  agi_max?: string;
+  campaign_id?: string | null;
 }

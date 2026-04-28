@@ -22,12 +22,12 @@ interface CompendiumSidebarProps {
   monstres: Monstre[];
   selectedMonstreId: string | null;
   equipements: Equipement[];
-  selectedEquipementId: string | null;
+  selectedEquipementTable: EquipementType | null;
   onSectionChange: (section: Section | null) => void;
   onSelectPeuple: (id: string) => void;
   onSelectFamille: (id: string) => void;
   onSelectMonstre: (id: string) => void;
-  onSelectEquipement: (id: string) => void;
+  onSelectEquipementTable: (type: EquipementType) => void;
   onCreatePeuple: () => void;
   onCreateProfil: () => void;
   onCreateMonstre: () => void;
@@ -44,12 +44,12 @@ export function CompendiumSidebar({
   monstres,
   selectedMonstreId,
   equipements,
-  selectedEquipementId,
+  selectedEquipementTable,
   onSectionChange,
   onSelectPeuple,
   onSelectFamille,
   onSelectMonstre,
-  onSelectEquipement,
+  onSelectEquipementTable,
   onCreatePeuple,
   onCreateProfil,
   onCreateMonstre,
@@ -58,24 +58,6 @@ export function CompendiumSidebar({
 }: CompendiumSidebarProps) {
   const [expandedGroupes, setExpandedGroupes] = useState<Set<string>>(new Set());
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-
-  const toggleCategorie = (cat: string) => {
-    setExpandedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  };
-
-  const equipementsParCategorie = equipements.reduce<Record<string, Equipement[]>>((acc, e) => {
-    const c = e.categorie || "Autre";
-    if (!acc[c]) acc[c] = [];
-    acc[c].push(e);
-    return acc;
-  }, {});
-  const categoriesOrdonnees = Object.keys(equipementsParCategorie).sort();
 
   const toggleType = (type: string) => {
     setExpandedTypes(prev => {
@@ -251,41 +233,20 @@ export function CompendiumSidebar({
           </button>
           <SectionPanel open={activeSection === 'objets'}>
             <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
-              {equipements.length === 0 ? (
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun objet.</div>
-              ) : (
-                categoriesOrdonnees.map(cat => {
-                  const isOpen = expandedCategories.has(cat);
-                  return (
-                    <div key={cat}>
-                      <button
-                        onClick={() => toggleCategorie(cat)}
-                        className="flex items-center justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold uppercase tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
-                      >
-                        <span>{cat}</span>
-                        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      <SectionPanel open={isOpen}>
-                        <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
-                          {equipementsParCategorie[cat].map(eq => (
-                            <button
-                              key={eq.id}
-                              onClick={() => onSelectEquipement(eq.id)}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedEquipementId === eq.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
-                            >
-                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedEquipementId === eq.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="truncate flex-1">{eq.nom}</span>
-                              {eq.data?.rarete && (
-                                <span className="text-[10px] text-white/30 shrink-0">{eq.data.rarete}</span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </SectionPanel>
-                    </div>
-                  );
-                })
-              )}
+              {SIDEBAR_EQUIP_TYPES.map(t => {
+                const count = equipements.filter(e => e.table_source === t.key).length;
+                return (
+                  <button
+                    key={t.key}
+                    onClick={() => onSelectEquipementTable(t.key)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedEquipementTable === t.key ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                  >
+                    <t.icon className={`w-3.5 h-3.5 shrink-0 ${selectedEquipementTable === t.key ? "text-[#E3CCCD]" : "text-[#E3CCCD]/30"}`} />
+                    <span className="truncate flex-1">{t.label}</span>
+                    <span className="text-[10px] text-white/30 shrink-0">{count}</span>
+                  </button>
+                );
+              })}
             </div>
           </SectionPanel>
         </div>
@@ -296,6 +257,13 @@ export function CompendiumSidebar({
     </>
   );
 }
+
+const SIDEBAR_EQUIP_TYPES = [
+  { key: "arme_contact" as EquipementType, label: "Armes de Contact", icon: Sword },
+  { key: "arme_distance" as EquipementType, label: "Armes à Distance", icon: Target },
+  { key: "armure" as EquipementType, label: "Armures", icon: Shield },
+  { key: "equipement" as EquipementType, label: "Équipements", icon: Package },
+];
 
 const OBJET_TYPES = [
   { key: "arme_contact" as EquipementType, label: "Arme de Contact", icon: Sword },

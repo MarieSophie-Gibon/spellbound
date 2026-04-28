@@ -32,7 +32,9 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [monstres, setMonstres] = useState<Monstre[]>([]);
   const [selectedMonstreId, setSelectedMonstreId] = useState<string | null>(null);
   const [equipements, setEquipements] = useState<Equipement[]>([]);
-  const [selectedEquipementId, setSelectedEquipementId] = useState<string | null>(null);
+  const [selectedEquipementTable, setSelectedEquipementTable] = useState<EquipementType | null>(null);
+  const [editingEquipement, setEditingEquipement] = useState<Equipement | null>(null);
+  const [deletingEquipement, setDeletingEquipement] = useState<Equipement | null>(null);
 
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [showEditWizard, setShowEditWizard] = useState(false);
@@ -90,14 +92,27 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const fetchEquipements = async () => {
-    let query = supabase.from('equipements').select('*').order('nom');
-    if (campaignId) {
-      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
-    } else {
-      query = query.is('campaign_id', null);
-    }
-    const { data } = await query;
-    if (data) setEquipements(data as Equipement[]);
+    const filter = (q: any) => {
+      if (campaignId) return q.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+      return q.is('campaign_id', null);
+    };
+
+    const [r1, r2, r3, r4] = await Promise.all([
+      filter(supabase.from('armes_contact').select('*').order('nom')),
+      filter(supabase.from('armes_distance').select('*').order('nom')),
+      filter(supabase.from('armures').select('*').order('nom')),
+      filter(supabase.from('equipements').select('*').order('nom')),
+    ]);
+
+    const all: Equipement[] = [
+      ...(r1.data ?? []).map((e: any) => ({ ...e, table_source: 'arme_contact' as const, categorie: e.categorie || 'Arme contact', data: {} })),
+      ...(r2.data ?? []).map((e: any) => ({ ...e, table_source: 'arme_distance' as const, categorie: e.categorie || 'Arme distance', data: {} })),
+      ...(r3.data ?? []).map((e: any) => ({ ...e, table_source: 'armure' as const, categorie: 'Armure', data: {} })),
+      ...(r4.data ?? []).map((e: any) => ({ ...e, table_source: 'equipement' as const })),
+    ];
+
+    all.sort((a, b) => a.nom.localeCompare(b.nom));
+    setEquipements(all);
   };
 
   const fetchVoieForPeuple = async (peupleId: string) => {
@@ -134,7 +149,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     setSelectedPeupleId(null);
     setSelectedFamilleId(null);
     setSelectedMonstreId(null);
-    setSelectedEquipementId(null);
+    setSelectedEquipementTable(null);
     setIsFullscreen(false);
   };
 
@@ -156,7 +171,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const selectedPeuple = peuples.find(p => p.id === selectedPeupleId);
   const selectedFamille = familles.find(f => f.id === selectedFamilleId);
   const selectedMonstre = monstres.find(m => m.id === selectedMonstreId);
-  const selectedEquipement = equipements.find(e => e.id === selectedEquipementId);
+  const filteredEquipements = equipements.filter(e => e.table_source === selectedEquipementTable);
 
   const handleDeleteMonstre = async () => {
     if (!selectedMonstre) return;
@@ -173,13 +188,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const handleDeleteObjet = async () => {
-    if (!selectedEquipement) return;
+    if (!deletingEquipement) return;
     setIsDeletingObjet(true);
+    const tableMap = { arme_contact: 'armes_contact', arme_distance: 'armes_distance', armure: 'armures', equipement: 'equipements' } as const;
+    const table = tableMap[deletingEquipement.table_source] || 'equipements';
     try {
-      await supabase.from('equipements').delete().eq('id', selectedEquipement.id);
-      setSelectedEquipementId(null);
+      await supabase.from(table).delete().eq('id', deletingEquipement.id);
+      setDeletingEquipement(null);
       setShowDeleteObjetConfirm(false);
-      setIsFullscreen(false);
       fetchEquipements();
     } finally {
       setIsDeletingObjet(false);
@@ -211,12 +227,12 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       monstres={monstres}
       selectedMonstreId={selectedMonstreId}
       equipements={equipements}
-      selectedEquipementId={selectedEquipementId}
+      selectedEquipementTable={selectedEquipementTable}
       onSectionChange={handleSectionChange}
       onSelectPeuple={setSelectedPeupleId}
       onSelectFamille={setSelectedFamilleId}
       onSelectMonstre={setSelectedMonstreId}
-      onSelectEquipement={setSelectedEquipementId}
+      onSelectEquipementTable={setSelectedEquipementTable}
       onCreatePeuple={() => setShowCreateWizard(true)}
       onCreateProfil={() => setShowCreateProfil(true)}
       onCreateMonstre={() => setShowCreateMonster(true)}
@@ -254,13 +270,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onEdit={() => setShowEditMonster(true)}
             onDelete={() => setShowDeleteMonsterConfirm(true)}
           />
-        ) : activeSection === 'objets' && selectedEquipement ? (
+        ) : activeSection === 'objets' && selectedEquipementTable ? (
           <EquipementDetail
-            equipement={selectedEquipement}
+            equipements={filteredEquipements}
+            selectedTable={selectedEquipementTable}
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
-            onEdit={() => setShowEditObjet(true)}
-            onDelete={() => setShowDeleteObjetConfirm(true)}
+            onEdit={(eq) => { setEditingEquipement(eq); setShowEditObjet(true); }}
+            onDelete={(eq) => { setDeletingEquipement(eq); setShowDeleteObjetConfirm(true); }}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
@@ -393,26 +410,28 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       {showCreateObjet && (
         <EquipementWizard
           selectedType={createObjetType}
+          campaignId={campaignId}
           onClose={() => setShowCreateObjet(false)}
           onSuccess={() => { fetchEquipements(); setActiveSection('objets'); }}
         />
       )}
 
-      {showEditObjet && selectedEquipement && (
+      {showEditObjet && editingEquipement && (
         <EquipementWizard
-          selectedType={"equipement"}
-          onClose={() => setShowEditObjet(false)}
+          selectedType={editingEquipement.table_source}
+          campaignId={campaignId}
+          onClose={() => { setShowEditObjet(false); setEditingEquipement(null); }}
           onSuccess={() => fetchEquipements()}
           initialData={{
-            ...selectedEquipement,
-            table_source: "equipement",
+            ...editingEquipement,
+            table_source: editingEquipement.table_source,
           }}
         />
       )}
 
-      {showDeleteObjetConfirm && selectedEquipement && (
+      {showDeleteObjetConfirm && deletingEquipement && (
         <DeleteConfirmModal
-          name={selectedEquipement.nom}
+          name={deletingEquipement.nom}
           isDeleting={isDeletingObjet}
           onConfirm={handleDeleteObjet}
           onCancel={() => setShowDeleteObjetConfirm(false)}
