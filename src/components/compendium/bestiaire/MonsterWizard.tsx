@@ -161,15 +161,12 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
   return (
     <ModalLayout>
       {/* HEADER */}
-      <div className="relative z-10 shrink-0 px-8 pt-7 pb-6 border-b border-white/8 bg-black/10">
-          <div className="flex items-center justify-between mb-7">
+      <div className="relative z-10 shrink-0 px-8 pt-5 pb-5 border-b border-white/8 bg-black/10">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
-                {campaignId ? "Compendium Custom" : "Compendium Global"}
-              </p>
-              <h2 className="font-serif text-2xl text-white tracking-wide">
+              <p className="text-[12px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
                 {isEditing ? "Modifier la Créature" : "Nouvelle Créature"}
-              </h2>
+              </p>
             </div>
             <button onClick={onClose} className="p-2 text-white/30 hover:text-white/70 transition-colors">
               <X className="w-5 h-5" />
@@ -551,7 +548,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
                 if (step === 1 && !nc.trim()) return alert("Le NC est requis.");
                 setStep(step + 1);
               }}
-              className="flex items-center gap-2 px-6 py-2.5 bg-[#1a4a2a]/60 hover:bg-[#1a4a2a]/80 border border-[#E3CCCD]/25 hover:border-[#E3CCCD]/50 rounded-xl text-white text-[13px] transition-all active:scale-95"
+              className="flex items-center gap-2 px-6 py-2.5 bg-[#29206A]/60 hover:bg-[#29206A]/80  border border-[#E3CCCD]/25 hover:border-[#E3CCCD]/50 rounded-xl text-white text-[13px] transition-all active:scale-95"
             >
               Suivant <ArrowRight className="w-3.5 h-3.5" />
             </button>
@@ -559,7 +556,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-2.5 bg-[#E3CCCD]/10 hover:bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 hover:border-[#E3CCCD]/70 rounded-xl text-[#E3CCCD] text-[13px] transition-all active:scale-95 disabled:opacity-40"
+              className="flex items-center gap-2 px-6 py-2.5 bg-[#29206A]/60 hover:bg-[#29206A]/80  border border-[#E3CCCD]/40 hover:border-[#E3CCCD]/70 rounded-xl text-[#E3CCCD] text-[13px] transition-all active:scale-95 disabled:opacity-40"
             >
               <Save className="w-3.5 h-3.5" />
               {isSubmitting ? "Sauvegarde..." : isEditing ? "Enregistrer les modifications" : "Enregistrer la Créature"}

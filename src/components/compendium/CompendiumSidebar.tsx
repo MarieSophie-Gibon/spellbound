@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2 } from "lucide-react";
+import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package } from "lucide-react";
 import type { Peuple, Famille, Monstre, Equipement, Section } from "@/types/compendium";
+import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
 function SectionPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
   return (
@@ -30,7 +31,7 @@ interface CompendiumSidebarProps {
   onCreatePeuple: () => void;
   onCreateProfil: () => void;
   onCreateMonstre: () => void;
-  onCreateObjet: () => void;
+  onCreateObjet: (type: EquipementType) => void;
   onBack: () => void;
 }
 
@@ -296,8 +297,16 @@ export function CompendiumSidebar({
   );
 }
 
-function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCreateObjet, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: () => void; onBack: () => void }) {
+const OBJET_TYPES = [
+  { key: "arme_contact" as EquipementType, label: "Arme de Contact", icon: Sword },
+  { key: "arme_distance" as EquipementType, label: "Arme à Distance", icon: Target },
+  { key: "armure" as EquipementType, label: "Armure", icon: Shield },
+  { key: "equipement" as EquipementType, label: "Autre Équipement", icon: Package },
+];
+
+function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCreateObjet, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onBack: () => void }) {
   const [showMenu, setShowMenu] = React.useState(false);
+  const [showObjetTypes, setShowObjetTypes] = React.useState(false);
 
   return (
     <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5 relative">
@@ -321,12 +330,28 @@ function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCre
           >
             <Swords className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Créature
           </button>
-          <button
-            onClick={() => { onCreateObjet(); setShowMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors"
-          >
-            <Wand2 className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Objet
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowObjetTypes(o => !o)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors"
+            >
+              <span className="flex items-center gap-3"><Wand2 className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Objet</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform ${showObjetTypes ? 'rotate-180' : ''}`} />
+            </button>
+            {showObjetTypes && (
+              <div className="border-t border-white/5 bg-white/5">
+                {OBJET_TYPES.map(t => (
+                  <button
+                    key={t.key}
+                    onClick={() => { onCreateObjet(t.key); setShowObjetTypes(false); setShowMenu(false); }}
+                    className="w-full flex items-center gap-3 px-6 py-2.5 text-[12px] text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <t.icon className="w-3.5 h-3.5 text-[#E3CCCD]/60" /> {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

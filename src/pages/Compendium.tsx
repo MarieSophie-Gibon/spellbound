@@ -12,6 +12,7 @@ import { ProfilWizard } from "@/components/compendium/famille/ProfilWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
+import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
 import type { Peuple, Voie, Famille, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 
@@ -50,6 +51,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [showDeleteMonsterConfirm, setShowDeleteMonsterConfirm] = useState(false);
   const [isDeletingMonster, setIsDeletingMonster] = useState(false);
   const [showCreateObjet, setShowCreateObjet] = useState(false);
+  const [createObjetType, setCreateObjetType] = useState<EquipementType>("equipement");
   const [showEditObjet, setShowEditObjet] = useState(false);
   const [showDeleteObjetConfirm, setShowDeleteObjetConfirm] = useState(false);
   const [isDeletingObjet, setIsDeletingObjet] = useState(false);
@@ -218,7 +220,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       onCreatePeuple={() => setShowCreateWizard(true)}
       onCreateProfil={() => setShowCreateProfil(true)}
       onCreateMonstre={() => setShowCreateMonster(true)}
-      onCreateObjet={() => setShowCreateObjet(true)}
+      onCreateObjet={(type) => { setCreateObjetType(type); setShowCreateObjet(true); }}
       onBack={onBack}
     />
   );
@@ -390,6 +392,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
 
       {showCreateObjet && (
         <EquipementWizard
+          selectedType={createObjetType}
           onClose={() => setShowCreateObjet(false)}
           onSuccess={() => { fetchEquipements(); setActiveSection('objets'); }}
         />
@@ -397,11 +400,12 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
 
       {showEditObjet && selectedEquipement && (
         <EquipementWizard
+          selectedType={"equipement"}
           onClose={() => setShowEditObjet(false)}
           onSuccess={() => fetchEquipements()}
           initialData={{
             ...selectedEquipement,
-            table_source: "equipement", // fallback, or infer from context if available
+            table_source: "equipement",
           }}
         />
       )}

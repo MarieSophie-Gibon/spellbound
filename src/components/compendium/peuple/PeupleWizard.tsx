@@ -222,15 +222,12 @@ export function PeupleWizard({
   return (
     <ModalLayout>
       {/* HEADER */}
-      <div className="relative z-10 shrink-0 px-8 pt-7 pb-6 border-b border-white/8 bg-black/10">
-        <div className="flex items-center justify-between mb-7">
+      <div className="relative z-10 shrink-0 px-8 pt-5 pb-5 border-b border-white/8 bg-black/10">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
-              {campaignId ? "Compendium Custom" : "Compendium Global"}
-            </p>
-            <h2 className="font-serif text-2xl text-white tracking-wide">
+            <p className="text-[12px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
               {isEditing ? "Modifier le Peuple" : "Nouveau Peuple"}
-            </h2>
+            </p>
           </div>
           <button onClick={onClose} className="p-2 text-white/30 hover:text-white/70 transition-colors">
             <X className="w-5 h-5" />
@@ -311,7 +308,7 @@ export function PeupleWizard({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description et Lore</label>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description</label>
               <textarea
                 value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Histoire, mode de vie, relations avec les autres peuples..."
                 className="w-full h-28 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
@@ -319,7 +316,7 @@ export function PeupleWizard({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Lore approfondi</label>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Histoire & Lore</label>
               <textarea
                 value={lore} onChange={(e) => setLore(e.target.value)} placeholder="Mythes, légendes, culture, religion, histoire ancienne..."
                 className="w-full h-32 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
