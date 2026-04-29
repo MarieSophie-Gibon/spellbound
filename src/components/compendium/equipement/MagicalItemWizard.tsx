@@ -64,7 +64,7 @@ const CATEGORIES = [
   "Parchemin",
   "Potion",
   "Artefact",
-  "Objet",
+  "Matériel",
   "Autre",
 ];
 

@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown } from "lucide-react";
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useState, useEffect } from "react";
+import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import type { Famille, FamilleVoie } from "@/types/compendium";
 
 interface FamilleDetailProps {
@@ -12,6 +14,32 @@ interface FamilleDetailProps {
 }
 
 export function FamilleDetail({ famille, voies, isFullscreen, onToggleFullscreen, onEdit, onDelete }: FamilleDetailProps) {
+    const equipAssoc = famille.data?.equipement_associe as { arme_contact?: string[]; arme_distance?: string[]; armure?: string[] } | undefined;
+    const hasEquipAssoc = equipAssoc && (equipAssoc.arme_contact?.length || equipAssoc.arme_distance?.length || equipAssoc.armure?.length);
+
+    const [equipNoms, setEquipNoms] = useState<{ arme_contact: string[]; arme_distance: string[]; armure: string[] }>({ arme_contact: [], arme_distance: [], armure: [] });
+
+    useEffect(() => {
+        if (!hasEquipAssoc || !equipAssoc) return;
+        const fetchNoms = async () => {
+            const result = { arme_contact: [] as string[], arme_distance: [] as string[], armure: [] as string[] };
+            if (equipAssoc.arme_contact?.length) {
+                const { data } = await supabase.from("armes_contact").select("nom").in("id", equipAssoc.arme_contact).order("nom");
+                if (data) result.arme_contact = data.map(d => d.nom);
+            }
+            if (equipAssoc.arme_distance?.length) {
+                const { data } = await supabase.from("armes_distance").select("nom").in("id", equipAssoc.arme_distance).order("nom");
+                if (data) result.arme_distance = data.map(d => d.nom);
+            }
+            if (equipAssoc.armure?.length) {
+                const { data } = await supabase.from("armures").select("nom").in("id", equipAssoc.armure).order("nom");
+                if (data) result.armure = data.map(d => d.nom);
+            }
+            setEquipNoms(result);
+        };
+        fetchNoms();
+    }, [famille.id]);
+
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
 
@@ -71,6 +99,28 @@ export function FamilleDetail({ famille, voies, isFullscreen, onToggleFullscreen
                         <div className="flex gap-2 mt-3 pt-3 border-t border-dashed border-white/10">
                             <span className="font-bold shrink-0">• Maîtrise d'équipement :</span>
                             <span className="font-light">{famille.maitrise_equipement}</span>
+                        </div>
+                    )}
+                    {hasEquipAssoc && (
+                        <div className="mt-3 pt-3 border-t border-dashed border-white/10 space-y-2">
+                            <span className="font-bold text-[13px]">• Équipement associé :</span>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                                {equipNoms.arme_contact.map(nom => (
+                                    <span key={nom} className="inline-flex items-center gap-1.5 text-[11px] text-white/70 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
+                                        <Sword className="w-3 h-3 text-[#E3CCCD]/50" />{nom}
+                                    </span>
+                                ))}
+                                {equipNoms.arme_distance.map(nom => (
+                                    <span key={nom} className="inline-flex items-center gap-1.5 text-[11px] text-white/70 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
+                                        <Target className="w-3 h-3 text-[#E3CCCD]/50" />{nom}
+                                    </span>
+                                ))}
+                                {equipNoms.armure.map(nom => (
+                                    <span key={nom} className="inline-flex items-center gap-1.5 text-[11px] text-white/70 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
+                                        <Shield className="w-3 h-3 text-[#E3CCCD]/50" />{nom}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

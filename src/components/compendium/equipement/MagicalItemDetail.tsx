@@ -143,7 +143,7 @@ function EquipementRow({
             </span>
             {rareteColor && (
               <span
-                className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${rareteColor} shrink-0`}
+                className={`flex items-center gap-1 text-[10px] tracking-wider px-1.5 py-0.5 rounded-full border ${rareteColor} shrink-0`}
               >
                 <Sparkles className="w-3 h-3" />
                 {rarete}

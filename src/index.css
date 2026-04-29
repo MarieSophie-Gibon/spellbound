@@ -128,3 +128,13 @@
     @apply font-sans;
     }
 }
+
+/* Dans ton index.css ou global.css */
+::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(227,204,205,0.08); /* couleur de ton thème */
+  border-radius: 8px;
+}
