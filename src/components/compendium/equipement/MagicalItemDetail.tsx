@@ -4,12 +4,14 @@ import {
   Minimize2,
   Pencil,
   Trash2,
-  Image as ImageIcon,
   Sword,
   Target,
   Shield,
   Package,
   Coins,
+  Dices,
+  Swords,
+  Sparkles,
 } from "lucide-react";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
@@ -22,7 +24,10 @@ type EquipementDetailProps = {
   onDelete: (equipement: any) => void;
 };
 
-const TABLE_LABELS: Record<EquipementType, { label: string; icon: typeof Sword }> = {
+const TABLE_LABELS: Record<
+  EquipementType,
+  { label: string; icon: typeof Sword }
+> = {
   arme_contact: { label: "Armes de Contact", icon: Sword },
   arme_distance: { label: "Armes à Distance", icon: Target },
   armure: { label: "Armures", icon: Shield },
@@ -77,11 +82,13 @@ export function EquipementDetail({
       {equipements.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50">
           <Icon className="w-10 h-10 text-[#E3CCCD]/20 mb-3" />
-          <p className="text-[13px] text-white/40 italic">Aucun élément dans cette catégorie.</p>
+          <p className="text-[13px] text-white/40 italic">
+            Aucun élément dans cette catégorie.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-2">
-          {equipements.map(eq => (
+          {equipements.map((eq) => (
             <EquipementRow
               key={eq.id}
               equipement={eq}
@@ -108,16 +115,22 @@ function EquipementRow({
   onDelete: () => void;
 }) {
   const rarete = equipement.data?.rarete;
-  const rareteColor = rarete ? (RARETE_COLORS[rarete] ?? "text-white/50 border-white/20") : null;
+  const rareteColor = rarete
+    ? (RARETE_COLORS[rarete] ?? "text-white/50 border-white/20")
+    : null;
 
   return (
     <div className="group flex items-center gap-3 bg-[#1E1941]/40 hover:bg-[#1E1941]/60 border border-[#E3CCCD]/10 hover:border-[#E3CCCD]/20 rounded-xl px-3 py-2.5 transition-all">
       {/* Thumbnail */}
-      <div className="w-10 h-10 rounded-lg shrink-0 overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
+      <div className="w-15 h-15 rounded-lg shrink-0 overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
         {equipement.image_url ? (
-          <img src={equipement.image_url} alt={equipement.nom} className="w-full h-full object-cover" />
+          <img
+            src={equipement.image_url}
+            alt={equipement.nom}
+            className="w-full h-full object-cover"
+          />
         ) : (
-          <ImageIcon className="w-4 h-4 text-white/10" />
+          <Swords className="w-5 h-5 text-white/10" />
         )}
       </div>
 
@@ -125,30 +138,54 @@ function EquipementRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[13px] text-white font-medium truncate">{equipement.nom}</span>
+            <span className="text-[13px] text-white font-medium truncate">
+              {equipement.nom}
+            </span>
             {rareteColor && (
-              <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${rareteColor} shrink-0`}>
+              <span
+                className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${rareteColor} shrink-0`}
+              >
+                <Sparkles className="w-3 h-3" />
                 {rarete}
               </span>
             )}
           </div>
           {equipement.prix && (
             <span className="flex items-center gap-1 text-[11px] text-amber-400/70 shrink-0">
-              <Coins className="w-3 h-3" />{equipement.prix}
+              <Coins className="w-4 h-4" />
+              {equipement.prix}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 text-[11px] text-white/40 mt-0.5">
-          {(tableType === "arme_contact" || tableType === "arme_distance") && equipement.dm && (
-            <span>DM {equipement.dm} {equipement.type_de_dm}</span>
-          )}
+          {(tableType === "arme_contact" || tableType === "arme_distance") &&
+            equipement.dm && (
+              <div className="flex items-center gap-5">
+                <span className="flex items-center gap-1">
+                  <Dices className="w-3 h-3" />
+                  DM {equipement.dm}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Sword className="w-3 h-3" />
+                  {equipement.type_de_dm}
+                </span>
+              </div>
+            )}
           {tableType === "arme_distance" && equipement.portee && (
-            <><span className="text-white/20">·</span><span>Portée {equipement.portee}</span></>
+            <>
+              <span className="text-white/20">·</span>
+              <span>Portée {equipement.portee}</span>
+            </>
           )}
           {tableType === "armure" && (
             <>
               {equipement.bonus_def && <span>DEF +{equipement.bonus_def}</span>}
-              {equipement.agi_max && <><span className="text-white/20">·</span><span>AGI max {equipement.agi_max}</span></>}
+              {equipement.agi_max && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span>AGI max {equipement.agi_max}</span>
+                </>
+              )}
             </>
           )}
           {equipement.categorie && tableType === "equipement" && (
