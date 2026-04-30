@@ -352,9 +352,7 @@ export default function EquipementWizard({
         </div>
 
         {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
-        {campaignId &&
-          (!isEditing ||
-            (isEditing && initialData?.campaign_id === campaignId)) && (
+        {campaignId && (
             <div className="mb-4 flex items-center gap-2">
               <input
                 id="equipement-private"
@@ -370,7 +368,7 @@ export default function EquipementWizard({
                 Privé à cette campagne
               </label>
             </div>
-          )}
+        )}
       </div>
 
       {/* CONTENT */}

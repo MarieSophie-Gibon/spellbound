@@ -174,7 +174,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
           </div>
 
           {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
-          {campaignId && (!isEditing || (isEditing && initialData?.campaign_id === campaignId)) && (
+          {campaignId && (
             <div className="mb-4 flex items-center gap-2">
               <input
                 id="monster-private"

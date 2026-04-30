@@ -47,7 +47,7 @@ export function BookLayout({ spineTitle, sidebar, hideSidebar = false, children 
 
           {/* 2. LE SOMMAIRE */}
           {sidebar && !hideSidebar && (
-            <div className="w-65 shrink-0 flex flex-col border-r border-[#E3CCCD]/20 bg-black/10">
+            <div className="w-50 shrink-0 flex flex-col border-r border-[#E3CCCD]/20 bg-black/10">
               {sidebar}
             </div>
           )}

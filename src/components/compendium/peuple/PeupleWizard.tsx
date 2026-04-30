@@ -147,6 +147,7 @@ export function PeupleWizard({
 
       if (isEditing && initialData) {
         // --- MODE ÉDITION ---
+        const publicMode = campaignId && !isPrivate;
         const { error: peupleErr } = await supabase
           .from("peuples")
           .update({
@@ -155,6 +156,8 @@ export function PeupleWizard({
             lore: lore.trim() || null,
             image_url: finalImageUrl,
             data: data,
+            campaign_id: publicMode ? null : (campaignId || null),
+            is_custom: !!(campaignId && isPrivate),
           })
           .eq("id", initialData.id);
 
@@ -163,7 +166,12 @@ export function PeupleWizard({
         if (initialData.voie) {
           const { error: voieErr } = await supabase
             .from("voies")
-            .update({ nom: finalVoieNom, capacites: rangs })
+            .update({
+              nom: finalVoieNom,
+              capacites: rangs,
+              campaign_id: publicMode ? null : (campaignId || null),
+              is_custom: !!(campaignId && isPrivate),
+            })
             .eq("id", initialData.voie.id);
           if (voieErr) throw voieErr;
         } else {
@@ -172,8 +180,8 @@ export function PeupleWizard({
             type: "peuple",
             peuple_id: initialData.id,
             famille_id: null,
-            campaign_id: campaignId || null,
-            is_custom: !!campaignId,
+            campaign_id: publicMode ? null : (campaignId || null),
+            is_custom: !!(campaignId && isPrivate),
             capacites: rangs,
           });
           if (voieErr) throw voieErr;
@@ -235,7 +243,7 @@ export function PeupleWizard({
         </div>
 
         {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
-        {campaignId && (!isEditing || (isEditing && initialData?.campaign_id === campaignId)) && (
+        {campaignId && (
           <div className="mb-4 flex items-center gap-2">
             <input
               id="peuple-private"
