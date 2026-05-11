@@ -537,6 +537,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             pv_niveau: selectedFamilleArchetype.pv_niveau,
             de_recuperation: selectedFamilleArchetype.de_recuperation,
             bonus_chance: selectedFamilleArchetype.bonus_chance,
+            notes: selectedFamilleArchetype.notes,
           }}
         />
       )}

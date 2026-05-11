@@ -21,6 +21,7 @@ export function FamilleWizard({
   const [pvNiveau, setPvNiveau] = useState(initialData?.pv_niveau ?? 4);
   const [deRecuperation, setDeRecuperation] = useState(initialData?.de_recuperation ?? "1d6");
   const [bonusChance, setBonusChance] = useState(initialData?.bonus_chance ?? 0);
+  const [notes, setNotes] = useState(initialData?.notes ?? "");
 
   const handleSubmit = async () => {
     if (!nom.trim()) return alert("Le nom de la famille est obligatoire.");
@@ -31,6 +32,7 @@ export function FamilleWizard({
         pv_niveau: pvNiveau,
         de_recuperation: deRecuperation.trim(),
         bonus_chance: bonusChance,
+        notes: notes.trim() || null,
         campaign_id: campaignId || null,
         is_custom: !!campaignId,
       };
@@ -121,6 +123,16 @@ export function FamilleWizard({
               </div>
               <p className="text-[11px] text-white/40 italic">Modificateur appliqué aux jets de chance.</p>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notes, règles spéciales, remarques..."
+              className="w-full h-28 bg-white/5 border border-white/20 focus:border-white/35 rounded-xl p-4 text-white text-sm outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+            />
           </div>
         </div>
       </div>

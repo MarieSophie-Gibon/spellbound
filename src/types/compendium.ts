@@ -40,6 +40,7 @@ export interface FamilleArchetype {
   id: string;
   nom: string;
   description: string | null;
+  notes: string | null;
   pv_niveau: number;
   de_recuperation: string;
   bonus_chance: number;
