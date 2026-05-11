@@ -12,6 +12,7 @@ interface ThemedSelectProps {
   options: string[];
   placeholder?: string;
   allowNull?: boolean;
+  labels?: Record<string, string>;
 }
 
 export function ThemedSelect({
@@ -20,6 +21,7 @@ export function ThemedSelect({
   options,
   placeholder = "-- Sélectionner --",
   allowNull = false,
+  labels,
 }: ThemedSelectProps) {
   const NULL_VALUE = "__NULL__";
   return (
@@ -45,7 +47,7 @@ export function ThemedSelect({
             value={opt}
             className="hover:bg-white/20! focus:bg-white/20! hover:text-white! focus:text-white! data-[state=checked]:bg-white/10!"
           >
-            {opt}
+            {labels?.[opt] ?? opt}
           </SelectItem>
         ))}
       </SelectContent>

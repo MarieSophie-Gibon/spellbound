@@ -6,16 +6,18 @@ import { supabase } from "@/lib/supabase";
 import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
 import { PeupleDetail } from "@/components/compendium/peuple/PeupleDetail";
 import { FamilleDetail } from "@/components/compendium/famille/FamilleDetail";
+import { ProfilDetail } from "@/components/compendium/profil/ProfilDetail";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { PeupleWizard } from "@/components/compendium/peuple/PeupleWizard";
-import { ProfilWizard } from "@/components/compendium/famille/ProfilWizard";
+import { FamilleWizard } from "@/components/compendium/famille/FamilleWizard";
+import { ProfilWizard } from "@/components/compendium/profil/ProfilWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
 import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/VoiePrestigeWizard";
-import type { Peuple, Voie, Famille, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
+import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -27,9 +29,11 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [selectedPeupleId, setSelectedPeupleId] = useState<string | null>(null);
   const [selectedVoie, setSelectedVoie] = useState<Voie | null>(null);
-  const [familles, setFamilles] = useState<Famille[]>([]);
-  const [selectedFamilleId, setSelectedFamilleId] = useState<string | null>(null);
-  const [selectedFamilleVoies, setSelectedFamilleVoies] = useState<FamilleVoie[]>([]);
+  const [famillesArchetypes, setFamillesArchetypes] = useState<FamilleArchetype[]>([]);
+  const [selectedFamilleArchetypeId, setSelectedFamilleArchetypeId] = useState<string | null>(null);
+  const [profils, setProfils] = useState<Famille[]>([]);
+  const [selectedProfilId, setSelectedProfilId] = useState<string | null>(null);
+  const [selectedProfilVoies, setSelectedProfilVoies] = useState<FamilleVoie[]>([]);
   const [monstres, setMonstres] = useState<Monstre[]>([]);
   const [selectedMonstreId, setSelectedMonstreId] = useState<string | null>(null);
   const [equipements, setEquipements] = useState<Equipement[]>([]);
@@ -42,6 +46,10 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDeleteFamilleConfirm, setShowDeleteFamilleConfirm] = useState(false);
   const [isDeletingFamille, setIsDeletingFamille] = useState(false);
+  const [showCreateFamilleArchetype, setShowCreateFamilleArchetype] = useState(false);
+  const [showEditFamilleArchetype, setShowEditFamilleArchetype] = useState(false);
+  const [showDeleteFamilleArchetypeConfirm, setShowDeleteFamilleArchetypeConfirm] = useState(false);
+  const [isDeletingFamilleArchetype, setIsDeletingFamilleArchetype] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   // ProfilWizard modals removed (unused)
@@ -78,7 +86,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     if (data) setPeuples(data as Peuple[]);
   };
 
-  const fetchFamilles = async () => {
+  const fetchFamillesArchetypes = async () => {
     let query = supabase.from('familles').select('*').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
@@ -86,7 +94,18 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       query = query.is('campaign_id', null);
     }
     const { data } = await query;
-    if (data) setFamilles(data as Famille[]);
+    if (data) setFamillesArchetypes(data as FamilleArchetype[]);
+  };
+
+  const fetchProfils = async () => {
+    let query = supabase.from('profils').select('*, familles(nom)').order('nom');
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      query = query.is('campaign_id', null);
+    }
+    const { data } = await query;
+    if (data) setProfils(data.map((p: any) => ({ ...p, famille_nom: p.familles?.nom ?? null })) as Famille[]);
   };
 
   const fetchMonstres = async () => {
@@ -131,28 +150,29 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const fetchVoiesPrestige = async () => {
-    let query = supabase.from('voies').select('*').eq('type', 'prestige').order('nom');
+    let query = supabase.from('voies').select('*, familles(nom)').eq('type', 'prestige').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
       query = query.is('campaign_id', null);
     }
     const { data } = await query;
-    if (data) setVoiesPrestige(data as FamilleVoie[]);
+    if (data) setVoiesPrestige(data.map((v: any) => ({ ...v, famille_nom: v.familles?.nom ?? null })) as FamilleVoie[]);
   };
 
-  const fetchVoiesForFamille = async (familleId: string) => {
+  const fetchVoiesForProfil = async (profilId: string) => {
     const { data } = await supabase
-      .from('voies').select('*').eq('famille_id', familleId).order('nom');
-    setSelectedFamilleVoies((data as FamilleVoie[]) ?? []);
+      .from('voies').select('*').eq('profil_id', profilId).order('nom');
+    setSelectedProfilVoies((data as FamilleVoie[]) ?? []);
   };
 
   useEffect(() => {
     if (activeSection === 'peuples') fetchPeuples();
-    if (activeSection === 'familles') fetchFamilles();
+    if (activeSection === 'familles') fetchFamillesArchetypes();
+    if (activeSection === 'profils') { fetchProfils(); fetchFamillesArchetypes(); }
     if (activeSection === 'bestiaire') fetchMonstres();
     if (activeSection === 'objets') fetchEquipements();
-    if (activeSection === 'voies_prestige') fetchVoiesPrestige();
+    if (activeSection === 'voies_prestige') { fetchVoiesPrestige(); fetchFamillesArchetypes(); }
   }, [activeSection, campaignId]);
 
   useEffect(() => {
@@ -161,14 +181,15 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   }, [selectedPeupleId]);
 
   useEffect(() => {
-    if (selectedFamilleId) fetchVoiesForFamille(selectedFamilleId);
-    else setSelectedFamilleVoies([]);
-  }, [selectedFamilleId]);
+    if (selectedProfilId) fetchVoiesForProfil(selectedProfilId);
+    else setSelectedProfilVoies([]);
+  }, [selectedProfilId]);
 
   const handleSectionChange = (section: Section | null) => {
     setActiveSection(section);
     setSelectedPeupleId(null);
-    setSelectedFamilleId(null);
+    setSelectedFamilleArchetypeId(null);
+    setSelectedProfilId(null);
     setSelectedMonstreId(null);
     setSelectedEquipementTable(null);
     setSelectedVoiePrestigeId(null);
@@ -191,7 +212,8 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const selectedPeuple = peuples.find(p => p.id === selectedPeupleId);
-  const selectedFamille = familles.find(f => f.id === selectedFamilleId);
+  const selectedFamilleArchetype = famillesArchetypes.find(f => f.id === selectedFamilleArchetypeId);
+  const selectedProfil = profils.find(f => f.id === selectedProfilId);
   const selectedMonstre = monstres.find(m => m.id === selectedMonstreId);
   const filteredEquipements = equipements.filter(e => e.table_source === selectedEquipementTable);
   const selectedVoiePrestige = voiesPrestige.find(v => v.id === selectedVoiePrestigeId);
@@ -226,17 +248,31 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const handleDeleteFamille = async () => {
-    if (!selectedFamille) return;
+    if (!selectedProfil) return;
     setIsDeletingFamille(true);
     try {
-      await supabase.from('voies').delete().eq('famille_id', selectedFamille.id);
-      await supabase.from('familles').delete().eq('id', selectedFamille.id);
-      setSelectedFamilleId(null);
+      await supabase.from('voies').delete().eq('profil_id', selectedProfil.id);
+      await supabase.from('profils').delete().eq('id', selectedProfil.id);
+      setSelectedProfilId(null);
       setShowDeleteFamilleConfirm(false);
       setIsFullscreen(false);
-      fetchFamilles();
+      fetchProfils();
     } finally {
       setIsDeletingFamille(false);
+    }
+  };
+
+  const handleDeleteFamilleArchetype = async () => {
+    if (!selectedFamilleArchetype) return;
+    setIsDeletingFamilleArchetype(true);
+    try {
+      await supabase.from('familles').delete().eq('id', selectedFamilleArchetype.id);
+      setSelectedFamilleArchetypeId(null);
+      setShowDeleteFamilleArchetypeConfirm(false);
+      setIsFullscreen(false);
+      fetchFamillesArchetypes();
+    } finally {
+      setIsDeletingFamilleArchetype(false);
     }
   };
 
@@ -259,8 +295,10 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       activeSection={activeSection}
       peuples={peuples}
       selectedPeupleId={selectedPeupleId}
-      familles={familles}
-      selectedFamilleId={selectedFamilleId}
+      famillesArchetypes={famillesArchetypes}
+      selectedFamilleArchetypeId={selectedFamilleArchetypeId}
+      profils={profils}
+      selectedProfilId={selectedProfilId}
       monstres={monstres}
       selectedMonstreId={selectedMonstreId}
       equipements={equipements}
@@ -269,11 +307,13 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       selectedVoiePrestigeId={selectedVoiePrestigeId}
       onSectionChange={handleSectionChange}
       onSelectPeuple={setSelectedPeupleId}
-      onSelectFamille={setSelectedFamilleId}
+      onSelectFamilleArchetype={setSelectedFamilleArchetypeId}
+      onSelectProfil={setSelectedProfilId}
       onSelectMonstre={setSelectedMonstreId}
       onSelectEquipementTable={setSelectedEquipementTable}
       onSelectVoiePrestige={setSelectedVoiePrestigeId}
       onCreatePeuple={() => setShowCreateWizard(true)}
+      onCreateFamille={() => setShowCreateFamilleArchetype(true)}
       onCreateProfil={() => setShowCreateProfil(true)}
       onCreateMonstre={() => setShowCreateMonster(true)}
       onCreateObjet={(type) => { setCreateObjetType(type); setShowCreateObjet(true); }}
@@ -294,10 +334,19 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onEdit={() => setShowEditWizard(true)}
             onDelete={() => setShowDeleteConfirm(true)}
           />
-        ) : activeSection === 'familles' && selectedFamille ? (
+        ) : activeSection === 'familles' && selectedFamilleArchetype ? (
           <FamilleDetail
-            famille={selectedFamille}
-            voies={selectedFamilleVoies}
+            famille={selectedFamilleArchetype}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={() => setIsFullscreen(f => !f)}
+            onEdit={() => setShowEditFamilleArchetype(true)}
+            onDelete={() => setShowDeleteFamilleArchetypeConfirm(true)}
+          />
+        ) : activeSection === 'profils' && selectedProfil ? (
+          <ProfilDetail
+            profil={selectedProfil}
+            familleArchetype={famillesArchetypes.find(f => f.id === selectedProfil.famille_id)}
+            voies={selectedProfilVoies}
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditProfil(true)}
@@ -325,9 +374,9 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="font-serif text-2xl text-white tracking-wide">{selectedVoiePrestige.nom}</h2>
-                {selectedVoiePrestige.categorie && (
+                {selectedVoiePrestige.famille_nom && (
                   <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 mt-1 inline-block">
-                    {selectedVoiePrestige.categorie}
+                    {selectedVoiePrestige.famille_nom}
                   </span>
                 )}
               </div>
@@ -421,34 +470,41 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
         />
       )}
 
-      {showDeleteFamilleConfirm && selectedFamille && (
+      {showDeleteFamilleConfirm && selectedProfil && (
         <DeleteConfirmModal
-          name={selectedFamille.nom}
+          name={selectedProfil.nom}
           isDeleting={isDeletingFamille}
           onConfirm={handleDeleteFamille}
           onCancel={() => setShowDeleteFamilleConfirm(false)}
         />
       )}
 
-      {showEditProfil && selectedFamille && (
+      {showDeleteFamilleArchetypeConfirm && selectedFamilleArchetype && (
+        <DeleteConfirmModal
+          name={selectedFamilleArchetype.nom}
+          isDeleting={isDeletingFamilleArchetype}
+          onConfirm={handleDeleteFamilleArchetype}
+          onCancel={() => setShowDeleteFamilleArchetypeConfirm(false)}
+        />
+      )}
+
+      {showEditProfil && selectedProfil && (
         <ProfilWizard
           campaignId={campaignId}
           onClose={() => setShowEditProfil(false)}
-          onSuccess={() => { fetchFamilles(); fetchVoiesForFamille(selectedFamille.id); }}
+          onSuccess={() => { fetchProfils(); fetchVoiesForProfil(selectedProfil.id); }}
+          famillesArchetypes={famillesArchetypes}
           initialData={{
-            id: selectedFamille.id,
-            nom: selectedFamille.nom,
-            groupe: selectedFamille.groupe,
-            description: selectedFamille.description,
-            pv_niveau: selectedFamille.pv_niveau,
-            de_recuperation: selectedFamille.de_recuperation,
-            bonus_chance: selectedFamille.bonus_chance,
-            equipement_base: selectedFamille.equipement_base,
-            maitrise_equipement: selectedFamille.maitrise_equipement,
-            lore: selectedFamille.lore,
-            image_url: selectedFamille.image_url,
-            data: selectedFamille.data,
-            voies: selectedFamilleVoies,
+            id: selectedProfil.id,
+            nom: selectedProfil.nom,
+            famille_id: selectedProfil.famille_id,
+            description: selectedProfil.description,
+            equipement_base: selectedProfil.equipement_base,
+            maitrise_equipement: selectedProfil.maitrise_equipement,
+            lore: selectedProfil.lore,
+            image_url: selectedProfil.image_url,
+            data: selectedProfil.data,
+            voies: selectedProfilVoies,
           }}
         />
       )}
@@ -457,7 +513,31 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
         <ProfilWizard
           campaignId={campaignId}
           onClose={() => setShowCreateProfil(false)}
-          onSuccess={() => { fetchFamilles(); setActiveSection('familles'); }}
+          onSuccess={() => { fetchProfils(); setActiveSection('profils'); }}
+          famillesArchetypes={famillesArchetypes}
+        />
+      )}
+
+      {showCreateFamilleArchetype && (
+        <FamilleWizard
+          campaignId={campaignId}
+          onClose={() => setShowCreateFamilleArchetype(false)}
+          onSuccess={() => { fetchFamillesArchetypes(); setActiveSection('familles'); }}
+        />
+      )}
+
+      {showEditFamilleArchetype && selectedFamilleArchetype && (
+        <FamilleWizard
+          campaignId={campaignId}
+          onClose={() => setShowEditFamilleArchetype(false)}
+          onSuccess={() => fetchFamillesArchetypes()}
+          initialData={{
+            id: selectedFamilleArchetype.id,
+            nom: selectedFamilleArchetype.nom,
+            pv_niveau: selectedFamilleArchetype.pv_niveau,
+            de_recuperation: selectedFamilleArchetype.de_recuperation,
+            bonus_chance: selectedFamilleArchetype.bonus_chance,
+          }}
         />
       )}
 
@@ -537,6 +617,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           onClose={() => { setShowVoiePrestigeWizard(false); setEditingVoiePrestige(null); }}
           onSuccess={() => { fetchVoiesPrestige(); setActiveSection('voies_prestige'); }}
           initialData={editingVoiePrestige ?? undefined}
+          familles={famillesArchetypes.map(f => ({ id: f.id, nom: f.nom }))}
         />
       )}
 

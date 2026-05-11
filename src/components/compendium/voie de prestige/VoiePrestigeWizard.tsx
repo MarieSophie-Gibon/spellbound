@@ -5,7 +5,7 @@ import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { X, Save } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { VoieRangCapacite, VoiePrestigeWizardProps, RangsState } from "@/types/compendium";
-import { EMPTY_RANGS, CATEGORIE_OPTIONS, TYPE_OPTIONS } from "@/types/compendium";
+import { EMPTY_RANGS, TYPE_OPTIONS } from "@/types/compendium";
 
 
 
@@ -14,10 +14,11 @@ export function VoiePrestigeWizard({
   onSuccess,
   campaignId,
   initialData,
+  familles,
 }: VoiePrestigeWizardProps) {
   const isEditing = !!initialData;
   const [nom, setNom] = useState(initialData?.nom ?? "");
-  const [categorie, setCategorie] = useState<string | null>(initialData?.categorie ?? "Voies génériques");
+  const [familleId, setFamilleId] = useState<string | null>(initialData?.famille_id ?? null);
   const [isPrivate, setIsPrivate] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rangs, setRangs] = useState<RangsState>(
@@ -45,9 +46,8 @@ export function VoiePrestigeWizard({
       const payload = {
         nom: nom.trim(),
         type: "prestige",
-        categorie: categorie || null,
+        famille_id: familleId || null,
         peuple_id: null,
-        famille_id: null,
         campaign_id: publicMode ? null : campaignId || null,
         is_custom: !!(campaignId && isPrivate),
         capacites: rangs,
@@ -126,16 +126,18 @@ export function VoiePrestigeWizard({
             />
           </div>
 
-          {/* Catégorie */}
+          {/* Famille (optionnel) */}
           <div className="space-y-1.5">
             <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
-              Catégorie
+              Rattachée à une Famille
             </label>
             <ThemedSelect
-              value={categorie}
-              onValueChange={setCategorie}
-              options={CATEGORIE_OPTIONS}
-              placeholder="-- Sélectionner une catégorie --"
+              value={familleId}
+              onValueChange={setFamilleId}
+              options={familles.map(f => f.id)}
+              placeholder="-- Aucune famille --"
+              allowNull
+              labels={Object.fromEntries(familles.map(f => [f.id, f.nom]))}
             />
           </div>
 

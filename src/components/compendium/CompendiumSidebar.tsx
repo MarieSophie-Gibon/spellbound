@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package, Award } from "lucide-react";
-import type { Peuple, Famille, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
+import type { Peuple, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
 function SectionPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
@@ -17,8 +17,10 @@ interface CompendiumSidebarProps {
   activeSection: Section | null;
   peuples: Peuple[];
   selectedPeupleId: string | null;
-  familles: Famille[];
-  selectedFamilleId: string | null;
+  famillesArchetypes: FamilleArchetype[];
+  selectedFamilleArchetypeId: string | null;
+  profils: Famille[];
+  selectedProfilId: string | null;
   monstres: Monstre[];
   selectedMonstreId: string | null;
   equipements: Equipement[];
@@ -27,11 +29,13 @@ interface CompendiumSidebarProps {
   selectedVoiePrestigeId: string | null;
   onSectionChange: (section: Section | null) => void;
   onSelectPeuple: (id: string) => void;
-  onSelectFamille: (id: string) => void;
+  onSelectFamilleArchetype: (id: string) => void;
+  onSelectProfil: (id: string) => void;
   onSelectMonstre: (id: string) => void;
   onSelectEquipementTable: (type: EquipementType) => void;
   onSelectVoiePrestige: (id: string) => void;
   onCreatePeuple: () => void;
+  onCreateFamille: () => void;
   onCreateProfil: () => void;
   onCreateMonstre: () => void;
   onCreateObjet: (type: EquipementType) => void;
@@ -43,8 +47,10 @@ export function CompendiumSidebar({
   activeSection,
   peuples,
   selectedPeupleId,
-  familles,
-  selectedFamilleId,
+  famillesArchetypes,
+  selectedFamilleArchetypeId,
+  profils,
+  selectedProfilId,
   monstres,
   selectedMonstreId,
   equipements,
@@ -53,11 +59,13 @@ export function CompendiumSidebar({
   selectedVoiePrestigeId,
   onSectionChange,
   onSelectPeuple,
-  onSelectFamille,
+  onSelectFamilleArchetype,
+  onSelectProfil,
   onSelectMonstre,
   onSelectEquipementTable,
   onSelectVoiePrestige,
   onCreatePeuple,
+  onCreateFamille,
   onCreateProfil,
   onCreateMonstre,
   onCreateObjet,
@@ -94,22 +102,22 @@ export function CompendiumSidebar({
   };
 
   // Regrouper les familles par groupe
-  const famillesParGroupe = familles.reduce<Record<string, Famille[]>>((acc, f) => {
-    const g = f.groupe || "Autre";
+  const famillesParGroupe = profils.reduce<Record<string, Famille[]>>((acc, f) => {
+    const g = f.famille_nom || "Sans famille";
     if (!acc[g]) acc[g] = [];
     acc[g].push(f);
     return acc;
   }, {});
   const groupesOrdonnes = Object.keys(famillesParGroupe).sort();
 
-  // Regrouper les voies de prestige par catégorie
-  const voiesParCategorie = voiesPrestige.reduce<Record<string, FamilleVoie[]>>((acc, v) => {
-    const c = v.categorie || "Voies génériques";
+  // Regrouper les voies de prestige par famille
+  const voiesParFamille = voiesPrestige.reduce<Record<string, FamilleVoie[]>>((acc, v) => {
+    const c = v.famille_nom || "Sans famille";
     if (!acc[c]) acc[c] = [];
     acc[c].push(v);
     return acc;
   }, {});
-  const categoriesOrdonnees = Object.keys(voiesParCategorie).sort();
+  const famillesOrdonnees = Object.keys(voiesParFamille).sort();
 
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const toggleCategorie = (cat: string) => {
@@ -154,7 +162,7 @@ export function CompendiumSidebar({
           </SectionPanel>
         </div>
 
-        {/* SECTION FAMILLES */}
+        {/* SECTION FAMILLES (Archétypes) */}
         <div className="w-full">
           <button
             onClick={() => onSectionChange(activeSection === 'familles' ? null : 'familles')}
@@ -165,8 +173,37 @@ export function CompendiumSidebar({
           </button>
           <SectionPanel open={activeSection === 'familles'}>
             <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
-              {familles.length === 0 ? (
+              {famillesArchetypes.length === 0 ? (
                 <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune famille.</div>
+              ) : (
+                famillesArchetypes.map(fa => (
+                  <button
+                    key={fa.id}
+                    onClick={() => onSelectFamilleArchetype(fa.id)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedFamilleArchetypeId === fa.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                  >
+                    <div className={`w-1 h-1 shrink-0 rounded-full ${selectedFamilleArchetypeId === fa.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                    <span className="truncate">{fa.nom}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </SectionPanel>
+        </div>
+
+        {/* SECTION PROFILS */}
+        <div className="w-full">
+          <button
+            onClick={() => onSectionChange(activeSection === 'profils' ? null : 'profils')}
+            className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'profils' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+          >
+            <span>Profils</span>
+            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === 'profils' ? 'rotate-180' : ''}`} />
+          </button>
+          <SectionPanel open={activeSection === 'profils'}>
+            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+              {profils.length === 0 ? (
+                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun profil.</div>
               ) : (
                 groupesOrdonnes.map(groupe => {
                   const isOpen = expandedGroupes.has(groupe);
@@ -181,14 +218,14 @@ export function CompendiumSidebar({
                       </button>
                       <SectionPanel open={isOpen}>
                         <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
-                          {famillesParGroupe[groupe].map(famille => (
+                          {famillesParGroupe[groupe].map(profil => (
                             <button
-                              key={famille.id}
-                              onClick={() => onSelectFamille(famille.id)}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedFamilleId === famille.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                              key={profil.id}
+                              onClick={() => onSelectProfil(profil.id)}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedProfilId === profil.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
-                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedFamilleId === famille.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="truncate">{famille.nom}</span>
+                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedProfilId === profil.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                              <span className="truncate">{profil.nom}</span>
                             </button>
                           ))}
                         </div>
@@ -292,7 +329,7 @@ export function CompendiumSidebar({
               {voiesPrestige.length === 0 ? (
                 <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune voie de prestige.</div>
               ) : (
-                categoriesOrdonnees.map(cat => {
+                famillesOrdonnees.map(cat => {
                   const isOpen = expandedCategories.has(cat);
                   return (
                     <div key={cat}>
@@ -305,7 +342,7 @@ export function CompendiumSidebar({
                       </button>
                       <SectionPanel open={isOpen}>
                         <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
-                          {voiesParCategorie[cat].map(voie => (
+                          {voiesParFamille[cat].map(voie => (
                             <button
                               key={voie.id}
                               onClick={() => voie.id && onSelectVoiePrestige(voie.id)}
@@ -327,7 +364,7 @@ export function CompendiumSidebar({
       </div>
 
       {/* ACTIONS */}
-      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} />
+      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateFamille={onCreateFamille} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} />
     </>
   );
 }
@@ -346,7 +383,7 @@ const OBJET_TYPES = [
   { key: "equipement" as EquipementType, label: "Autre Équipement", icon: Package },
 ];
 
-function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void }) {
+function SidebarActions({ onCreatePeuple, onCreateFamille, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack }: { onCreatePeuple: () => void; onCreateFamille: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void }) {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showObjetTypes, setShowObjetTypes] = React.useState(false);
 
@@ -359,6 +396,12 @@ function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCre
             className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
           >
             <Users className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Peuple
+          </button>
+          <button
+            onClick={() => { onCreateFamille(); setShowMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+          >
+            <Shield className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Famille
           </button>
           <button
             onClick={() => { onCreateProfil(); setShowMenu(false); }}

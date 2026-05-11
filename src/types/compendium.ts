@@ -34,16 +34,26 @@ export interface Voie {
   };
 }
 
-export type Section = 'peuples' | 'familles' | 'bestiaire' | 'objets' | 'voies_prestige';
+export type Section = 'peuples' | 'familles' | 'profils' | 'bestiaire' | 'objets' | 'voies_prestige';
 
-export interface Famille {
+export interface FamilleArchetype {
   id: string;
   nom: string;
-  groupe: string;
   description: string | null;
   pv_niveau: number;
   de_recuperation: string;
   bonus_chance: number;
+  image_url?: string;
+  campaign_id: string | null;
+  is_custom: boolean;
+}
+
+export interface Famille {
+  id: string;
+  nom: string;
+  famille_id: string | null;
+  famille_nom?: string;
+  description: string | null;
   equipement_base: string | null;
   maitrise_equipement: string | null;
   lore?: string | null;
@@ -57,7 +67,8 @@ export interface FamilleVoie {
   id?: string;
   nom: string;
   type: string;
-  categorie?: string | null;
+  famille_id?: string | null;
+  famille_nom?: string;
   capacites: {
     rang1: VoieRangCapacite;
     rang2: VoieRangCapacite;
@@ -153,6 +164,7 @@ export interface VoiePrestigeWizardProps {
   onSuccess: () => void;
   campaignId?: string;
   initialData?: FamilleVoie;
+  familles: { id: string; nom: string }[];
 }
 
 export type RangsState = {
@@ -171,29 +183,26 @@ export const EMPTY_RANGS: RangsState = {
   rang5: { nom: "", type: "", description: "" },
 };
 
-export const CATEGORIE_OPTIONS = [
-  "Voies génériques",
-  "Voies d'Aventuriers",
-  "Voies de Combattants",
-  "Voies de Mage",
-  "Voies de Mystique",
-];
+export interface FamilleWizardProps {
+  onClose: () => void;
+  onSuccess: () => void;
+  campaignId?: string;
+  initialData?: Partial<FamilleArchetype> & { id?: string; nom?: string };
+}
 
 export interface ProfilWizardProps {
   onClose: () => void;
   onSuccess: () => void;
   campaignId?: string;
-  initialData?: InitialFamilleData;
+  initialData?: InitialProfilData;
+  famillesArchetypes: FamilleArchetype[];
 }
 
-export interface InitialFamilleData {
+export interface InitialProfilData {
   id: string;
   nom: string;
-  groupe: string;
+  famille_id: string | null;
   description: string | null;
-  pv_niveau: number;
-  de_recuperation: string;
-  bonus_chance: number;
   equipement_base: string | null;
   maitrise_equipement: string | null;
   lore?: string | null;
@@ -202,11 +211,3 @@ export interface InitialFamilleData {
   data: Record<string, unknown>;
   voies: FamilleVoie[];
 }
-
-
-export const FALLBACK_GROUPES = [
-  "Combattant",
-  "Aventurier",
-  "Mage",
-  "Mystique",
-];

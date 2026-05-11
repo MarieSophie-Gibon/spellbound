@@ -1,45 +1,15 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import { useState, useEffect } from "react";
-import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import type { Famille, FamilleVoie } from "@/types/compendium";
+import { Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
+import type { FamilleArchetype } from "@/types/compendium";
 
 interface FamilleDetailProps {
-    famille: Famille;
-    voies: FamilleVoie[];
+    famille: FamilleArchetype;
     isFullscreen: boolean;
     onToggleFullscreen: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }
 
-export function FamilleDetail({ famille, voies, isFullscreen, onToggleFullscreen, onEdit, onDelete }: FamilleDetailProps) {
-    const equipAssoc = famille.data?.equipement_associe as { arme_contact?: string[]; arme_distance?: string[]; armure?: string[] } | undefined;
-    const hasEquipAssoc = equipAssoc && (equipAssoc.arme_contact?.length || equipAssoc.arme_distance?.length || equipAssoc.armure?.length);
-
-    const [equipNoms, setEquipNoms] = useState<{ arme_contact: string[]; arme_distance: string[]; armure: string[] }>({ arme_contact: [], arme_distance: [], armure: [] });
-
-    useEffect(() => {
-        if (!hasEquipAssoc || !equipAssoc) return;
-        const fetchNoms = async () => {
-            const result = { arme_contact: [] as string[], arme_distance: [] as string[], armure: [] as string[] };
-            if (equipAssoc.arme_contact?.length) {
-                const { data } = await supabase.from("armes_contact").select("nom").in("id", equipAssoc.arme_contact).order("nom");
-                if (data) result.arme_contact = data.map(d => d.nom);
-            }
-            if (equipAssoc.arme_distance?.length) {
-                const { data } = await supabase.from("armes_distance").select("nom").in("id", equipAssoc.arme_distance).order("nom");
-                if (data) result.arme_distance = data.map(d => d.nom);
-            }
-            if (equipAssoc.armure?.length) {
-                const { data } = await supabase.from("armures").select("nom").in("id", equipAssoc.armure).order("nom");
-                if (data) result.armure = data.map(d => d.nom);
-            }
-            setEquipNoms(result);
-        };
-        fetchNoms();
-    }, [famille.id]);
-
+export function FamilleDetail({ famille, isFullscreen, onToggleFullscreen, onEdit, onDelete }: FamilleDetailProps) {
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
 
@@ -48,7 +18,7 @@ export function FamilleDetail({ famille, voies, isFullscreen, onToggleFullscreen
                 <div className="flex items-baseline gap-3">
                     <h1 className="font-serif text-3xl text-white tracking-wider">{famille.nom}</h1>
                     <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2.5 py-0.5">
-                        {famille.groupe}
+                        Archétype
                     </span>
                 </div>
                 <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
@@ -64,147 +34,32 @@ export function FamilleDetail({ famille, voies, isFullscreen, onToggleFullscreen
                 </div>
             </div>
 
-            <div className="space-y-3 flex-1">
-
-                {/* IMAGE + DESCRIPTION */}
-                <div className="flex gap-3 items-stretch">
-                    <FamilleCard famille={famille} />
-                    <div className="flex-1 max-h-66.25 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
-                        <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
-                        <div>
-                            <div className="whitespace-pre-wrap">{famille.description || "Aucune description renseignée."}</div>
-                            {famille.lore && (
-                                <div className="whitespace-pre-wrap mt-4 pt-4 border-t border-white/10 text-white/70 italic">{famille.lore}</div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
+            <div className="space-y-5 flex-1">
                 {/* STATISTIQUES */}
-                <div className="border border-dashed border-[#E3CCCD]/25 rounded-2xl px-5 py-4 text-[13px] text-white/90">
-                    <div className="grid grid-cols-3 gap-x-8 gap-y-2">
-                        <StatRow label="PV par niveau" value={String(famille.pv_niveau)} />
-                        <StatRow label="Dé de récupération" value={famille.de_recuperation} />
-                        {famille.bonus_chance > 0 && (
-                            <StatRow label="Bonus Chance" value={`+${famille.bonus_chance}`} />
-                        )}
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="px-5 py-4 rounded-2xl border border-dashed border-[#E3CCCD]/25 bg-[#29206A]/20 text-center">
+                        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">PV / niveau</p>
+                        <p className="text-2xl text-white font-semibold">{famille.pv_niveau}</p>
                     </div>
-                    {famille.equipement_base && (
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-dashed border-white/10">
-                            <span className="font-bold shrink-0">• Équipement de base :</span>
-                            <span className="font-light">{famille.equipement_base}</span>
-                        </div>
-                    )}
-                    {famille.maitrise_equipement && (
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-dashed border-white/10">
-                            <span className="font-bold shrink-0">• Maîtrise d'équipement :</span>
-                            <span className="font-light">{famille.maitrise_equipement}</span>
-                        </div>
-                    )}
-                    {hasEquipAssoc && (
-                        <div className="mt-3 pt-3 border-t border-dashed border-white/10 space-y-2">
-                            <span className="font-bold text-[13px]">• Équipement associé :</span>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                                {equipNoms.arme_contact.map(nom => (
-                                    <span key={nom} className="inline-flex items-center gap-1.5 text-[11px] text-white/70 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
-                                        <Sword className="w-3 h-3 text-[#E3CCCD]/50" />{nom}
-                                    </span>
-                                ))}
-                                {equipNoms.arme_distance.map(nom => (
-                                    <span key={nom} className="inline-flex items-center gap-1.5 text-[11px] text-white/70 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
-                                        <Target className="w-3 h-3 text-[#E3CCCD]/50" />{nom}
-                                    </span>
-                                ))}
-                                {equipNoms.armure.map(nom => (
-                                    <span key={nom} className="inline-flex items-center gap-1.5 text-[11px] text-white/70 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1">
-                                        <Shield className="w-3 h-3 text-[#E3CCCD]/50" />{nom}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    <div className="px-5 py-4 rounded-2xl border border-dashed border-[#E3CCCD]/25 bg-[#29206A]/20 text-center">
+                        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Dé de récupération</p>
+                        <p className="text-2xl text-white font-semibold font-mono">{famille.de_recuperation}</p>
+                    </div>
+                    <div className="px-5 py-4 rounded-2xl border border-dashed border-[#E3CCCD]/25 bg-[#29206A]/20 text-center">
+                        <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Bonus Chance</p>
+                        <p className={`text-2xl font-semibold ${famille.bonus_chance > 0 ? "text-emerald-400" : famille.bonus_chance < 0 ? "text-red-400" : "text-white/50"}`}>
+                            {famille.bonus_chance > 0 ? `+${famille.bonus_chance}` : famille.bonus_chance}
+                        </p>
+                    </div>
                 </div>
 
-                {/* VOIES */}
-                <div className="space-y-2">
-                    {voies.length === 0 ? (
-                        <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl p-6 text-center text-[13px] text-white/30 italic">
-                            Aucune voie n'a encore été définie pour ce profil.
-                        </div>
-                    ) : (
-                        voies.map((voie, i) => (
-                            <VoieBlock key={voie.id ?? i} voie={voie} defaultOpen={i === 0} />
-                        ))
-                    )}
-                </div>
-
+                {famille.description && (
+                    <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-4 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
+                        <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
+                        <div className="whitespace-pre-wrap">{famille.description}</div>
+                    </div>
+                )}
             </div>
-        </div>
-    );
-}
-
-function VoieBlock({ voie, defaultOpen }: { voie: FamilleVoie; defaultOpen?: boolean }) {
-    const [open, setOpen] = useState(defaultOpen ?? false);
-
-    return (
-        <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl overflow-hidden">
-            <button
-                onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-white/5 transition-colors"
-            >
-                <div className="flex items-center gap-3">
-                    <h3 className="font-serif text-lg text-white">{voie.nom}</h3>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-white/40 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
-            </button>
-
-            {open && (
-                <div className="px-6 pb-5 border-t border-white/10 pt-4 space-y-4">
-                    {[1, 2, 3, 4, 5].map((rangNum) => {
-                        const rang = voie.capacites[`rang${rangNum}` as keyof typeof voie.capacites];
-                        if (!rang?.nom) return null;
-                        return (
-                            <div key={rangNum} className="text-[13px]">
-                                <span className="font-bold text-white">{rangNum}. {rang.nom} </span>
-                                {rang.type && rang.type !== "passif" && (
-                                    <span className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded-full px-1.5 py-0.5 mr-1">{rang.type}</span>
-                                )}
-                                <span className="font-light text-white/80 leading-relaxed">: {rang.description}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function FamilleCard({ famille }: { famille: Famille }) {
-    return (
-        <div className="w-44 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
-            {famille.image_url ? (
-                <img src={famille.image_url} alt={famille.nom} className="absolute inset-0 w-full h-full object-cover opacity-90" />
-            ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <ImageIcon className="w-10 h-10 text-white/10" />
-                </div>
-            )}
-            <div className="absolute inset-0 z-10 pointer-events-none"
-                style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
-            />
-            <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
-            <div className="absolute bottom-5 inset-x-0 z-30 pb-4 text-center">
-                <h3 className="font-serif text-base text-white tracking-widest">{famille.nom}</h3>
-            </div>
-        </div>
-    );
-}
-
-function StatRow({ label, value }: { label: string; value?: string }) {
-    return (
-        <div className="flex gap-2">
-            <span className="font-bold">• {label} :</span>
-            <span className="font-light">{value || "N/A"}</span>
         </div>
     );
 }
