@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package } from "lucide-react";
-import type { Peuple, Famille, Monstre, Equipement, Section } from "@/types/compendium";
+import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package, Award } from "lucide-react";
+import type { Peuple, Famille, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
 function SectionPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
@@ -23,15 +23,19 @@ interface CompendiumSidebarProps {
   selectedMonstreId: string | null;
   equipements: Equipement[];
   selectedEquipementTable: EquipementType | null;
+  voiesPrestige: FamilleVoie[];
+  selectedVoiePrestigeId: string | null;
   onSectionChange: (section: Section | null) => void;
   onSelectPeuple: (id: string) => void;
   onSelectFamille: (id: string) => void;
   onSelectMonstre: (id: string) => void;
   onSelectEquipementTable: (type: EquipementType) => void;
+  onSelectVoiePrestige: (id: string) => void;
   onCreatePeuple: () => void;
   onCreateProfil: () => void;
   onCreateMonstre: () => void;
   onCreateObjet: (type: EquipementType) => void;
+  onCreateVoiePrestige: () => void;
   onBack: () => void;
 }
 
@@ -45,15 +49,19 @@ export function CompendiumSidebar({
   selectedMonstreId,
   equipements,
   selectedEquipementTable,
+  voiesPrestige,
+  selectedVoiePrestigeId,
   onSectionChange,
   onSelectPeuple,
   onSelectFamille,
   onSelectMonstre,
   onSelectEquipementTable,
+  onSelectVoiePrestige,
   onCreatePeuple,
   onCreateProfil,
   onCreateMonstre,
   onCreateObjet,
+  onCreateVoiePrestige,
   onBack,
 }: CompendiumSidebarProps) {
   const [expandedGroupes, setExpandedGroupes] = useState<Set<string>>(new Set());
@@ -93,6 +101,25 @@ export function CompendiumSidebar({
     return acc;
   }, {});
   const groupesOrdonnes = Object.keys(famillesParGroupe).sort();
+
+  // Regrouper les voies de prestige par catégorie
+  const voiesParCategorie = voiesPrestige.reduce<Record<string, FamilleVoie[]>>((acc, v) => {
+    const c = v.categorie || "Voies génériques";
+    if (!acc[c]) acc[c] = [];
+    acc[c].push(v);
+    return acc;
+  }, {});
+  const categoriesOrdonnees = Object.keys(voiesParCategorie).sort();
+
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const toggleCategorie = (cat: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  };
   return (
     <>
       <div className="flex-1 overflow-y-auto py-2 px-3 scrollbar-thin scrollbar-thumb-white/5">
@@ -250,10 +277,57 @@ export function CompendiumSidebar({
             </div>
           </SectionPanel>
         </div>
+
+        {/* SECTION VOIES DE PRESTIGE */}
+        <div className="w-full">
+          <button
+            onClick={() => onSectionChange(activeSection === 'voies_prestige' ? null : 'voies_prestige')}
+            className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'voies_prestige' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+          >
+            <span>Voies de Prestige</span>
+            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === 'voies_prestige' ? 'rotate-180' : ''}`} />
+          </button>
+          <SectionPanel open={activeSection === 'voies_prestige'}>
+            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+              {voiesPrestige.length === 0 ? (
+                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune voie de prestige.</div>
+              ) : (
+                categoriesOrdonnees.map(cat => {
+                  const isOpen = expandedCategories.has(cat);
+                  return (
+                    <div key={cat}>
+                      <button
+                        onClick={() => toggleCategorie(cat)}
+                        className="flex items-center justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold uppercase tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
+                      >
+                        <span>{cat}</span>
+                        <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <SectionPanel open={isOpen}>
+                        <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
+                          {voiesParCategorie[cat].map(voie => (
+                            <button
+                              key={voie.id}
+                              onClick={() => voie.id && onSelectVoiePrestige(voie.id)}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedVoiePrestigeId === voie.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                            >
+                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedVoiePrestigeId === voie.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                              <span className="truncate">{voie.nom}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </SectionPanel>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </SectionPanel>
+        </div>
       </div>
 
       {/* ACTIONS */}
-      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onBack={onBack} />
+      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} />
     </>
   );
 }
@@ -272,7 +346,7 @@ const OBJET_TYPES = [
   { key: "equipement" as EquipementType, label: "Autre Équipement", icon: Package },
 ];
 
-function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCreateObjet, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onBack: () => void }) {
+function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack }: { onCreatePeuple: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void }) {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showObjetTypes, setShowObjetTypes] = React.useState(false);
 
@@ -297,6 +371,12 @@ function SidebarActions({ onCreatePeuple, onCreateProfil, onCreateMonstre, onCre
             className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
           >
             <Swords className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Créature
+          </button>
+          <button
+            onClick={() => { onCreateVoiePrestige(); setShowMenu(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+          >
+            <Award className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Voie (Prestige)
           </button>
           <div className="relative">
             <button

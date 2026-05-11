@@ -34,7 +34,7 @@ export interface Voie {
   };
 }
 
-export type Section = 'peuples' | 'familles' | 'bestiaire' | 'objets';
+export type Section = 'peuples' | 'familles' | 'bestiaire' | 'objets' | 'voies_prestige';
 
 export interface Famille {
   id: string;
@@ -57,6 +57,7 @@ export interface FamilleVoie {
   id?: string;
   nom: string;
   type: string;
+  categorie?: string | null;
   capacites: {
     rang1: VoieRangCapacite;
     rang2: VoieRangCapacite;
@@ -144,3 +145,68 @@ export interface Equipement {
   agi_max?: string;
   campaign_id?: string | null;
 }
+
+export const TYPE_OPTIONS = ["Action d'attaque", "Action limitée", "Action de mouvement", "Action Gratuite", "Bonus de caractéristique", "Autre"];
+
+export interface VoiePrestigeWizardProps {
+  onClose: () => void;
+  onSuccess: () => void;
+  campaignId?: string;
+  initialData?: FamilleVoie;
+}
+
+export type RangsState = {
+  rang1: VoieRangCapacite;
+  rang2: VoieRangCapacite;
+  rang3: VoieRangCapacite;
+  rang4: VoieRangCapacite;
+  rang5: VoieRangCapacite;
+};
+
+export const EMPTY_RANGS: RangsState = {
+  rang1: { nom: "", type: "", description: "" },
+  rang2: { nom: "", type: "", description: "" },
+  rang3: { nom: "", type: "", description: "" },
+  rang4: { nom: "", type: "", description: "" },
+  rang5: { nom: "", type: "", description: "" },
+};
+
+export const CATEGORIE_OPTIONS = [
+  "Voies génériques",
+  "Voies d'Aventuriers",
+  "Voies de Combattants",
+  "Voies de Mage",
+  "Voies de Mystique",
+];
+
+export interface ProfilWizardProps {
+  onClose: () => void;
+  onSuccess: () => void;
+  campaignId?: string;
+  initialData?: InitialFamilleData;
+}
+
+export interface InitialFamilleData {
+  id: string;
+  nom: string;
+  groupe: string;
+  description: string | null;
+  pv_niveau: number;
+  de_recuperation: string;
+  bonus_chance: number;
+  equipement_base: string | null;
+  maitrise_equipement: string | null;
+  lore?: string | null;
+  campaign_id?: string | null;
+  image_url?: string;
+  data: Record<string, unknown>;
+  voies: FamilleVoie[];
+}
+
+
+export const FALLBACK_GROUPES = [
+  "Combattant",
+  "Aventurier",
+  "Mage",
+  "Mystique",
+];

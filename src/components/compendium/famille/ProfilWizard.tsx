@@ -18,70 +18,17 @@ import {
   Check,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { FamilleVoie, VoieRangCapacite } from "@/types/compendium";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { FALLBACK_GROUPES, type FamilleVoie, type ProfilWizardProps, type RangsState, type VoieRangCapacite } from "@/types/compendium";
+import { EMPTY_RANGS, TYPE_OPTIONS} from "@/types/compendium";
 
-// --- Types internes ---
-
-interface ProfilWizardProps {
-  onClose: () => void;
-  onSuccess: () => void;
-  campaignId?: string;
-  initialData?: InitialFamilleData;
-}
-
-export interface InitialFamilleData {
-  id: string;
-  nom: string;
-  groupe: string;
-  description: string | null;
-  pv_niveau: number;
-  de_recuperation: string;
-  bonus_chance: number;
-  equipement_base: string | null;
-  maitrise_equipement: string | null;
-  lore?: string | null;
-  campaign_id?: string | null;
-  image_url?: string;
-  data: Record<string, unknown>;
-  voies: FamilleVoie[];
-}
-
-type RangsState = {
-  rang1: VoieRangCapacite;
-  rang2: VoieRangCapacite;
-  rang3: VoieRangCapacite;
-  rang4: VoieRangCapacite;
-  rang5: VoieRangCapacite;
-};
-
-const EMPTY_RANGS: RangsState = {
-  rang1: { nom: "", type: "passif", description: "" },
-  rang2: { nom: "", type: "passif", description: "" },
-  rang3: { nom: "", type: "passif", description: "" },
-  rang4: { nom: "", type: "passif", description: "" },
-  rang5: { nom: "", type: "passif", description: "" },
-};
-
-const FALLBACK_GROUPES = [
-  "Combattant",
-  "Expert",
-  "Magicien",
-  "Hybride",
-  "Autre",
-];
-
-const TYPE_LABELS: Record<string, string> = {
-  principale: "Voie Principale",
-  secondaire: "Voie Secondaire",
-  prestige: "Voie de Prestige",
-};
 
 // --- Helpers ---
 
 function makeEmptyVoie(): FamilleVoie & { _rangs: RangsState } {
   return {
     nom: "",
-    type: "principale",
+    type: "famille",
     capacites: EMPTY_RANGS,
     _rangs: structuredClone(EMPTY_RANGS),
   };
@@ -1090,19 +1037,6 @@ export function ProfilWizard({
                       className="flex-1 bg-transparent outline-none text-white text-[14px] font-medium placeholder:text-white/30"
                     />
                   </button>
-                  <select
-                    value={voie.type}
-                    onChange={(e) =>
-                      updateVoie(voieIdx, "type", e.target.value)
-                    }
-                    className="bg-white/5 border border-white/15 rounded-lg px-2.5 py-1 text-white/70 text-[11px] outline-none focus:border-white/30"
-                  >
-                    {Object.entries(TYPE_LABELS).map(([val, label]) => (
-                      <option key={val} value={val} className="bg-[#1E1941]">
-                        {label}
-                      </option>
-                    ))}
-                  </select>
                   {voies.length > 1 && (
                     <button
                       onClick={() => removeVoie(voieIdx)}
@@ -1143,25 +1077,14 @@ export function ProfilWizard({
                                 placeholder="Nom de la capacité"
                                 className="flex-1 bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35"
                               />
-                              <select
-                                value={rangData.type}
-                                onChange={(e) =>
-                                  updateRang(
-                                    voieIdx,
-                                    key,
-                                    "type",
-                                    e.target.value,
-                                  )
-                                }
-                                className="bg-white/8 border border-white/20 rounded-lg px-2.5 py-1.5 text-white/80 text-[12px] outline-none focus:border-white/40"
-                              >
-                                <option value="passif">Passif</option>
-                                <option value="action">Action (L)</option>
-                                <option value="action_limitee">
-                                  Action Lim. (LL)
-                                </option>
-                                <option value="sort">Sort</option>
-                              </select>
+                              <div className="w-40">
+                                <ThemedSelect
+                                  value={rangData.type}
+                                  onValueChange={(v) => updateRang(voieIdx, key, "type", v || "passif")}
+                                  options={TYPE_OPTIONS}
+                                  placeholder="Type"
+                                />
+                              </div>
                             </div>
                             <textarea
                               value={rangData.description}

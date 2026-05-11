@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from "react";
-// import { createPortal } from "react-dom";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import {
   X,
@@ -104,6 +104,20 @@ function ImageUploader({
 function ArmeContactFields({
   dm, setDm, typeDeDm, setTypeDeDm, categorie, setCategorie, notes, setNotes,
 }: any) {
+  const CATEGORIES = [
+    null,
+    "Arme à deux mains",
+    "Arme à une ou deux mains",
+    "Arme à poudre",
+    "Arme légère",
+  ];
+  // Filter out nulls for options
+  const CATEGORY_OPTIONS: string[] = CATEGORIES.filter((c): c is string => Boolean(c));
+  const TYPES_DM = [
+    "Perforants",
+    "Contondants",
+    "Tranchants",
+  ];
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-3">
       <div className="space-y-1">
@@ -113,13 +127,11 @@ function ArmeContactFields({
       </div>
       <div className="space-y-1">
         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Type de DM</label>
-        <input type="text" value={typeDeDm} onChange={(e: any) => setTypeDeDm(e.target.value)} placeholder="Tranchant, contondant..."
-          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+        <ThemedSelect value={typeDeDm} onValueChange={setTypeDeDm} options={TYPES_DM} allowNull />
       </div>
       <div className="space-y-1">
         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Catégorie</label>
-        <input type="text" value={categorie} onChange={(e: any) => setCategorie(e.target.value)} placeholder="Épée, Masse, Hache..."
-          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+        <ThemedSelect value={categorie} onValueChange={setCategorie} options={CATEGORY_OPTIONS} allowNull />
       </div>
       <div className="space-y-1 col-span-2">
         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Notes</label>
@@ -133,6 +145,20 @@ function ArmeContactFields({
 function ArmeDistanceFields({
   dm, setDm, typeDeDm, setTypeDeDm, categorie, setCategorie, portee, setPortee, notes, setNotes,
 }: any) {
+  const CATEGORIES = [
+    null,
+    "Arme à deux mains",
+    "Arme à une ou deux mains",
+    "Arme à poudre",
+    "Arme légère",
+  ];
+  // Filter out nulls for options
+  const CATEGORY_OPTIONS: string[] = CATEGORIES.filter((c): c is string => Boolean(c));
+  const TYPES_DM = [
+    "Perforants",
+    "Contondants",
+    "Tranchants",
+  ];
   return (
     <div className="grid grid-cols-2 gap-x-6 gap-y-3">
       <div className="space-y-1">
@@ -142,13 +168,11 @@ function ArmeDistanceFields({
       </div>
       <div className="space-y-1">
         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Type de DM</label>
-        <input type="text" value={typeDeDm} onChange={(e: any) => setTypeDeDm(e.target.value)} placeholder="Perforant, contondant..."
-          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+        <ThemedSelect value={typeDeDm} onValueChange={setTypeDeDm} options={TYPES_DM} allowNull />
       </div>
       <div className="space-y-1">
         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Catégorie</label>
-        <input type="text" value={categorie} onChange={(e: any) => setCategorie(e.target.value)} placeholder="Arc, Arbalète..."
-          className="w-full bg-transparent border-b border-white/20 focus:border-[#E3CCCD]/60 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/25" />
+        <ThemedSelect value={categorie} onValueChange={setCategorie} options={CATEGORY_OPTIONS} allowNull />
       </div>
       <div className="space-y-1">
         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Portée</label>

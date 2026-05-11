@@ -14,6 +14,7 @@ import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
+import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/VoiePrestigeWizard";
 import type { Peuple, Voie, Famille, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 
 interface CompendiumProps {
@@ -57,6 +58,14 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const [showEditObjet, setShowEditObjet] = useState(false);
   const [showDeleteObjetConfirm, setShowDeleteObjetConfirm] = useState(false);
   const [isDeletingObjet, setIsDeletingObjet] = useState(false);
+
+  // Voies de Prestige
+  const [voiesPrestige, setVoiesPrestige] = useState<FamilleVoie[]>([]);
+  const [selectedVoiePrestigeId, setSelectedVoiePrestigeId] = useState<string | null>(null);
+  const [showVoiePrestigeWizard, setShowVoiePrestigeWizard] = useState(false);
+  const [editingVoiePrestige, setEditingVoiePrestige] = useState<FamilleVoie | null>(null);
+  const [showDeleteVoiePrestigeConfirm, setShowDeleteVoiePrestigeConfirm] = useState(false);
+  const [isDeletingVoiePrestige, setIsDeletingVoiePrestige] = useState(false);
 
   const fetchPeuples = async () => {
     let query = supabase.from('peuples').select('*').order('nom');
@@ -121,6 +130,17 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     setSelectedVoie(data as Voie);
   };
 
+  const fetchVoiesPrestige = async () => {
+    let query = supabase.from('voies').select('*').eq('type', 'prestige').order('nom');
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      query = query.is('campaign_id', null);
+    }
+    const { data } = await query;
+    if (data) setVoiesPrestige(data as FamilleVoie[]);
+  };
+
   const fetchVoiesForFamille = async (familleId: string) => {
     const { data } = await supabase
       .from('voies').select('*').eq('famille_id', familleId).order('nom');
@@ -132,6 +152,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     if (activeSection === 'familles') fetchFamilles();
     if (activeSection === 'bestiaire') fetchMonstres();
     if (activeSection === 'objets') fetchEquipements();
+    if (activeSection === 'voies_prestige') fetchVoiesPrestige();
   }, [activeSection, campaignId]);
 
   useEffect(() => {
@@ -150,6 +171,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     setSelectedFamilleId(null);
     setSelectedMonstreId(null);
     setSelectedEquipementTable(null);
+    setSelectedVoiePrestigeId(null);
     setIsFullscreen(false);
   };
 
@@ -172,6 +194,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   const selectedFamille = familles.find(f => f.id === selectedFamilleId);
   const selectedMonstre = monstres.find(m => m.id === selectedMonstreId);
   const filteredEquipements = equipements.filter(e => e.table_source === selectedEquipementTable);
+  const selectedVoiePrestige = voiesPrestige.find(v => v.id === selectedVoiePrestigeId);
 
   const handleDeleteMonstre = async () => {
     if (!selectedMonstre) return;
@@ -217,6 +240,20 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
     }
   };
 
+  const handleDeleteVoiePrestige = async () => {
+    if (!selectedVoiePrestige?.id) return;
+    setIsDeletingVoiePrestige(true);
+    try {
+      await supabase.from('voies').delete().eq('id', selectedVoiePrestige.id);
+      setSelectedVoiePrestigeId(null);
+      setShowDeleteVoiePrestigeConfirm(false);
+      setIsFullscreen(false);
+      fetchVoiesPrestige();
+    } finally {
+      setIsDeletingVoiePrestige(false);
+    }
+  };
+
   const sidebar = (
     <CompendiumSidebar
       activeSection={activeSection}
@@ -228,15 +265,19 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       selectedMonstreId={selectedMonstreId}
       equipements={equipements}
       selectedEquipementTable={selectedEquipementTable}
+      voiesPrestige={voiesPrestige}
+      selectedVoiePrestigeId={selectedVoiePrestigeId}
       onSectionChange={handleSectionChange}
       onSelectPeuple={setSelectedPeupleId}
       onSelectFamille={setSelectedFamilleId}
       onSelectMonstre={setSelectedMonstreId}
       onSelectEquipementTable={setSelectedEquipementTable}
+      onSelectVoiePrestige={setSelectedVoiePrestigeId}
       onCreatePeuple={() => setShowCreateWizard(true)}
       onCreateProfil={() => setShowCreateProfil(true)}
       onCreateMonstre={() => setShowCreateMonster(true)}
       onCreateObjet={(type) => { setCreateObjetType(type); setShowCreateObjet(true); }}
+      onCreateVoiePrestige={() => setShowVoiePrestigeWizard(true)}
       onBack={onBack}
     />
   );
@@ -279,6 +320,58 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onEdit={(eq) => { setEditingEquipement(eq); setShowEditObjet(true); }}
             onDelete={(eq) => { setDeletingEquipement(eq); setShowDeleteObjetConfirm(true); }}
           />
+        ) : activeSection === 'voies_prestige' && selectedVoiePrestige ? (
+          <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="font-serif text-2xl text-white tracking-wide">{selectedVoiePrestige.nom}</h2>
+                {selectedVoiePrestige.categorie && (
+                  <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 mt-1 inline-block">
+                    {selectedVoiePrestige.categorie}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setEditingVoiePrestige(selectedVoiePrestige); setShowVoiePrestigeWizard(true); }}
+                  className="px-3 py-1.5 rounded-lg border border-white/15 text-white/60 hover:text-white hover:border-white/30 text-[12px] transition-all"
+                >
+                  Éditer
+                </button>
+                <button
+                  onClick={() => setShowDeleteVoiePrestigeConfirm(true)}
+                  className="px-3 py-1.5 rounded-lg border border-red-400/30 text-red-400/70 hover:text-red-400 hover:border-red-400/50 text-[12px] transition-all"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {([1, 2, 3, 4, 5] as const).map((rangNum) => {
+                const key = `rang${rangNum}` as keyof typeof selectedVoiePrestige.capacites;
+                const cap = selectedVoiePrestige.capacites[key];
+                if (!cap?.nom) return null;
+                return (
+                  <div key={key} className="flex gap-4 items-start py-3 border-b border-white/6 last:border-0">
+                    <span className="w-5 h-5 mt-0.5 rounded-full border border-white/30 flex items-center justify-center text-[11px] text-white/60 font-medium shrink-0">
+                      {rangNum}
+                    </span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-white text-sm font-medium">{cap.nom}</span>
+                        <span className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2 py-0.5">
+                          {cap.type}
+                        </span>
+                      </div>
+                      {cap.description && (
+                        <p className="text-white/60 text-[13px] leading-relaxed">{cap.description}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
             <BookOpenIcon className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />
@@ -435,6 +528,24 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           isDeleting={isDeletingObjet}
           onConfirm={handleDeleteObjet}
           onCancel={() => setShowDeleteObjetConfirm(false)}
+        />
+      )}
+
+      {showVoiePrestigeWizard && (
+        <VoiePrestigeWizard
+          campaignId={campaignId}
+          onClose={() => { setShowVoiePrestigeWizard(false); setEditingVoiePrestige(null); }}
+          onSuccess={() => { fetchVoiesPrestige(); setActiveSection('voies_prestige'); }}
+          initialData={editingVoiePrestige ?? undefined}
+        />
+      )}
+
+      {showDeleteVoiePrestigeConfirm && selectedVoiePrestige && (
+        <DeleteConfirmModal
+          name={selectedVoiePrestige.nom}
+          isDeleting={isDeletingVoiePrestige}
+          onConfirm={handleDeleteVoiePrestige}
+          onCancel={() => setShowDeleteVoiePrestigeConfirm(false)}
         />
       )}
     </>
