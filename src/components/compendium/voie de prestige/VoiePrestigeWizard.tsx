@@ -129,7 +129,7 @@ export function VoiePrestigeWizard({
           {/* Famille (optionnel) */}
           <div className="space-y-1.5">
             <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
-              Rattachée à une Famille
+              Famille (archétype)
             </label>
             <ThemedSelect
               value={familleId}
@@ -139,6 +139,7 @@ export function VoiePrestigeWizard({
               allowNull
               labels={Object.fromEntries(familles.map(f => [f.id, f.nom]))}
             />
+            <p className="text-[11px] text-white/40 italic">Optionnel — rattache cette voie à une famille d'archétype.</p>
           </div>
 
           {/* Rangs */}
