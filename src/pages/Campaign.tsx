@@ -48,21 +48,23 @@ export function CampaignHome({ campaign }: CampaignProps) {
                         { icon: Users,      label: "Personnages joueurs", value: stats?.pj },
                         { icon: Skull,      label: "Monstres",            value: stats?.monstres },
                         { icon: BookMarked, label: "Profils",             value: stats?.profils },
-                    ].map(({ icon: Icon, label, value }) => (
+                    ].filter(({ value }) => (value ?? 0) > 0).map(({ icon: Icon, label, value }) => (
                         <div key={label} className="flex items-center justify-between">
                             <div className="flex items-center gap-2 text-white/50">
                                 <Icon className="w-3.5 h-3.5 shrink-0" />
                                 <span className="text-[11px]">{label}</span>
                             </div>
                             <span className="text-[12px] font-semibold text-white/80 tabular-nums">
-                                {value ?? "—"}
+                                {value}
                             </span>
                         </div>
                     ))}
 
                     {createdAt && (
                         <>
-                            <div className="h-px bg-white/10 my-0.5" />
+                            {[(stats?.pj ?? 0), (stats?.monstres ?? 0), (stats?.profils ?? 0)].some(v => v > 0) && (
+                                <div className="h-px bg-white/10 my-0.5" />
+                            )}
                             <div className="flex items-center gap-2 text-white/40">
                                 <CalendarDays className="w-3.5 h-3.5 shrink-0" />
                                 <span className="text-[11px]">Créée le {createdAt}</span>
