@@ -2,8 +2,9 @@ import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/useProfile";
-import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
+import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw, Copy } from "lucide-react";
 import { useCampaigns } from "@/hooks/useCampaigns";
+import type { Campaign } from "@/hooks/useCampaigns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,10 +19,12 @@ interface FooterProps {
   onCampaignClick?: () => void;
   onEditCampaign?: () => void;
   onDeleteCampaign?: () => void;
+  onDuplicateCampaign?: () => void;
+  onSwitchCampaign?: (campaign: Campaign) => void;
 }
 
 
-export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign }: FooterProps) {
+export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onDuplicateCampaign, onSwitchCampaign }: FooterProps) {
   const { session, signOut } = useAuthStore();
   const profile = useProfile();
 
@@ -113,6 +116,12 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                   Modifier la campagne
                 </DropdownMenuItem>
               )}
+              {onDuplicateCampaign && (
+                <DropdownMenuItem onClick={onDuplicateCampaign} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
+                  <Copy className="w-3.5 h-3.5 text-white/50" />
+                  Dupliquer la campagne
+                </DropdownMenuItem>
+              )}
               {onDeleteCampaign && (
                 <DropdownMenuItem onClick={onDeleteCampaign} className="cursor-pointer text-red-400/80 hover:bg-red-500/10 hover:text-red-400 text-xs focus:bg-red-500/10 focus:text-red-400 flex items-center gap-2">
                   <Trash2 className="w-3.5 h-3.5" />
@@ -130,8 +139,8 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                     <DropdownMenuItem
                       key={c.id}
                       onClick={() => {
-                        if (c.id !== activeCampaign.id && typeof window !== 'undefined') {
-                          window.location.reload();
+                        if (c.id !== activeCampaign.id) {
+                          onSwitchCampaign?.(c);
                         }
                       }}
                       className={`cursor-pointer text-xs focus:bg-white/10 ${c.id === activeCampaign.id ? 'opacity-60 pointer-events-none' : ''}`}
@@ -194,7 +203,7 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
               onMouseLeave={handleProfileMouseLeave}
               className="w-48 bg-[#1E1941]/95 backdrop-blur-xl border-[#E3CCCD]/20 text-slate-200 mb-2 rounded-xl"
             >
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
+              <DropdownMenuItem className="cursor-pointer hover:bg-white/10 hover:text-white text-xs focus:bg-white/10 flex items-center gap-2">
                 <Pencil className="w-3.5 h-3.5 text-white/50" />
                 Éditer le profil
               </DropdownMenuItem>

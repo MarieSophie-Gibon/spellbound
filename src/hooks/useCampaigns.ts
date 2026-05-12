@@ -75,3 +75,21 @@ export function useDeleteCampaign() {
     }
   })
 }
+
+export function useDuplicateCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ sourceId, newNom }: { sourceId: string; newNom: string }) => {
+      const { data, error } = await supabase.rpc('duplicate_campaign', {
+        source_id: sourceId,
+        new_nom: newNom,
+      })
+      if (error) throw error
+      return data as string // returns new campaign id
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}

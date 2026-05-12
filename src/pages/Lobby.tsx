@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { useCampaigns, useDeleteCampaign } from "@/hooks/useCampaigns";
+import { useCampaigns, useDeleteCampaign, useDuplicateCampaign } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
-import { Loader2 } from "lucide-react";
+import { Loader2, Copy } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface LobbyProps {
   onSelectCampaign: (campaign: Campaign) => void;
@@ -14,8 +19,11 @@ interface LobbyProps {
 export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const { data: campaigns, isLoading } = useCampaigns();
   const deleteCampaign = useDeleteCampaign();
+  const duplicateCampaign = useDuplicateCampaign();
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
+  const [duplicatingCampaign, setDuplicatingCampaign] = useState<Campaign | null>(null);
+  const [duplicateName, setDuplicateName] = useState("");
 
   if (isLoading) {
     return (
@@ -68,6 +76,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
               imageUrl={campaign.image_url}
               title={campaign.nom}
               onEdit={(e) => { e.stopPropagation(); setEditingCampaign(campaign); }}
+              onDuplicate={(e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); }}
               onDelete={(e) => { e.stopPropagation(); setDeletingCampaign(campaign); }}
             />
           ))}
@@ -97,6 +106,53 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
           onCancel={() => setDeletingCampaign(null)}
         />
       )}
+
+      <Dialog open={!!duplicatingCampaign} onOpenChange={(open) => { if (!open) setDuplicatingCampaign(null); }}>
+        <DialogContent className="bg-[#1E1941] border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-lg flex items-center gap-2">
+              <Copy className="w-4 h-4 text-sky-300" />
+              Dupliquer la campagne
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="text-xs text-white/60 mb-1.5 block">Nom de la nouvelle campagne</label>
+            <Input
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && duplicateName.trim() && duplicatingCampaign) {
+                  duplicateCampaign.mutate(
+                    { sourceId: duplicatingCampaign.id, newNom: duplicateName.trim() },
+                    { onSuccess: () => setDuplicatingCampaign(null) }
+                  );
+                }
+              }}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+              placeholder="Nom de la copie..."
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDuplicatingCampaign(null)} className="text-white/60 hover:text-white">
+              Annuler
+            </Button>
+            <Button
+              disabled={!duplicateName.trim() || duplicateCampaign.isPending}
+              onClick={() => {
+                if (!duplicatingCampaign) return;
+                duplicateCampaign.mutate(
+                  { sourceId: duplicatingCampaign.id, newNom: duplicateName.trim() },
+                  { onSuccess: () => setDuplicatingCampaign(null) }
+                );
+              }}
+              className="bg-sky-600 hover:bg-sky-500 text-white"
+            >
+              {duplicateCampaign.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Dupliquer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

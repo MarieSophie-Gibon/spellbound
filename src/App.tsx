@@ -5,7 +5,7 @@ import { SideNav } from "@/components/layout/SideNav";
 import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
-import { useDeleteCampaign } from "@/hooks/useCampaigns";
+import { useDeleteCampaign, useDuplicateCampaign } from "@/hooks/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
 import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
@@ -13,6 +13,10 @@ import { Personnages } from "@/pages/Personnages";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Copy, Loader2 } from "lucide-react";
 
 function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
@@ -21,6 +25,9 @@ function App() {
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [showDeleteCampaignConfirm, setShowDeleteCampaignConfirm] = useState(false);
   const deleteCampaign = useDeleteCampaign();
+  const duplicateCampaign = useDuplicateCampaign();
+  const [showDuplicateCampaignModal, setShowDuplicateCampaignModal] = useState(false);
+  const [duplicateName, setDuplicateName] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -207,6 +214,8 @@ function App() {
           }}
           onEditCampaign={activeCampaign ? () => setEditingCampaign(activeCampaign) : undefined}
           onDeleteCampaign={activeCampaign ? () => setShowDeleteCampaignConfirm(true) : undefined}
+          onDuplicateCampaign={activeCampaign ? () => { setDuplicateName(`Copie de ${activeCampaign.nom}`); setShowDuplicateCampaignModal(true); } : undefined}
+          onSwitchCampaign={(campaign) => { setActiveCampaign(campaign); navigate("/campaign"); }}
         />
       </div>
 
@@ -237,6 +246,53 @@ function App() {
           onCancel={() => setShowDeleteCampaignConfirm(false)}
         />
       )}
+
+      <Dialog open={showDuplicateCampaignModal} onOpenChange={(open) => { if (!open) setShowDuplicateCampaignModal(false); }}>
+        <DialogContent className="bg-[#1E1941] border-white/10 text-white max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-lg flex items-center gap-2">
+              <Copy className="w-4 h-4 text-sky-300" />
+              Dupliquer la campagne
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="text-xs text-white/60 mb-1.5 block">Nom de la nouvelle campagne</label>
+            <Input
+              value={duplicateName}
+              onChange={(e) => setDuplicateName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && duplicateName.trim() && activeCampaign) {
+                  duplicateCampaign.mutate(
+                    { sourceId: activeCampaign.id, newNom: duplicateName.trim() },
+                    { onSuccess: () => setShowDuplicateCampaignModal(false) }
+                  );
+                }
+              }}
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+              placeholder="Nom de la copie..."
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDuplicateCampaignModal(false)} className="text-white/60 hover:text-white">
+              Annuler
+            </Button>
+            <Button
+              disabled={!duplicateName.trim() || duplicateCampaign.isPending}
+              onClick={() => {
+                if (!activeCampaign) return;
+                duplicateCampaign.mutate(
+                  { sourceId: activeCampaign.id, newNom: duplicateName.trim() },
+                  { onSuccess: () => setShowDuplicateCampaignModal(false) }
+                );
+              }}
+              className="bg-sky-600 hover:bg-sky-500 text-white"
+            >
+              {duplicateCampaign.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Dupliquer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
