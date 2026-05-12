@@ -94,6 +94,8 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
 
   // ── Step 1 ──────────────────────────────────
   const [nom, setNom] = useState("");
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [players, setPlayers] = useState<{ id: string; pseudo: string }[]>([]);
   const [sexe, setSexe] = useState<Sexe>("Masculin");
   const [age, setAge] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -142,6 +144,13 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   // ── Fetch données ────────────────────────────
   useEffect(() => {
     async function fetchRef() {
+      // Joueurs
+      const { data: playersData } = await supabase
+        .from("utilisateurs")
+        .select("id, pseudo")
+        .order("pseudo");
+      if (playersData) setPlayers(playersData);
+
       // Peuples avec leur voie
       const { data: pData } = await supabase
         .from("peuples")
@@ -324,7 +333,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
 
       const { error } = await supabase.from("pj").insert({
         campaign_id: campaignId,
-        player_id: user?.id ?? null,
+        player_id: selectedPlayerId || user?.id || null,
         name: nom.trim(),
         image_url: imageUrl,
         stats: {
@@ -424,12 +433,27 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
             <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
               {/* Nom */}
               <div className="space-y-1.5">
-                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Nom *</label>
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Nom du personnage *</label>
                 <input
                   type="text" value={nom} onChange={e => setNom(e.target.value)} autoFocus
                   placeholder="ex : Aldric de Brumes..."
                   className="w-full bg-transparent border-b border-white/30 focus:border-[#E3CCCD]/80 py-2.5 text-white text-lg outline-none transition-colors placeholder:text-white/35"
                 />
+              </div>
+
+              {/* Nom joueur */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Joueur rattaché</label>
+                <select
+                  value={selectedPlayerId}
+                  onChange={e => setSelectedPlayerId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#1E1941] text-white/50">— Aucun joueur assigné —</option>
+                  {players.map(p => (
+                    <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">{p.pseudo}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Sexe & Âge */}
@@ -1134,13 +1158,17 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
 
         {/* FOOTER */}
         <div className="relative z-10 shrink-0 px-8 py-5 border-t border-white/8 bg-black/10 flex items-center justify-between gap-3">
-          <button
-            onClick={() => step > 1 ? setStep(s => s - 1) : onClose()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            {step > 1 ? "Retour" : "Annuler"}
-          </button>
+          {step > 1 ? (
+            <button
+              onClick={() => setStep(s => s - 1)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Retour
+            </button>
+          ) : (
+            <div />
+          )}
 
           <div className="flex items-center gap-2">
             {STEPS.map(s => (
