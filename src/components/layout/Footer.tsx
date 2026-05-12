@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/useProfile";
-import { User, UserStar, BookOpen } from "lucide-react";
+import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw } from "lucide-react";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import {
   DropdownMenu,
@@ -13,14 +13,15 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
-// Nouvelle prop pour la campagne active
 interface FooterProps {
   activeCampaign?: { id: string; nom: string } | null;
   onCampaignClick?: () => void;
+  onEditCampaign?: () => void;
+  onDeleteCampaign?: () => void;
 }
 
 
-export function Footer({ activeCampaign, onCampaignClick }: FooterProps) {
+export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign }: FooterProps) {
   const { session, signOut } = useAuthStore();
   const profile = useProfile();
 
@@ -102,24 +103,44 @@ export function Footer({ activeCampaign, onCampaignClick }: FooterProps) {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" onMouseEnter={handleCampaignMouseEnter} onMouseLeave={handleCampaignMouseLeave} className="w-56 bg-[#1E1941]/95 backdrop-blur-xl border-[#E3CCCD]/20 text-slate-200 mb-2 rounded-xl">
-              <DropdownMenuItem onClick={onCampaignClick} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10">
+              <DropdownMenuItem onClick={onCampaignClick} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
+                <ArrowLeft className="w-3.5 h-3.5 text-white/50" />
                 Revenir au lobby
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-white/10" />
-              <DropdownMenuLabel className="text-xs text-white/60">Changer de campagne</DropdownMenuLabel>
-              {campaigns?.map((c) => (
-                <DropdownMenuItem
-                  key={c.id}
-                  onClick={() => {
-                    if (c.id !== activeCampaign.id && typeof window !== 'undefined') {
-                      window.location.reload(); // force le reload pour tout réinitialiser
-                    }
-                  }}
-                  className={`cursor-pointer text-xs focus:bg-white/10 ${c.id === activeCampaign.id ? 'opacity-60 pointer-events-none' : ''}`}
-                >
-                  {c.nom}
+              {onEditCampaign && (
+                <DropdownMenuItem onClick={onEditCampaign} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
+                  <Pencil className="w-3.5 h-3.5 text-white/50" />
+                  Modifier la campagne
                 </DropdownMenuItem>
-              ))}
+              )}
+              {onDeleteCampaign && (
+                <DropdownMenuItem onClick={onDeleteCampaign} className="cursor-pointer text-red-400/80 hover:bg-red-500/10 hover:text-red-400 text-xs focus:bg-red-500/10 focus:text-red-400 flex items-center gap-2">
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Supprimer la campagne
+                </DropdownMenuItem>
+              )}
+              {campaigns && campaigns.length > 1 && (
+                <>
+                  <DropdownMenuSeparator className="bg-white/10" />
+                  <DropdownMenuLabel className="text-xs text-white/60 flex items-center gap-2">
+                    <RefreshCw className="w-3 h-3" />
+                    Changer de campagne
+                  </DropdownMenuLabel>
+                  {campaigns.map((c) => (
+                    <DropdownMenuItem
+                      key={c.id}
+                      onClick={() => {
+                        if (c.id !== activeCampaign.id && typeof window !== 'undefined') {
+                          window.location.reload();
+                        }
+                      }}
+                      className={`cursor-pointer text-xs focus:bg-white/10 ${c.id === activeCampaign.id ? 'opacity-60 pointer-events-none' : ''}`}
+                    >
+                      {c.nom}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -173,14 +194,16 @@ export function Footer({ activeCampaign, onCampaignClick }: FooterProps) {
               onMouseLeave={handleProfileMouseLeave}
               className="w-48 bg-[#1E1941]/95 backdrop-blur-xl border-[#E3CCCD]/20 text-slate-200 mb-2 rounded-xl"
             >
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10">
+              <DropdownMenuItem className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
+                <Pencil className="w-3.5 h-3.5 text-white/50" />
                 Éditer le profil
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-white/10" />
               <DropdownMenuItem
                 onClick={signOut}
-                className="cursor-pointer text-amber-200/80 hover:bg-white/10 hover:text-amber-200 text-xs focus:bg-white/10 focus:text-amber-200"
+                className="cursor-pointer text-amber-200/80 hover:bg-white/10 hover:text-amber-200 text-xs focus:bg-white/10 focus:text-amber-200 flex items-center gap-2"
               >
+                <LogOut className="w-3.5 h-3.5" />
                 Se déconnecter
               </DropdownMenuItem>
             </DropdownMenuContent>

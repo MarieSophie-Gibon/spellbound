@@ -3,6 +3,7 @@ export interface Category {
   name: string;
   parent_id: string | null;
   position_index: number;
+  campaign_id: string | null;
 }
 
 export interface WikiPage {

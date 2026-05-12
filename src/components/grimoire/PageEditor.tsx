@@ -200,14 +200,14 @@ export function PageEditor({
       if (isCreatingCat && newCatName.trim() !== "") {
         const { data: nCat } = await supabase
           .from("categories")
-          .insert({ name: newCatName.trim(), parent_id: null, position_index: mainCategories.length })
+          .insert({ name: newCatName.trim(), parent_id: null, position_index: mainCategories.length, campaign_id: campaignId || null })
           .select().single();
         fCatId = nCat.id;
       }
       if (isCreatingSubCat && newSubCatName.trim() !== "") {
         const { data: nSub } = await supabase
           .from("categories")
-          .insert({ name: newSubCatName.trim(), parent_id: fCatId, position_index: subCategories.length })
+          .insert({ name: newSubCatName.trim(), parent_id: fCatId, position_index: subCategories.length, campaign_id: campaignId || null })
           .select().single();
         fSubCatId = nSub.id;
       }

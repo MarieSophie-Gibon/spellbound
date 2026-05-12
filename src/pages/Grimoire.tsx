@@ -31,7 +31,13 @@ export function Grimoire({ isGlobal = true, onBack, campaignId }: GrimoireProps)
     const { data: catData } = await supabase
       .from("categories").select("*")
       .order("position_index", { ascending: true }).order("name");
-    if (catData) setCategories(catData);
+    if (catData) {
+      if (!isGlobal && campaignId) {
+        setCategories(catData.filter((c) => c.campaign_id === campaignId || c.campaign_id === null));
+      } else {
+        setCategories(catData.filter((c) => c.campaign_id === null));
+      }
+    }
     let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
     if (isGlobal) query = query.is("campaign_id", null);
     else if (campaignId) query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);

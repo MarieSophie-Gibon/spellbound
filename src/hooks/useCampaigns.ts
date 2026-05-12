@@ -41,3 +41,37 @@ export function useCreateCampaign() {
     }
   })
 }
+
+export function useUpdateCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, ...fields }: Partial<Omit<Campaign, 'id'>> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('campagnes')
+        .update(fields)
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+      return data[0] as Campaign
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    }
+  })
+}
+
+export function useDeleteCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('campagnes').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    }
+  })
+}

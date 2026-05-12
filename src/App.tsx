@@ -5,17 +5,22 @@ import { SideNav } from "@/components/layout/SideNav";
 import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
+import { useDeleteCampaign } from "@/hooks/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
 import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
+import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 
 function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [showDeleteCampaignConfirm, setShowDeleteCampaignConfirm] = useState(false);
+  const deleteCampaign = useDeleteCampaign();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -200,8 +205,38 @@ function App() {
             setActiveCampaign(null);
             navigate("/");
           }}
+          onEditCampaign={activeCampaign ? () => setEditingCampaign(activeCampaign) : undefined}
+          onDeleteCampaign={activeCampaign ? () => setShowDeleteCampaignConfirm(true) : undefined}
         />
       </div>
+
+      {editingCampaign && (
+        <CreateCampaign
+          open={true}
+          onOpenChange={(open) => { if (!open) setEditingCampaign(null); }}
+          onCreated={(updated) => { setActiveCampaign(updated); setEditingCampaign(null); }}
+          initialData={editingCampaign}
+        />
+      )}
+
+      {showDeleteCampaignConfirm && activeCampaign && (
+        <DeleteConfirmModal
+          name={activeCampaign.nom}
+          isDeleting={deleteCampaign.isPending}
+          title="Supprimer cette campagne ?"
+          description={`Toutes les données liées à "${activeCampaign.nom}" seront définitivement supprimées : personnages, articles du grimoire, éléments du compendium personnalisés, et tout le contenu associé.`}
+          onConfirm={() => {
+            deleteCampaign.mutate(activeCampaign.id, {
+              onSuccess: () => {
+                setShowDeleteCampaignConfirm(false);
+                setActiveCampaign(null);
+                navigate("/");
+              },
+            });
+          }}
+          onCancel={() => setShowDeleteCampaignConfirm(false)}
+        />
+      )}
     </div>
   );
 }

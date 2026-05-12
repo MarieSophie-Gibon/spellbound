@@ -106,7 +106,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       query = query.is('campaign_id', null);
     }
     const { data } = await query;
-    if (data) setProfils(data.map((p: any) => ({ ...p, famille_nom: p.familles?.nom ?? null })) as Famille[]);
+    if (data) setProfils(data.map((p: Famille & { familles?: { nom: string } | null }) => ({ ...p, famille_nom: p.familles?.nom ?? null })) as Famille[]);
   };
 
   const fetchMonstres = async () => {
@@ -121,24 +121,22 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
   };
 
   const fetchEquipements = async () => {
-    const filter = (q: any) => {
-      if (campaignId) return q.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
-      return q.is('campaign_id', null);
-    };
+    const applyFilter = <T extends { or: (f: string) => T; is: (col: string, val: null) => T }>(q: T): T =>
+      campaignId ? q.or(`campaign_id.eq.${campaignId},campaign_id.is.null`) : q.is('campaign_id', null);
 
     const [r1, r2, r3, r4] = await Promise.all([
-      filter(supabase.from('armes_contact').select('*').order('nom')),
-      filter(supabase.from('armes_distance').select('*').order('nom')),
-      filter(supabase.from('armures').select('*').order('nom')),
-      filter(supabase.from('equipements').select('*').order('nom')),
+      applyFilter(supabase.from('armes_contact').select('*').order('nom')),
+      applyFilter(supabase.from('armes_distance').select('*').order('nom')),
+      applyFilter(supabase.from('armures').select('*').order('nom')),
+      applyFilter(supabase.from('equipements').select('*').order('nom')),
     ]);
 
     const all: Equipement[] = [
-      ...(r1.data ?? []).map((e: any) => ({ ...e, table_source: 'arme_contact' as const, categorie: e.categorie || 'Arme contact', data: {} })),
-      ...(r2.data ?? []).map((e: any) => ({ ...e, table_source: 'arme_distance' as const, categorie: e.categorie || 'Arme distance', data: {} })),
-      ...(r3.data ?? []).map((e: any) => ({ ...e, table_source: 'armure' as const, categorie: 'Armure', data: {} })),
-      ...(r4.data ?? []).map((e: any) => ({ ...e, table_source: 'equipement' as const })),
-    ];
+      ...(r1.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'arme_contact' as const, categorie: (e.categorie as string) || 'Arme contact', data: {} })),
+      ...(r2.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'arme_distance' as const, categorie: (e.categorie as string) || 'Arme distance', data: {} })),
+      ...(r3.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'armure' as const, categorie: 'Armure', data: {} })),
+      ...(r4.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'equipement' as const })),
+    ] as Equipement[];
 
     all.sort((a, b) => a.nom.localeCompare(b.nom));
     setEquipements(all);
@@ -158,7 +156,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       query = query.is('campaign_id', null);
     }
     const { data } = await query;
-    if (data) setVoiesPrestige(data.map((v: any) => ({ ...v, famille_nom: v.familles?.nom ?? null })) as FamilleVoie[]);
+    if (data) setVoiesPrestige(data.map((v: FamilleVoie & { familles?: { nom: string } | null }) => ({ ...v, famille_nom: v.familles?.nom ?? null })) as FamilleVoie[]);
   };
 
   const fetchVoiesForProfil = async (profilId: string) => {

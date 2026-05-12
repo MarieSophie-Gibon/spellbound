@@ -6,9 +6,11 @@ interface DeleteConfirmModalProps {
   isDeleting: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  title?: string;
+  description?: string;
 }
 
-export function DeleteConfirmModal({ name, isDeleting, onConfirm, onCancel }: DeleteConfirmModalProps) {
+export function DeleteConfirmModal({ name, isDeleting, onConfirm, onCancel, title, description }: DeleteConfirmModalProps) {
   return createPortal(
     <div className="fixed inset-0 z-9999 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-[#1E1941]/95 border border-[#ff6b6b]/30 rounded-2xl shadow-2xl p-8 max-w-sm w-full flex flex-col items-center gap-5 animate-in zoom-in-95 duration-200">
@@ -16,9 +18,11 @@ export function DeleteConfirmModal({ name, isDeleting, onConfirm, onCancel }: De
           <AlertTriangle className="w-5 h-5 text-[#ff6b6b]" />
         </div>
         <div className="text-center">
-          <h3 className="font-serif text-lg text-white mb-2">Supprimer ce peuple ?</h3>
+          <h3 className="font-serif text-lg text-white mb-2">{title ?? "Supprimer ce peuple ?"}</h3>
           <p className="text-[13px] text-white/50 leading-relaxed">
-            <span className="text-white/80 font-medium">{name}</span> et sa voie raciale associée seront définitivement supprimés.
+            {description ?? (
+              <><span className="text-white/80 font-medium">{name}</span> et sa voie raciale associée seront définitivement supprimés.</>
+            )}
           </p>
         </div>
         <div className="flex gap-3 w-full">

@@ -1,6 +1,9 @@
-import { useCampaigns } from "@/hooks/useCampaigns";
+import { useState } from "react";
+import { useCampaigns, useDeleteCampaign } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
+import { CreateCampaign } from "@/components/lobby/CreateCampaign";
+import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { Loader2 } from "lucide-react";
 
 interface LobbyProps {
@@ -10,6 +13,9 @@ interface LobbyProps {
 
 export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const { data: campaigns, isLoading } = useCampaigns();
+  const deleteCampaign = useDeleteCampaign();
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
 
   if (isLoading) {
     return (
@@ -35,14 +41,13 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
           }
           
           .animate-card-enter {
-            opacity: 0; /* Invisible par défaut avant l'animation */
+            opacity: 0;
             animation: fadeInUpCard 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
           }
         `}
       </style>
       <div className="flex-1 flex items-center justify-center w-full h-full p-8 md:pr-24">
         <div className="flex flex-wrap items-center justify-center gap-8">
-          {/* CARTE : CRÉER UNE NOUVELLE CAMPAGNE */}
           <MagicCard
             onClick={onCreateCampaign}
             title={
@@ -56,17 +61,42 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
             }
           />
 
-          {/* CARTES : CAMPAGNES EXISTANTES */}
           {campaigns?.map((campaign) => (
             <MagicCard
               key={campaign.id}
               onClick={() => onSelectCampaign(campaign)}
               imageUrl={campaign.image_url}
               title={campaign.nom}
+              onEdit={(e) => { e.stopPropagation(); setEditingCampaign(campaign); }}
+              onDelete={(e) => { e.stopPropagation(); setDeletingCampaign(campaign); }}
             />
           ))}
         </div>
       </div>
+
+      {editingCampaign && (
+        <CreateCampaign
+          open={true}
+          onOpenChange={(open) => { if (!open) setEditingCampaign(null); }}
+          onCreated={(updated) => { onSelectCampaign(updated); setEditingCampaign(null); }}
+          initialData={editingCampaign}
+        />
+      )}
+
+      {deletingCampaign && (
+        <DeleteConfirmModal
+          name={deletingCampaign.nom}
+          isDeleting={deleteCampaign.isPending}
+          title="Supprimer cette campagne ?"
+          description={`Toutes les données liées à "${deletingCampaign.nom}" seront définitivement supprimées : personnages, articles du grimoire, éléments du compendium personnalisés, et tout le contenu associé.`}
+          onConfirm={() => {
+            deleteCampaign.mutate(deletingCampaign.id, {
+              onSuccess: () => setDeletingCampaign(null),
+            });
+          }}
+          onCancel={() => setDeletingCampaign(null)}
+        />
+      )}
     </>
   );
 }

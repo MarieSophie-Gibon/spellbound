@@ -3,16 +3,26 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Image as ImageIcon, UploadCloud } from "lucide-react";
-import { useCreateCampaign } from "@/hooks/useCampaigns";
+import { useCreateCampaign, useUpdateCampaign } from "@/hooks/useCampaigns";
+import type { Campaign } from "@/hooks/useCampaigns";
 import { supabase } from "@/lib/supabase";
 
-export function CreateCampaign({ open, onOpenChange, onCreated }: CreateCampaignProps) {
-  const [nom, setNom] = useState("");
-  const [description, setDescription] = useState("");
+interface CreateCampaignProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (campaign: Campaign) => void;
+  initialData?: Campaign;
+}
+
+export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: CreateCampaignProps) {
+  const isEditing = !!initialData;
+  const [nom, setNom] = useState(initialData?.nom ?? "");
+  const [description, setDescription] = useState(initialData?.description ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image_url ?? null);
   const [error, setError] = useState<string | null>(null);
   const createCampaign = useCreateCampaign();
+  const updateCampaign = useUpdateCampaign();
 
   if (!open) return null;
 
@@ -27,9 +37,8 @@ export function CreateCampaign({ open, onOpenChange, onCreated }: CreateCampaign
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    let image_url = null;
+    let image_url = initialData?.image_url ?? null;
     if (imageFile) {
-      // Upload image to supabase storage (bucket: compendium)
       const ext = imageFile.name.split('.').pop();
       const path = `campagnes/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
@@ -40,18 +49,24 @@ export function CreateCampaign({ open, onOpenChange, onCreated }: CreateCampaign
       const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
       image_url = urlData.publicUrl;
     }
-    createCampaign.mutate(
-      { nom, description, image_url },
-      {
-        onSuccess: (data) => {
-          onCreated(data);
-          onOpenChange(false);
-        },
-        onError: (err: any) => {
-          setError(err.message || "Erreur inconnue");
-        },
-      }
-    );
+
+    if (isEditing && initialData) {
+      updateCampaign.mutate(
+        { id: initialData.id, nom, description, image_url },
+        {
+          onSuccess: (data) => { onCreated(data); onOpenChange(false); },
+          onError: (err: unknown) => { setError((err as Error).message || "Erreur inconnue"); },
+        }
+      );
+    } else {
+      createCampaign.mutate(
+        { nom, description, image_url },
+        {
+          onSuccess: (data) => { onCreated(data); onOpenChange(false); },
+          onError: (err: unknown) => { setError((err as Error).message || "Erreur inconnue"); },
+        }
+      );
+    }
   }
 
   return createPortal(
@@ -75,7 +90,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated }: CreateCampaign
                 Campagne
               </p>
               <h2 className="font-serif text-2xl text-white tracking-wide">
-                Nouvelle campagne
+                {isEditing ? "Modifier la campagne" : "Nouvelle campagne"}
               </h2>
             </div>
             <button onClick={() => onOpenChange(false)} className="p-2 text-white/30 hover:text-white/70 transition-colors">
@@ -138,16 +153,18 @@ export function CreateCampaign({ open, onOpenChange, onCreated }: CreateCampaign
               type="button"
               className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white"
               onClick={() => onOpenChange(false)}
-              disabled={createCampaign.isLoading}
+              disabled={createCampaign.isPending || updateCampaign.isPending}
             >
               Annuler
             </button>
             <button
               type="submit"
               className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
-              disabled={createCampaign.isLoading}
+              disabled={createCampaign.isPending || updateCampaign.isPending}
             >
-              {createCampaign.isLoading ? "Création..." : "Créer"}
+              {createCampaign.isPending || updateCampaign.isPending
+                ? (isEditing ? "Modification..." : "Création...")
+                : (isEditing ? "Enregistrer" : "Créer")}
             </button>
           </div>
         </form>
