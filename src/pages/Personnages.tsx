@@ -21,7 +21,7 @@ interface PJ {
   inventory: any;
 }
 
-export function Personnages({ campaignId }: PersonnagesProps) {
+export function Personnages({ campaignId, onBack }: PersonnagesProps) {
   const [pjs, setPjs] = useState<PJ[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,6 +65,7 @@ export function Personnages({ campaignId }: PersonnagesProps) {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onCreateClick={() => setShowWizard(true)}
+            onBack={onBack}
           />
         }
       >

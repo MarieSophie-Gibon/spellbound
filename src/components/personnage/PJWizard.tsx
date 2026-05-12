@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { ModalLayout } from "@/components/ui/ModalLayout";
 import {
   X, ArrowRight, ArrowLeft, Save,
   Image as ImageIcon, UploadCloud, Info, ChevronDown,
@@ -165,25 +165,30 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         }));
       }
 
-      // Familles avec leurs voies
-      const { data: fData } = await supabase
-        .from("familles")
-        .select("id, nom, groupe, description, pv_niveau, de_recuperation, bonus_chance, equipement_base, maitrise_equipement, image_url, voies(id, nom, capacites)")
+      // Familles (profils) avec leurs voies et stats de la famille archétype
+      const { data: fData, error: fError } = await supabase
+        .from("profils")
+        .select("id, nom, description, equipement_base, maitrise_equipement, image_url, famille:familles(nom, pv_niveau, de_recuperation, bonus_chance), voies(id, nom, capacites)")
+        .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
         .order("nom");
+      if (fError) console.error("[PJWizard] profils error:", fError);
       if (fData) {
-        setFamilles(fData.map((f: any) => ({
-          id: f.id,
-          nom: f.nom,
-          groupe: f.groupe ?? "",
-          description: f.description ?? null,
-          pv_niveau: f.pv_niveau ?? 0,
-          de_recuperation: f.de_recuperation ?? "d6",
-          bonus_chance: f.bonus_chance ?? 0,
-          equipement_base: f.equipement_base ?? null,
-          maitrise_equipement: f.maitrise_equipement ?? null,
-          image_url: f.image_url ?? undefined,
-          voies: f.voies ?? [],
-        })));
+        setFamilles(fData.map((f: any) => {
+          const arch = Array.isArray(f.famille) ? f.famille[0] : f.famille;
+          return {
+            id: f.id,
+            nom: f.nom,
+            groupe: arch?.nom ?? "",
+            description: f.description ?? null,
+            pv_niveau: arch?.pv_niveau ?? 0,
+            de_recuperation: arch?.de_recuperation ?? "d6",
+            bonus_chance: arch?.bonus_chance ?? 0,
+            equipement_base: f.equipement_base ?? null,
+            maitrise_equipement: f.maitrise_equipement ?? null,
+            image_url: f.image_url ?? undefined,
+            voies: f.voies ?? [],
+          };
+        }));
       }
 
       // Équipements
@@ -195,9 +200,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
       if (eqData) setEquipements(eqData as Equipement[]);
     }
     fetchRef();
-  }, []);
-
-  // Stats totales = base pool + bonus peuple + bonus voies
+  }, [campaignId]);
   const totalStats: StatsMap = {
     FOR: stats.FOR + bonusPeuple.FOR + bonusVoies.FOR,
     CON: stats.CON + bonusPeuple.CON + bonusVoies.CON,
@@ -379,22 +382,13 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
-  return createPortal(
-    <div className="fixed inset-0 z-9999 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div
-        className="relative w-full max-w-2xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex flex-col h-[85vh] animate-in zoom-in-95 duration-200 border border-white/10 overflow-hidden"
-        style={{ background: "linear-gradient(160deg, rgba(100,70,180,0.38) 0%, rgba(70,45,140,0.44) 50%, rgba(130,80,160,0.38) 100%)" }}
-      >
-        <div className="absolute inset-0 backdrop-blur-3xl -z-10" />
-        <div className="absolute inset-0 bg-white/3 -z-10" />
-        <div className="absolute inset-px rounded-2xl border border-white/10 pointer-events-none z-0" />
-
+  return (
+    <ModalLayout>
         {/* HEADER */}
         <div className="relative z-10 shrink-0 px-8 pt-7 pb-5 border-b border-white/8 bg-black/10">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">Nouveau Personnage Joueur</p>
-              <h2 className="font-serif text-2xl text-white tracking-wide">Création de Personnage</h2>
             </div>
             <button onClick={onClose} className="p-2 text-white/30 hover:text-white/70 transition-colors">
               <X className="w-5 h-5" />
@@ -1173,8 +1167,6 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
             </button>
           )}
         </div>
-      </div>
-    </div>,
-    document.body
+    </ModalLayout>
   );
 }
