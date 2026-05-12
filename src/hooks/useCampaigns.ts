@@ -6,6 +6,7 @@ export interface Campaign {
   nom: string
   description: string
   image_url: string | null
+  created_at?: string | null
 }
 
 export function useCampaigns() {
@@ -73,6 +74,30 @@ export function useDeleteCampaign() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
     }
+  })
+}
+
+export interface CampaignStats {
+  pj: number
+  monstres: number
+  profils: number
+}
+
+export function useCampaignStats(campaignId: string) {
+  return useQuery({
+    queryKey: ['campaignStats', campaignId],
+    queryFn: async (): Promise<CampaignStats> => {
+      const [pjRes, monstresRes, profilsRes] = await Promise.all([
+        supabase.from('pj').select('id', { count: 'exact', head: true }).eq('campaign_id', campaignId),
+        supabase.from('bestiaire').select('id', { count: 'exact', head: true }).eq('campaign_id', campaignId),
+        supabase.from('profils').select('id', { count: 'exact', head: true }).eq('campaign_id', campaignId),
+      ])
+      return {
+        pj: pjRes.count ?? 0,
+        monstres: monstresRes.count ?? 0,
+        profils: profilsRes.count ?? 0,
+      }
+    },
   })
 }
 
