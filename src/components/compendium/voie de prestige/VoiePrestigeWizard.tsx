@@ -19,6 +19,7 @@ export function VoiePrestigeWizard({
   const isEditing = !!initialData;
   const [nom, setNom] = useState(initialData?.nom ?? "");
   const [familleId, setFamilleId] = useState<string | null>(initialData?.famille_id ?? null);
+  const [notes, setNotes] = useState(initialData?.notes ?? "");
   const [isPrivate, setIsPrivate] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rangs, setRangs] = useState<RangsState>(
@@ -47,6 +48,7 @@ export function VoiePrestigeWizard({
         nom: nom.trim(),
         type: "prestige",
         famille_id: familleId || null,
+        notes: notes.trim() || null,
         peuple_id: null,
         campaign_id: publicMode ? null : campaignId || null,
         is_custom: !!(campaignId && isPrivate),
@@ -125,6 +127,19 @@ export function VoiePrestigeWizard({
             <p className="text-[11px] text-white/40 italic">Optionnel — rattache cette voie à une famille d'archétype.</p>
           </div>
 
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notes, remarques, conditions d'accès..."
+              className="w-full h-24 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+            />
+          </div>
+
           {/* Rangs */}
           <div className="space-y-3">
             <p className="text-[10px] uppercase tracking-[0.15em] text-white/60">
@@ -193,12 +208,7 @@ export function VoiePrestigeWizard({
               </label>
             </div>
           )}
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 text-white/55 hover:text-white transition-colors text-[13px]"
-          >
-            Annuler
-          </button>
+
         </div>
         <button
           onClick={handleSubmit}

@@ -17,6 +17,7 @@ import EquipementWizard from "@/components/compendium/equipement/MagicalItemWiza
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
 import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/VoiePrestigeWizard";
+import { VoiePrestigeDetail } from "@/components/compendium/voie de prestige/VoiePrestigeDetail";
 import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 
 interface CompendiumProps {
@@ -370,57 +371,13 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             onDelete={(eq) => { setDeletingEquipement(eq); setShowDeleteObjetConfirm(true); }}
           />
         ) : activeSection === 'voies_prestige' && selectedVoiePrestige ? (
-          <div className="flex-1 overflow-y-auto p-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="font-serif text-2xl text-white tracking-wide">{selectedVoiePrestige.nom}</h2>
-                {selectedVoiePrestige.famille_nom && (
-                  <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 mt-1 inline-block">
-                    {selectedVoiePrestige.famille_nom}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setEditingVoiePrestige(selectedVoiePrestige); setShowVoiePrestigeWizard(true); }}
-                  className="px-3 py-1.5 rounded-lg border border-white/15 text-white/60 hover:text-white hover:border-white/30 text-[12px] transition-all"
-                >
-                  Éditer
-                </button>
-                <button
-                  onClick={() => setShowDeleteVoiePrestigeConfirm(true)}
-                  className="px-3 py-1.5 rounded-lg border border-red-400/30 text-red-400/70 hover:text-red-400 hover:border-red-400/50 text-[12px] transition-all"
-                >
-                  Supprimer
-                </button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              {([1, 2, 3, 4, 5] as const).map((rangNum) => {
-                const key = `rang${rangNum}` as keyof typeof selectedVoiePrestige.capacites;
-                const cap = selectedVoiePrestige.capacites[key];
-                if (!cap?.nom) return null;
-                return (
-                  <div key={key} className="flex gap-4 items-start py-3 border-b border-white/6 last:border-0">
-                    <span className="w-5 h-5 mt-0.5 rounded-full border border-white/30 flex items-center justify-center text-[11px] text-white/60 font-medium shrink-0">
-                      {rangNum}
-                    </span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white text-sm font-medium">{cap.nom}</span>
-                        <span className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2 py-0.5">
-                          {cap.type}
-                        </span>
-                      </div>
-                      {cap.description && (
-                        <p className="text-white/60 text-[13px] leading-relaxed">{cap.description}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <VoiePrestigeDetail
+            voie={selectedVoiePrestige}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={() => setIsFullscreen(f => !f)}
+            onEdit={() => { setEditingVoiePrestige(selectedVoiePrestige); setShowVoiePrestigeWizard(true); }}
+            onDelete={() => setShowDeleteVoiePrestigeConfirm(true)}
+          />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
             <BookOpenIcon className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />

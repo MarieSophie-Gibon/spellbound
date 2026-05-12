@@ -70,6 +70,7 @@ export interface FamilleVoie {
   type: string;
   famille_id?: string | null;
   famille_nom?: string;
+  notes?: string | null;
   capacites: {
     rang1: VoieRangCapacite;
     rang2: VoieRangCapacite;

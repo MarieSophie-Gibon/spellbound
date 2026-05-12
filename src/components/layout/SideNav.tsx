@@ -16,7 +16,7 @@ const NavItem = ({ label, icon: Icon, active, onClick, isCollapsed }: any) => {
       onClick={onClick}
       // On réduit la largeur (w-16 au lieu de w-44) si collapsed
       className={`relative flex items-center h-10 cursor-pointer transition-all duration-300 ${
-        active ? "opacity-100" : "opacity-60 hover:opacity-100"
+        active || !isCollapsed ? "opacity-100" : "opacity-60 hover:opacity-100"
       } ${isCollapsed ? "w-16" : "w-44"}`}
       style={{
         clipPath: "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)",
