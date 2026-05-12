@@ -242,21 +242,7 @@ export function PeupleWizard({
           </button>
         </div>
 
-        {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
-        {campaignId && (
-          <div className="mb-4 flex items-center gap-2">
-            <input
-              id="peuple-private"
-              type="checkbox"
-              checked={isPrivate}
-              onChange={e => setIsPrivate(e.target.checked)}
-              className="accent-indigo-500 w-4 h-4 rounded"
-            />
-            <label htmlFor="peuple-private" className="text-xs text-white/70 select-none cursor-pointer">
-              Privé à cette campagne
-            </label>
-          </div>
-        )}
+
         {/* STEPS */}
         <div className="flex items-center gap-0">
           {[
@@ -420,11 +406,27 @@ export function PeupleWizard({
 
       {/* FOOTER */}
       <div className="relative z-10 shrink-0 px-8 py-5 border-t border-white/8 bg-black/10 flex justify-between items-center">
-        {step > 1 ? (
-          <button onClick={() => setStep(step - 1)} className="flex items-center gap-2 text-white/55 hover:text-white transition-colors text-[13px]">
-            <ArrowLeft className="w-3.5 h-3.5" /> Précédent
-          </button>
-        ) : <div />}
+        <div className="flex items-center gap-4">
+          {step > 1 && (
+            <button onClick={() => setStep(step - 1)} className="flex items-center gap-2 text-white/55 hover:text-white transition-colors text-[13px]">
+              <ArrowLeft className="w-3.5 h-3.5" /> Précédent
+            </button>
+          )}
+          {campaignId && (
+            <div className="flex items-center gap-2">
+              <input
+                id="peuple-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={e => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label htmlFor="peuple-private" className="text-xs text-white/70 select-none cursor-pointer">
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
+        </div>
 
         {step < 3 ? (
           <button onClick={() => { if (step === 1 && !nom) alert("Le nom du peuple est requis."); else setStep(step + 1); }}

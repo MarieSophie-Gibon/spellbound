@@ -375,24 +375,7 @@ export default function EquipementWizard({
           </button>
         </div>
 
-        {/* PRIVÉ/PUBLIC (création ou édition campagne uniquement) */}
-        {campaignId && (
-            <div className="mb-4 flex items-center gap-2">
-              <input
-                id="equipement-private"
-                type="checkbox"
-                checked={isPrivate}
-                onChange={(e) => setIsPrivate(e.target.checked)}
-                className="accent-indigo-500 w-4 h-4 rounded"
-              />
-              <label
-                htmlFor="equipement-private"
-                className="text-xs text-white/70 select-none cursor-pointer"
-              >
-                Privé à cette campagne
-              </label>
-            </div>
-        )}
+
       </div>
 
       {/* CONTENT */}
@@ -502,13 +485,32 @@ export default function EquipementWizard({
 
       {/* FOOTER */}
       <div className="relative z-10 shrink-0 px-8 py-5 border-t border-white/8 bg-black/10 flex items-center justify-between gap-3">
-        <button
-          onClick={() => (step > 1 ? setStep((s) => s - 1) : onClose())}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {step > 1 ? "Retour" : "Annuler"}
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => (step > 1 ? setStep((s) => s - 1) : onClose())}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {step > 1 ? "Retour" : "Annuler"}
+          </button>
+          {campaignId && (
+            <div className="flex items-center gap-2">
+              <input
+                id="equipement-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={(e) => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label
+                htmlFor="equipement-private"
+                className="text-xs text-white/70 select-none cursor-pointer"
+              >
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
+        </div>
 
         {maxStep > 1 && (
           <div className="flex items-center gap-2">

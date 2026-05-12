@@ -34,7 +34,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId }: GrimoireProps)
     if (catData) setCategories(catData);
     let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
     if (isGlobal) query = query.is("campaign_id", null);
-    else if (campaignId) query = query.eq("campaign_id", campaignId);
+    else if (campaignId) query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     const { data: pagesData } = await query;
     if (pagesData) setPages(pagesData);
   };

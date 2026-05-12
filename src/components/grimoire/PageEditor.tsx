@@ -146,6 +146,7 @@ export function PageEditor({
   const [tableCols, setTableCols] = useState(3);
   const [catToRename, setCatToRename] = useState<{ id: string; newName: string } | null>(null);
   const [catDeleteTarget, setCatDeleteTarget] = useState<string | null>(null);
+  const [isPrivate, setIsPrivate] = useState(true);
 
   const mainCategories = categories
     .filter((c) => !c.parent_id)
@@ -210,13 +211,14 @@ export function PageEditor({
           .select().single();
         fSubCatId = nSub.id;
       }
+      const publicMode = campaignId && !isPrivate;
       const payload = {
         title,
         content: editor.getHTML(),
         category_id: fCatId || null,
         subcategory_id: fSubCatId || null,
-        campaign_id: campaignId || null,
-        is_public: isGlobal,
+        campaign_id: publicMode ? null : campaignId || null,
+        is_public: isGlobal || !!publicMode,
       };
       if (initialData?.id) {
         await supabase.from("wiki_pages").update(payload).eq("id", initialData.id);
@@ -440,7 +442,22 @@ export function PageEditor({
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 shrink-0 pt-1">
+          <div className="flex justify-between items-center gap-3 shrink-0 pt-1">
+            {campaignId && (
+              <div className="flex items-center gap-2">
+                <input
+                  id="page-private"
+                  type="checkbox"
+                  checked={isPrivate}
+                  onChange={(e) => setIsPrivate(e.target.checked)}
+                  className="accent-indigo-500 w-4 h-4 rounded"
+                />
+                <label htmlFor="page-private" className="text-xs text-white/70 select-none cursor-pointer">
+                  Privé à cette campagne
+                </label>
+              </div>
+            )}
+            <div className="flex gap-3 ml-auto">
             <button onClick={onCancel} className="px-4 py-1.5 text-white/60 text-[13px] hover:text-white transition-colors">
               Annuler
             </button>
@@ -451,6 +468,7 @@ export function PageEditor({
               <BookmarkPlus className="w-3.5 h-3.5 mr-2 inline" />
               {initialData ? "Mettre à jour" : "Sauvegarder"}
             </button>
+            </div>
           </div>
 
         </div>

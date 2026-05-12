@@ -89,23 +89,6 @@ export function VoiePrestigeWizard({
           </button>
         </div>
 
-        {campaignId && (
-          <div className="mb-2 flex items-center gap-2">
-            <input
-              id="voie-prestige-private"
-              type="checkbox"
-              checked={isPrivate}
-              onChange={(e) => setIsPrivate(e.target.checked)}
-              className="accent-indigo-500 w-4 h-4 rounded"
-            />
-            <label
-              htmlFor="voie-prestige-private"
-              className="text-xs text-white/70 select-none cursor-pointer"
-            >
-              Privé à cette campagne
-            </label>
-          </div>
-        )}
       </div>
 
       {/* CONTENT */}
@@ -192,12 +175,31 @@ export function VoiePrestigeWizard({
 
       {/* FOOTER */}
       <div className="relative z-10 shrink-0 px-8 py-5 border-t border-white/8 bg-black/10 flex justify-between items-center">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-2 text-white/55 hover:text-white transition-colors text-[13px]"
-        >
-          Annuler
-        </button>
+        <div className="flex items-center gap-4">
+          {campaignId && (
+            <div className="flex items-center gap-2">
+              <input
+                id="voie-prestige-private"
+                type="checkbox"
+                checked={isPrivate}
+                onChange={(e) => setIsPrivate(e.target.checked)}
+                className="accent-indigo-500 w-4 h-4 rounded"
+              />
+              <label
+                htmlFor="voie-prestige-private"
+                className="text-xs text-white/70 select-none cursor-pointer"
+              >
+                Privé à cette campagne
+              </label>
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="flex items-center gap-2 text-white/55 hover:text-white transition-colors text-[13px]"
+          >
+            Annuler
+          </button>
+        </div>
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
