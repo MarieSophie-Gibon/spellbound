@@ -73,6 +73,7 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
           pj={selectedPJ}
           onDeleteClick={() => setShowDeleteConfirm(true)}
           onCreateClick={() => setShowWizard(true)}
+          onEditSuccess={() => fetchPjs()}
         />
       </BookLayout>
 
