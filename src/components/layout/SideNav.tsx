@@ -85,15 +85,6 @@ export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendiu
               isCollapsed={isCollapsed}
             />
           )}
-          {tabs.includes("scenarios") && (
-            <NavItem
-              icon={ScrollText}
-              label="Scénarios"
-              active={activeTab === 'scenarios'}
-              onClick={() => onTabChange('scenarios')}
-              isCollapsed={isCollapsed}
-            />
-          )}
           {tabs.includes("personnages") && (
             <NavItem
               icon={Users}
@@ -103,6 +94,16 @@ export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendiu
               isCollapsed={isCollapsed}
             />
           )}
+          {tabs.includes("scenarios") && (
+            <NavItem
+              icon={ScrollText}
+              label="Scénarios"
+              active={activeTab === 'scenarios'}
+              onClick={() => onTabChange('scenarios')}
+              isCollapsed={isCollapsed}
+            />
+          )}
+          
         </div>
       )}
     </aside>

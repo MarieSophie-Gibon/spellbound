@@ -1,0 +1,303 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect } from "react";
+import { ArrowUpCircle, X, Plus, Star, Check } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+
+interface VoieDetail {
+  id: string;
+  nom: string;
+  type: string;
+  peuple_id?: string | null;
+  profil_id?: string | null;
+  capacites: Record<
+    string,
+    { nom: string; type?: string; description: string }
+  >;
+}
+
+interface LevelUpOverlayProps {
+  pj: any;
+  targetLevel: number;
+  pointsRemaining: number;
+  pendingRanks: { voie_id: string; rang: number }[];
+  setPendingRanks: (ranks: { voie_id: string; rang: number }[]) => void;
+  voieDetails: VoieDetail[];
+  allVoies: VoieDetail[];
+  handleSaveLevelUp: () => void;
+  setIsLevelingUp: (val: boolean) => void;
+}
+
+const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
+
+const isLevelLocked = (rang: number, newLevel: number) => {
+  if (rang === 4 && newLevel < 5) return true;
+  if (rang === 5 && newLevel < 7) return true;
+  return false;
+};
+
+export default function LevelUpOverlay({
+  pj,
+  targetLevel,
+  pointsRemaining,
+  pendingRanks,
+  setPendingRanks,
+  voieDetails,
+  allVoies,
+  handleSaveLevelUp,
+  setIsLevelingUp,
+}: LevelUpOverlayProps) {
+  const [unlockType, setUnlockType] = useState<
+    "profile" | "prestige" | "peuple" | ""
+  >("");
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("profils")
+      .select("id, nom")
+      .order("nom")
+      .then(({ data }) => {
+        if (data) setProfiles(data);
+      });
+  }, []);
+
+  // Vérification de la restriction des Voies de Peuple
+  const currentPeupleId = pj.pathways
+    ?.map((p: any) => allVoies.find((v: any) => v.id === p.voie_id))
+    ?.find((v: any) => v?.peuple_id)?.peuple_id;
+
+  const ownedVoieIds = new Set(
+    ((pj.pathways as any[]) || []).map((p) => p.voie_id),
+  );
+  const pendingNewVoieIds = new Set(pendingRanks.map((pr: any) => pr.voie_id));
+
+  // Filtrage scindé des nouvelles voies
+  const filteredAvailableVoies = allVoies.filter((v: VoieDetail) => {
+    if (ownedVoieIds.has(v.id) || pendingNewVoieIds.has(v.id)) return false;
+
+    // Bloquer si une autre voie de peuple est déjà sélectionnée
+    if (v.peuple_id && currentPeupleId && v.peuple_id !== currentPeupleId)
+      return false;
+
+    if (unlockType === "peuple") return !!v.peuple_id;
+    if (unlockType === "prestige") return v.type === "prestige";
+    if (unlockType === "profile") return v.profil_id === selectedProfileId;
+    return false;
+  });
+
+  return (
+    <div className="absolute inset-0 z-50 bg-[#1E1941]/95 backdrop-blur-xl flex flex-col p-6 animate-in fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="font-serif text-3xl text-white tracking-wider flex items-center gap-3">
+            <ArrowUpCircle className="w-8 h-8 text-[#E3CCCD]" /> Passage au
+            Niveau {targetLevel}
+          </h2>
+          <p className="text-white/50 text-sm mt-1">
+            Dépensez vos 2 points de capacité.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setIsLevelingUp(false);
+            setPendingRanks([]);
+          }}
+          className="p-2 text-white/40 hover:text-white transition-colors bg-white/5 rounded-full"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="bg-black/30 border border-white/10 rounded-xl p-4 mb-6 flex items-center justify-between">
+        <span className="text-white/70 uppercase tracking-widest text-xs font-bold">
+          Points disponibles
+        </span>
+        <span
+          className={`text-3xl font-mono font-bold ${pointsRemaining === 0 ? "text-emerald-400" : "text-[#E3CCCD]"}`}
+        >
+          {pointsRemaining}
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-white/10">
+        {/* Liste des Voies possédées */}
+        {(pj.pathways as any[]).map((pathway, i) => {
+          const voie =
+            voieDetails.find((v: any) => v.id === pathway.voie_id) ||
+            allVoies.find((v) => v.id === pathway.voie_id);
+          if (!voie) return null;
+          const baseRanks = pathway.rangs_acquis || [];
+          const pendingForThisPath = pendingRanks
+            .filter((pr: any) => pr.voie_id === pathway.voie_id)
+            .map((pr: any) => pr.rang);
+          const nextRank =
+            [...baseRanks, ...pendingForThisPath].length > 0
+              ? Math.max(...baseRanks, ...pendingForThisPath) + 1
+              : 1;
+          if (nextRank > 5) return null;
+
+          const cost = getCost(nextRank);
+          const isLocked = isLevelLocked(nextRank, targetLevel);
+
+          return (
+            <div
+              key={i}
+              className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-2"
+            >
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-semibold text-white/90">
+                  {voie.nom} — Rang {nextRank}
+                </span>
+                <span className="text-[10px] text-[#E3CCCD] border border-[#E3CCCD]/30 rounded-full px-2 py-0.5">
+                  Coût : {cost} pt{cost > 1 ? "s" : ""}
+                </span>
+              </div>
+              {isLocked ? (
+                <p className="text-xs text-red-400/70 italic">
+                  Niveau insuffisant (Rang {nextRank} requiert niv.{" "}
+                  {nextRank === 4 ? 5 : 7}).
+                </p>
+              ) : (
+                <button
+                  disabled={pointsRemaining < cost}
+                  onClick={() =>
+                    setPendingRanks([
+                      ...pendingRanks,
+                      { voie_id: pathway.voie_id, rang: nextRank },
+                    ])
+                  }
+                  className="self-end flex items-center gap-1 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs rounded-lg disabled:opacity-30"
+                >
+                  <Plus className="w-3 h-3" /> Acquérir
+                </button>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Débloquer une nouvelle voie */}
+        <div className="mt-8 pt-6 border-t border-white/10 space-y-4">
+          <h3 className="text-sm font-serif text-white/90 flex items-center gap-2">
+            <Star className="w-4 h-4 text-[#E3CCCD]" /> Débloquer une nouvelle
+            Voie
+          </h3>
+
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { key: "profile", label: "Autre Profil" },
+              { key: "prestige", label: "Prestige" },
+              { key: "peuple", label: "Voie du Peuple" },
+            ].map((b) => (
+              <button
+                key={b.key}
+                onClick={() => {
+                  setUnlockType(b.key as any);
+                  setSelectedProfileId("");
+                }}
+                className={`py-2 rounded-xl text-xs font-medium border border-white/10 transition-all ${unlockType === b.key ? "bg-[#E3CCCD]/20 border-[#E3CCCD]/50 text-[#E3CCCD]" : "bg-white/5 text-white/50 hover:bg-white/10"}`}
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+
+          {unlockType === "profile" && (
+            <select
+              value={selectedProfileId}
+              onChange={(e) => setSelectedProfileId(e.target.value)}
+              className="w-full bg-black/20 border border-white/15 rounded-lg p-2.5 text-white text-sm outline-none"
+            >
+              <option value="">
+                -- Sélectionner le profil d'hybridation --
+              </option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id} className="bg-[#1E1941]">
+                  {p.nom}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {((unlockType === "profile" && selectedProfileId) ||
+            unlockType === "prestige" ||
+            unlockType === "peuple") && (
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-widest text-white/40">
+                Voies disponibles :
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {filteredAvailableVoies.map((v) => (
+                  <button
+                    key={v.id}
+                    disabled={pointsRemaining < 1}
+                    onClick={() => {
+                      setPendingRanks([
+                        ...pendingRanks,
+                        { voie_id: v.id, rang: 1 },
+                      ]);
+                      setUnlockType("");
+                    }}
+                    className="flex justify-between items-center p-3 bg-white/5 hover:bg-[#E3CCCD]/10 border border-white/10 rounded-xl text-left text-xs text-white transition-all disabled:opacity-30"
+                  >
+                    <span>{v.nom} (Rang 1)</span>
+                    <Plus className="w-3.5 h-3.5 text-[#E3CCCD]" />
+                  </button>
+                ))}
+                {filteredAvailableVoies.length === 0 && (
+                  <p className="text-white/30 text-xs italic">
+                    Aucune voie disponible ou restriction de peuple active.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Résumé des modifications */}
+        {pendingRanks.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-white/10 space-y-2">
+            <p className="text-[10px] uppercase tracking-widest text-white/40">
+              Acquisitions en attente :
+            </p>
+            {pendingRanks.map((pr: any, idx: number) => {
+              const v =
+                allVoies.find((x) => x.id === pr.voie_id) ||
+                voieDetails.find((x) => x.id === pr.voie_id);
+              return (
+                <div
+                  key={idx}
+                  className="flex justify-between items-center bg-[#E3CCCD]/10 border border-[#E3CCCD]/30 rounded-lg p-2 text-xs text-white"
+                >
+                  <span>
+                    {v?.nom} — Rang {pr.rang}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setPendingRanks(
+                        pendingRanks.filter((_: any, i: number) => i !== idx),
+                      )
+                    }
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 pt-4 border-t border-white/10 flex justify-end">
+        <button
+          disabled={pointsRemaining !== 0}
+          onClick={handleSaveLevelUp}
+          className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-400 font-bold rounded-xl disabled:opacity-30 flex items-center gap-2"
+        >
+          <Check className="w-4 h-4" /> Confirmer le Niveau {targetLevel}
+        </button>
+      </div>
+    </div>
+  );
+}

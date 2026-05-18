@@ -126,7 +126,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   const [selectedFamilleVoieIds, setSelectedFamilleVoieIds] = useState<
     string[]
   >([]);
-  const [selectedDemiElfVoieId, setSelectedDemiElfVoieId] =
+  const [selectedDemiElfVoieId] =
     useState<string>("");
   const [selectedSecondPeupleVoieId, setSelectedSecondPeupleVoieId] =
     useState<string>("");
@@ -957,7 +957,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                   Tableau de base
                 </label>
                 <div className="space-y-1">
-                  {Object.entries(TABLEAUX).map(([name, vals]) => (
+                  {Object.entries(TABLEAUX).map(([name]) => (
                     <button
                       key={name}
                       type="button"
