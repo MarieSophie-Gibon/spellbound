@@ -398,7 +398,18 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         imageUrl = urlData.publicUrl;
       }
 
+      // Calcul du bonus de défense de l'armure sélectionnée (profil)
+      let bonusDef = 0;
+      const armureProfil = profilEquipItems.find((item) => item.source === "armure");
+      if (armureProfil && armureProfil.details) {
+        // Cherche un nombre dans details (ex: "Déf. +2")
+        const match = armureProfil.details.match(/([+-]?\d+)/);
+        if (match) bonusDef = parseInt(match[1], 10);
+      }
+
+      // Ajoute le bonus de défense à la stat
       const d = { ...derived, ...overrides };
+      if (bonusDef) d.defense += bonusDef;
 
       const pjVoies: Array<{ voie_id: string; rangs_acquis: number[] }> = [];
       // Voie du peuple
@@ -427,7 +438,8 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      const { error } = await supabase.from("pj").insert({
+      // Création du PJ
+      const { data: pjInsertData, error } = await supabase.from("pj").insert({
         campaign_id: campaignId,
         player_id: selectedPlayerId || user?.id || null,
         name: nom.trim(),
@@ -457,8 +469,24 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
           equipement_base: selectedFamille?.equipement_base ?? null,
           selected_equipements: selectedEquipItems,
         },
-      });
+      }).select();
       if (error) throw error;
+
+      // Insertion automatique des équipements de profil dans pj_inventaire
+      const newPjId = pjInsertData?.[0]?.id;
+      if (newPjId && profilEquipItems.length > 0) {
+        const itemsToInsert = profilEquipItems.map((item) => ({
+          pj_id: newPjId,
+          item_type: item.source,
+          item_id: Number(item.id),
+          nom_custom: item.nom,
+          description_custom: item.details ?? "",
+          qte: 1,
+          is_equipped: false,
+        }));
+        const { error: invErr } = await supabase.from("pj_inventaire").insert(itemsToInsert);
+        if (invErr) throw invErr;
+      }
 
       onSuccess();
       onClose();

@@ -41,44 +41,9 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
   // --- CHARGEMENT DE L'INVENTAIRE ---
   const fetchEverything = async () => {
     setIsLoading(true);
-    let allMerged: any[] = [];
-
-    // 1. Profil de base
-    let equipAssoc: any = null;
-    if (profilId) {
-      const { data: profil } = await supabase.from("profils").select("data").eq("id", profilId).single();
-      equipAssoc = profil?.data?.equipement_associe;
-    }
-
-    const fetchCompendiumDetails = async (table: string, ids: string[], type: ItemType) => {
-      if (!ids || ids.length === 0) return [];
-      const { data } = await supabase.from(table).select("*").in("id", ids);
-      return (data || []).map(d => ({
-        id: `profil-${d.id}`,
-        item_type: type,
-        nom_custom: d.nom,
-        description_custom: d.dm ? `Dégâts: ${d.dm}` : d.bonus_def ? `Défense: ${d.bonus_def}` : d.description,
-        qte: 1,
-        is_equipped: false,
-        is_from_profile: true
-      }));
-    };
-
-    if (equipAssoc) {
-      const armesContact = await fetchCompendiumDetails("armes_contact", equipAssoc.arme_contact, "arme_contact");
-      const armesDist = await fetchCompendiumDetails("armes_distance", equipAssoc.arme_distance, "arme_distance");
-      const armures = await fetchCompendiumDetails("armures", equipAssoc.armure, "armure");
-      const equip = await fetchCompendiumDetails("equipements", equipAssoc.equipement, "equipement");
-      allMerged = [...armesContact, ...armesDist, ...armures, ...equip];
-    }
-
-    // 2. Inventaire custom (Table pj_inventaire)
+    // On ne charge plus les équipements du profil, seulement ceux du PJ
     const { data: customInv } = await supabase.from("pj_inventaire").select("*").eq("pj_id", pjId);
-    if (customInv) {
-      allMerged = [...allMerged, ...customInv.map(i => ({ ...i, is_from_profile: false }))];
-    }
-
-    setUnifiedItems(allMerged);
+    setUnifiedItems(customInv || []);
     setIsLoading(false);
   };
 
