@@ -13,9 +13,9 @@ export interface PeupleRef {
   caracteristiques: string;
   voie_id: string | null;
   voie?: { id: string; nom: string; capacites: any };
-  demi_elf: boolean;
   image_url?: string;
   data?: any;
+  multi?: boolean;
 }
 
 export interface FamilleRef {
