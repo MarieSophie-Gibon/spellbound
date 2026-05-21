@@ -10,6 +10,7 @@ import { Grimoire } from "@/pages/Grimoire";
 import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
+import { Scenarios } from "@/pages/Scenarios"; // <-- NOUVEL IMPORT
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
@@ -179,11 +180,22 @@ function App() {
                   />
                 }
               />
-              {/* Placeholders pour scenarios/personnages */}
+              
+              {/* ROUTE DES SCÉNARIOS MISE À JOUR */}
               <Route
                 path="/campaign/scenarios"
-                element={<div className="flex-1 flex flex-col items-center justify-center text-center p-10 text-white/60">Scénarios (à implémenter)</div>}
+                element={
+                  activeCampaign ? (
+                    <Scenarios
+                      campaignId={activeCampaign.id}
+                      onBack={() => navigate("/campaign")}
+                    />
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
               />
+
               <Route
                 path="/campaign/personnages"
                 element={
