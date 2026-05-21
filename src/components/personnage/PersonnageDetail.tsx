@@ -20,6 +20,8 @@ import {
   ArrowUpCircle,
   BookOpen,
   Package,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -57,6 +59,8 @@ interface PersonnageDetailProps {
     pathways: any;
     inventory: any;
   } | null;
+  isFullscreen: boolean;             // <-- NOUVEAU
+  onToggleFullscreen: () => void;    // <-- NOUVEAU
   onDeleteClick: () => void;
   onCreateClick: () => void;
   onEditSuccess: () => void;
@@ -66,6 +70,8 @@ const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
 
 export function PersonnageDetail({
   pj,
+  isFullscreen,
+  onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
 }: PersonnageDetailProps) {
@@ -348,6 +354,14 @@ export function PersonnageDetail({
             )}
           </div>
           <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1 backdrop-blur-md shadow-xl shrink-0">
+            <button
+              onClick={onToggleFullscreen}
+              className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors mr-1"
+              title={isFullscreen ? "Réduire" : "Plein écran"}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <div className="w-px h-4 bg-white/20 mx-1"></div>
             {isEditing ? (
               <>
                 <button

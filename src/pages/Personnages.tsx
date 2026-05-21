@@ -28,6 +28,7 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
   const [showWizard, setShowWizard] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const fetchPjs = useCallback(async () => {
     setIsLoading(true);
@@ -58,6 +59,7 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
     <>
       <BookLayout
         spineTitle="Personnages"
+        hideSidebar={isFullscreen} // <-- Ajout de la prop pour masquer la sidebar en plein écran
         sidebar={
           <PersonnageSidebar
             pjs={pjs}
@@ -71,6 +73,8 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
       >
         <PersonnageDetail
           pj={selectedPJ}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={() => setIsFullscreen((v) => !v)}
           onDeleteClick={() => setShowDeleteConfirm(true)}
           onCreateClick={() => setShowWizard(true)}
           onEditSuccess={() => fetchPjs()}

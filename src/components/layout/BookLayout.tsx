@@ -7,7 +7,12 @@ interface BookLayoutProps {
   children: ReactNode;
 }
 
-export function BookLayout({ spineTitle, sidebar, hideSidebar = false, children }: BookLayoutProps) {
+export function BookLayout({
+  spineTitle,
+  sidebar,
+  hideSidebar = false,
+  children,
+}: BookLayoutProps) {
   return (
     <div className="flex-1 flex items-center justify-center w-full h-full p-8 md:pr-24">
       <div className="w-full h-full max-w-362.5 flex rounded-[1rem] relative bg-[#1E1941]/40 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden">
@@ -45,10 +50,19 @@ export function BookLayout({ spineTitle, sidebar, hideSidebar = false, children 
             </div>
           </div>
 
-          {/* 2. LE SOMMAIRE */}
-          {sidebar && !hideSidebar && (
-            <div className="w-50 shrink-0 flex flex-col border-r border-[#E3CCCD]/20 bg-black/10">
-              {sidebar}
+          {/* 2. LE SOMMAIRE AVEC TRANSITION SMOOTH */}
+          {sidebar && (
+            <div
+              className={`shrink-0 flex flex-col bg-black/10 overflow-hidden transition-all duration-500 ease-in-out ${
+                hideSidebar
+                  ? "w-0 opacity-0 border-r-0"
+                  : "w-50 opacity-100 border-r border-[#E3CCCD]/20"
+              }`}
+            >
+              {/* Conteneur interne fixe pour éviter l'écrasement du texte pendant l'animation */}
+              <div className="w-50 h-full flex flex-col">
+                {sidebar}
+              </div>
             </div>
           )}
 
