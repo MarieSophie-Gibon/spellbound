@@ -122,12 +122,12 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   const [bonusPeuple, setBonusPeuple] = useState<StatsMap>(buildDefaultStats());
   const [bonusVoies] = useState<StatsMap>(buildDefaultStats());
 
-  // ── Step 3 ──────────────────────────────────
+  // ── Step 3 & 4 ──────────────────────────────
   const [selectedFamilleVoieIds, setSelectedFamilleVoieIds] = useState<string[]>([]);
   const [selectedDemiElfVoieId, setSelectedDemiElfVoieId] = useState<string>("");
-  const [mageExtra] = useState(false);
+  const [useMagePath, setUseMagePath] = useState(false); // Checkbox pour l'option du Mage
 
-  // ── Step 4 ──────────────────────────────────
+  // ── Step 4 (Équipements) ────────────────────
   const [armesContact, setArmesContact] = useState<EquipItem[]>([]);
   const [armesDistance, setArmesDistance] = useState<EquipItem[]>([]);
   const [armures, setArmures] = useState<EquipItem[]>([]);
@@ -140,7 +140,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   );
   const [overrides, setOverrides] = useState<Partial<typeof derived>>({});
 
-  // ── Step 5 ──────────────────────────────────
+  // ── Step 5 & 6 (Lore) ───────────────────────
   const [ideal, setIdeal] = useState("");
   const [travers, setTravers] = useState("");
   const [historique, setHistorique] = useState("");
@@ -173,8 +173,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
               caracteristiques: p.data?.caracteristiques ?? "",
               voie_id: voie?.id ?? null,
               voie: voie ?? undefined,
-              demi_elf: !!p.multi,
-              multi: !!p.multi, // Utilisé pour filtrer les héritages
+              multi: !!p.multi,
               image_url: p.image_url ?? undefined,
               data: p.data,
             };
@@ -304,11 +303,9 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
     setAssignedStats(new Set());
   };
 
-  // Assigner une valeur du pool à une stat
   const assignPoolValue = (stat: StatKey, poolIndex: number) => {
     const value = pool[poolIndex];
     const newPool = pool.filter((_, i) => i !== poolIndex);
-    // Si la stat était déjà assignée, remettre l'ancienne valeur dans le pool
     if (assignedStats.has(stat)) {
       newPool.push(stats[stat]);
       newPool.sort((a, b) => b - a);
@@ -318,7 +315,6 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
     setAssignedStats((prev) => new Set([...prev, stat]));
   };
 
-  // Retirer l'assignation d'une stat
   const unassignStat = (stat: StatKey) => {
     if (!assignedStats.has(stat)) return;
     const value = stats[stat];
@@ -343,29 +339,36 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   const selectedPeuple = peuples.find((p) => p.id === selectedPeupleId);
   const selectedFamille = familles.find((f) => f.id === selectedFamilleId);
   const familleVoies = selectedFamille?.voies ?? [];
-  const isMage =
-    selectedFamille?.groupe?.toLowerCase().includes("mystique") || false;
 
+  // ── DÉTECTION DU MAGE ──
+  const isMage = selectedFamille?.groupe === "Mages" || selectedFamille?.nom === "Mages" || false;
+
+  // On récupère le "faux" peuple Mage pour avoir accès à sa Voie
+  const magePeuple = peuples.find((p) => p.nom.toLowerCase().includes("mage"));
+
+  useEffect(() => {
+    if (isMage) {
+      console.log("=== VÉRIFICATION MAGE ===");
+      console.log(`✅ Succès : La famille "${selectedFamille?.groupe}" a bien été détectée comme Mage !`);
+    } else {
+      setUseMagePath(false); // Reset si on change de famille
+    }
+  }, [isMage, selectedFamille]);
+
+  // ── DÉTECTION DU DEMI-ELFE ──
   const isDemiElf = selectedPeuple
     ? selectedPeuple.nom.toLowerCase().includes("demi") &&
       selectedPeuple.nom.toLowerCase().includes("elf")
     : false;
 
-  // Filtrage des héritages disponibles
-  const heritagesDisponibles = peuples.filter((p) => p.multi === true || (p as any).multi === true);
-
-  useEffect(() => {
-    if (isDemiElf) {
-      console.log("=== VÉRIFICATION DEMI-ELFE ===");
-      console.log(
-        `✅ Succès : Le peuple "${selectedPeuple?.nom}" a bien été détecté comme Demi-Elfe !`,
-      );
-    }
-  }, [isDemiElf, selectedPeuple]);
+  const heritagesDisponibles = peuples.filter(
+    (p) => p.multi === true || (p as any).multi === true
+  );
 
   const uniqueGroupes = Array.from(
     new Map(familles.map((f) => [f.groupe, f])).values(),
   ).sort((a, b) => a.groupe.localeCompare(b.groupe));
+  
   const filteredProfils = selectedGroupeNom
     ? familles.filter((f) => f.groupe === selectedGroupeNom)
     : [];
@@ -380,7 +383,6 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
     ];
   })();
 
-  // Sélection voies famille (max 2)
   const toggleFamilleVoie = (voieId: string) => {
     setSelectedFamilleVoieIds((prev) => {
       if (prev.includes(voieId)) return prev.filter((v) => v !== voieId);
@@ -408,34 +410,36 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         imageUrl = urlData.publicUrl;
       }
 
-      // Calcul du bonus de défense de l'armure sélectionnée (profil)
       let bonusDef = 0;
       const armureProfil = profilEquipItems.find(
         (item) => item.source === "armure",
       );
       if (armureProfil && armureProfil.details) {
-        // Cherche un nombre dans details (ex: "Déf. +2")
         const match = armureProfil.details.match(/([+-]?\d+)/);
         if (match) bonusDef = parseInt(match[1], 10);
       }
 
-      // Ajoute le bonus de défense à la stat
       const d = { ...derived, ...overrides };
       if (bonusDef) d.defense += bonusDef;
 
       const pjVoies: Array<{ voie_id: string; rangs_acquis: number[] }> = [];
       
-      // Voie du peuple ou de l'héritage
+      // 1. On insère le Rang 1 de la Voie du Peuple (ou de l'Héritage pour le Demi-Elfe)
       const cultureVoieId = isDemiElf ? selectedDemiElfVoieId : selectedPeuple?.voie_id;
       if (cultureVoieId) {
         pjVoies.push({ voie_id: cultureVoieId, rangs_acquis: [1] });
       }
 
-      // Voies famille
+      // 2. Si le joueur est un Mage et a coché l'option, on insère la vraie "Voie de la Magie"
+      if (isMage && useMagePath && magePeuple?.voie_id) {
+        pjVoies.push({ voie_id: magePeuple.voie_id, rangs_acquis: [1] });
+      }
+
+      // 3. On insère les 2 Voies de Profil classiques
       for (const vid of selectedFamilleVoieIds) {
         pjVoies.push({
           voie_id: vid,
-          rangs_acquis: mageExtra && isMage ? [1, 2] : [1],
+          rangs_acquis: [1],
         });
       }
 
@@ -443,7 +447,6 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Création du PJ
       const { data: pjInsertData, error } = await supabase
         .from("pj")
         .insert({
@@ -480,7 +483,6 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         .select();
       if (error) throw error;
 
-      // Insertion automatique des équipements de profil dans pj_inventaire
       const newPjId = pjInsertData?.[0]?.id;
       if (newPjId && profilEquipItems.length > 0) {
         const itemsToInsert = profilEquipItems.map((item) => ({
@@ -507,7 +509,6 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
     }
   };
 
-  // ── Steps config ─────────────────────────────
   const STEPS = [
     { num: 1, label: "Origine" },
     { num: 2, label: "Famille" },
@@ -529,14 +530,10 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
     return true;
   };
 
-  // ── Derived display helper ───────────────────
   const dv = { ...derived, ...overrides } as any;
   const setOverride = (key: string, value: number) =>
     setOverrides((prev) => ({ ...prev, [key]: value }));
 
-  // ─────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────
   return (
     <ModalLayout>
       {/* HEADER */}
@@ -676,13 +673,14 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                 {/* Liste */}
                 <div className="flex flex-col gap-1 w-44 shrink-0 h-95 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
                   {peuples
+                    .filter((p) => !p.nom.toLowerCase().includes("mage"))
                     .map((p) => (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => {
                           setSelectedPeupleId(p.id);
-                          setSelectedDemiElfVoieId(""); // Reset the heritage choice when changing people
+                          setSelectedDemiElfVoieId(""); // Reset au changement
                         }}
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-left ${selectedPeupleId === p.id ? "border-[#E3CCCD]/50 bg-[#E3CCCD]/8 text-[#E3CCCD]" : "border-white/10 bg-white/3 hover:border-white/20 hover:bg-white/5 text-white/60"}`}
                       >
@@ -1183,19 +1181,17 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         {step === 4 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* Encart contextuel */}
-            <div className="flex gap-3 p-4 rounded-xl border border-[#E3CCCD]/15 bg-[#E3CCCD]/5">
+            <div className="flex gap-3 p-4 rounded-xl border-[#E3CCCD]/15 bg-[#E3CCCD]/5">
               <Info className="w-4 h-4 text-[#E3CCCD]/50 shrink-0 mt-0.5" />
               <div className="text-[12px] text-white/55 leading-relaxed space-y-1.5">
-                <p>
-                  Choisissez 2 voies de profil.
-                </p>
+                <p>Choisissez 2 voies de profil.</p>
               </div>
             </div>
 
-            {/* Voie du peuple ou Héritage Demi-Elfe */}
+            {/* Voie du peuple / Héritage */}
             <div className="space-y-2">
               <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
-                {isDemiElf ? "Héritage Culturel Demi-Elfe *" : "Voie du Peuple"}
+                {isDemiElf ? "Éducation & Héritage Culturel Demi-Elfe *" : "Voie du Peuple"}
               </label>
               
               {isDemiElf ? (
@@ -1218,10 +1214,32 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                       </button>
                     ))}
                   </div>
+
+                  {selectedDemiElfVoieId && (
+                    <div className="pt-2 mt-2 border-t border-white/10">
+                      {(() => {
+                        const heritage = heritagesDisponibles.find(h => h.voie_id === selectedDemiElfVoieId);
+                        const cap = heritage?.voie?.capacites?.rang1;
+                        if (!cap) return null;
+                        return (
+                          <>
+                            <p className="text-[12px] text-white/60">
+                              <span className="text-white/40">Rang 1 ·</span> {cap.nom}
+                            </p>
+                            {cap.description && (
+                              <p className="text-[11px] mt-1 leading-relaxed text-white/45">
+                                {cap.description}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               ) : selectedPeuple?.voie ? (
                 <div className="p-4 rounded-xl border border-[#E3CCCD]/20 bg-[#E3CCCD]/5">
-                  <p className="text-[10px] uppercase tracking-[0.12em] text-[#E3CCCD]/45 mb-1">
+                  <p className="text-[10px] uppercase tracking-[0.12em] mb-1 text-[#E3CCCD]/45">
                     {selectedPeuple.voie.nom}
                   </p>
                   {selectedPeuple.voie.capacites?.rang1 && (
@@ -1231,7 +1249,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                         {selectedPeuple.voie.capacites.rang1.nom}
                       </p>
                       {selectedPeuple.voie.capacites.rang1.description && (
-                        <p className="text-[11px] text-white/45 mt-1 leading-relaxed">
+                        <p className="text-[11px] mt-1 leading-relaxed text-white/45">
                           {selectedPeuple.voie.capacites.rang1.description}
                         </p>
                       )}
@@ -1242,6 +1260,44 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                 <p className="text-[12px] text-white/25 italic">
                   Aucune voie de peuple associée.
                 </p>
+              )}
+
+              {/* ── ENCART MAGE (AJOUT OPTIONNEL) ── */}
+              {isMage && magePeuple?.voie && (
+                <div className="pt-2 mt-2 border-t border-white/10 space-y-3">
+                  <label className="flex items-center gap-2 cursor-pointer w-fit">
+                    <input
+                      type="checkbox"
+                      checked={useMagePath}
+                      onChange={(e) => setUseMagePath(e.target.checked)}
+                      className="accent-violet-500 w-4 h-4 cursor-pointer"
+                    />
+                    <span className="text-[10px] uppercase tracking-[0.15em] text-violet-300 font-medium cursor-pointer hover:text-violet-200 transition-colors">
+                      Option : Adopter la Voie de la Magie
+                    </span>
+                  </label>
+
+                  {useMagePath && (
+                    <div className="p-4 rounded-xl border border-violet-500/40 bg-violet-500/10 relative overflow-hidden animate-in fade-in slide-in-from-top-2">
+                      <div className="absolute -top-2 -right-2 p-3 opacity-10">
+                        <Wand2 className="w-16 h-16 text-violet-300" />
+                      </div>
+                      <p className="text-[11.5px] text-violet-200/80 leading-relaxed mb-3">
+                        La Voie du Mage s'ajoute et remplace l'évolution future de votre peuple. Vous conservez uniquement la capacité de Rang 1 de votre origine (affichée ci-dessus), et débloquez la Voie de la Magie :
+                      </p>
+                      <div className="pt-2 border-t border-violet-500/20">
+                        <p className="text-[12px] text-violet-100">
+                          <span className="text-violet-400/60">Rang 1 ·</span> {magePeuple.voie.capacites?.rang1?.nom}
+                        </p>
+                        {magePeuple.voie.capacites?.rang1?.description && (
+                          <p className="text-[11px] text-violet-200/70 mt-1 leading-relaxed">
+                            {magePeuple.voie.capacites.rang1.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

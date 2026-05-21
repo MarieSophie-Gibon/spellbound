@@ -35,6 +35,13 @@ const isLevelLocked = (rang: number, newLevel: number) => {
   return false;
 };
 
+// Fonction utilitaire pour identifier si une voie est la "Voie de la Magie"
+const isMageVoie = (v?: VoieDetail | null) => {
+  if (!v) return false;
+  const nom = v.nom.toLowerCase();
+  return nom.includes("magie") || nom.includes("mage");
+};
+
 export default function LevelUpOverlay({
   pj,
   targetLevel,
@@ -62,10 +69,16 @@ export default function LevelUpOverlay({
       });
   }, []);
 
-  // Vérification de la restriction des Voies de Peuple
+  // On vérifie si le joueur possède la voie de Magie
+  const hasMagePath = (pj.pathways || []).some((p: any) => {
+    const v = allVoies.find((av) => av.id === p.voie_id) || voieDetails.find((vd) => vd.id === p.voie_id);
+    return isMageVoie(v);
+  });
+
+  // On récupère le peuple "d'origine" (en excluant le faux peuple Mage) pour gérer les restrictions d'achat
   const currentPeupleId = pj.pathways
-    ?.map((p: any) => allVoies.find((v: any) => v.id === p.voie_id))
-    ?.find((v: any) => v?.peuple_id)?.peuple_id;
+    ?.map((p: any) => allVoies.find((v: any) => v.id === p.voie_id) || voieDetails.find((vd) => vd.id === p.voie_id))
+    ?.find((v: any) => v?.peuple_id && !isMageVoie(v))?.peuple_id;
 
   const ownedVoieIds = new Set(
     ((pj.pathways as any[]) || []).map((p) => p.voie_id),
@@ -127,33 +140,43 @@ export default function LevelUpOverlay({
             voieDetails.find((v: any) => v.id === pathway.voie_id) ||
             allVoies.find((v) => v.id === pathway.voie_id);
           if (!voie) return null;
+          
           const baseRanks = pathway.rangs_acquis || [];
           const pendingForThisPath = pendingRanks
             .filter((pr: any) => pr.voie_id === pathway.voie_id)
             .map((pr: any) => pr.rang);
+          
           const nextRank =
             [...baseRanks, ...pendingForThisPath].length > 0
               ? Math.max(...baseRanks, ...pendingForThisPath) + 1
               : 1;
+          
           if (nextRank > 5) return null;
 
           const cost = getCost(nextRank);
           const isLocked = isLevelLocked(nextRank, targetLevel);
+          
+          // La restriction s'applique si le joueur a la voie du mage ET que la voie actuelle est une voie de peuple (qui n'est PAS la voie du Mage)
+          const isPeuplePathBlockedByMage = hasMagePath && !!voie.peuple_id && !isMageVoie(voie);
 
           return (
             <div
               key={i}
-              className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-2"
+              className={`border rounded-xl p-4 flex flex-col gap-2 ${isPeuplePathBlockedByMage ? "bg-black/20 border-white/5" : "bg-white/5 border-white/10"}`}
             >
               <div className="flex justify-between items-center">
-                <span className="text-sm font-semibold text-white/90">
+                <span className={`text-sm font-semibold ${isPeuplePathBlockedByMage ? "text-white/40" : "text-white/90"}`}>
                   {voie.nom} — Rang {nextRank}
                 </span>
-                <span className="text-[10px] text-[#E3CCCD] border border-[#E3CCCD]/30 rounded-full px-2 py-0.5">
+                <span className={`text-[10px] border rounded-full px-2 py-0.5 ${isPeuplePathBlockedByMage ? "text-white/20 border-white/10" : "text-[#E3CCCD] border-[#E3CCCD]/30"}`}>
                   Coût : {cost} pt{cost > 1 ? "s" : ""}
                 </span>
               </div>
-              {isLocked ? (
+              {isPeuplePathBlockedByMage ? (
+                 <p className="text-xs text-violet-400/50 italic">
+                  Évolution verrouillée (Voie de la Magie active).
+                 </p>
+              ) : isLocked ? (
                 <p className="text-xs text-red-400/70 italic">
                   Niveau insuffisant (Rang {nextRank} requiert niv.{" "}
                   {nextRank === 4 ? 5 : 7}).

@@ -705,11 +705,27 @@ export function PersonnageDetail({
                   const voie = voieDetails.find(
                     (v) => v.id === pathway.voie_id,
                   );
+                  
+                  // On filtre les capacités pour ne garder que celles qui ont été acquises
+                  // On récupère le max rang acquis dans le tableau rangs_acquis (ex: si [1, 2], max est 2)
+                  const maxRang = Math.max(...(pathway.rangs_acquis || [1]));
+                  const filteredCapacites = voie?.capacites 
+                    ? Object.fromEntries(
+                        Object.entries(voie.capacites).filter(([key]) => {
+                          const rangMatch = key.match(/rang(\d+)/);
+                          if (rangMatch) {
+                            return parseInt(rangMatch[1], 10) <= maxRang;
+                          }
+                          return false;
+                        })
+                      )
+                    : {};
+
                   return (
                     <VoieBlock
                       key={i}
                       voieNom={voie?.nom ?? `Voie ${i + 1}`}
-                      capacites={voie?.capacites}
+                      capacites={filteredCapacites}
                       rangsAcquis={pathway.rangs_acquis ?? []}
                       defaultOpen={i === 0}
                     />
