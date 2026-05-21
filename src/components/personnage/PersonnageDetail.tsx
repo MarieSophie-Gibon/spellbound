@@ -33,7 +33,7 @@ import { EditNumField } from "@/components/ui/EditNumField";
 // Imports des sous-composants
 import InventoryTab from "@/components/personnage/InventoryTab";
 import LoreTab from "@/components/personnage/LoreTab";
-import LevelUpOverlay from "@/components/personnage/LevelUpOverlay"; // <-- L'import du nouveau fichier
+import LevelUpOverlay from "@/components/personnage/LevelUpOverlay";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];
@@ -59,8 +59,9 @@ interface PersonnageDetailProps {
     pathways: any;
     inventory: any;
   } | null;
-  isFullscreen: boolean;             // <-- NOUVEAU
-  onToggleFullscreen: () => void;    // <-- NOUVEAU
+  type?: "pj" | "pnj";
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
   onEditSuccess: () => void;
@@ -70,6 +71,7 @@ const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
 
 export function PersonnageDetail({
   pj,
+  type = "pj",
   isFullscreen,
   onToggleFullscreen,
   onDeleteClick,
@@ -81,15 +83,11 @@ export function PersonnageDetail({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"stats" | "inventory" | "lore">(
-    "stats",
-  );
+  const [activeTab, setActiveTab] = useState<"stats" | "inventory" | "lore">("stats");
 
   // Level Up States
   const [isLevelingUp, setIsLevelingUp] = useState(false);
-  const [pendingRanks, setPendingRanks] = useState<
-    { voie_id: string; rang: number }[]
-  >([]);
+  const [pendingRanks, setPendingRanks] = useState<{ voie_id: string; rang: number }[]>([]);
   const [allVoies, setAllVoies] = useState<VoieDetail[]>([]);
 
   // Form Fields State
@@ -111,9 +109,15 @@ export function PersonnageDetail({
   const [editAttDistance, setEditAttDistance] = useState(0);
   const [editAttMagie, setEditAttMagie] = useState(0);
   const [editNiveau, setEditNiveau] = useState(1);
+  
+  // PJ Lore
   const [editIdeal, setEditIdeal] = useState("");
   const [editTravers, setEditTravers] = useState("");
   const [editHistorique, setEditHistorique] = useState("");
+
+  // PNJ Lore
+  const [editDescription, setEditDescription] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   useEffect(() => {
     if (!pj?.pathways?.length) {
@@ -164,13 +168,20 @@ export function PersonnageDetail({
     setEditAttDistance(pj.stats?.att_distance ?? 0);
     setEditAttMagie(pj.stats?.att_magie ?? 0);
     setEditNiveau(pj.stats?.niveau ?? 1);
+    
+    // Lore dynamique selon PJ ou PNJ
     setEditIdeal(pj.stats?.ideal ?? "");
     setEditTravers(pj.stats?.travers ?? "");
     setEditHistorique(pj.stats?.historique ?? "");
+    setEditDescription(pj.stats?.description ?? "");
+    setEditNotes(pj.stats?.notes ?? "");
+
     setIsEditing(false);
     setIsLevelingUp(false);
+    
+    // Si c'est un PJ ou un PNJ combattant, on remet l'onglet stats par défaut
     setActiveTab("stats");
-  }, [pj?.id]);
+  }, [pj, type]);
 
   const handleSave = async () => {
     if (!pj) return;
@@ -179,7 +190,7 @@ export function PersonnageDetail({
       let imageUrl = pj.image_url;
       if (imageFile) {
         const ext = imageFile.name.split(".").pop();
-        const path = `pj/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
+        const path = `${type}/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("compendium")
           .upload(path, imageFile, { upsert: true });
@@ -189,34 +200,61 @@ export function PersonnageDetail({
           .getPublicUrl(path);
         imageUrl = urlData.publicUrl;
       }
+
+      const table = type === "pnj" ? "pnj" : "pj";
+      
+      const statsToSave = type === "pnj" ? {
+        ...pj.stats,
+        sexe: editSexe,
+        age: editAge,
+        description: editDescription,
+        notes: editNotes,
+        ...(pj.stats?.is_combatant ? {
+          caracteristiques: editCaract,
+          pv: editPv,
+          pv_max: editPvMax,
+          dr_qty: editDrQty,
+          dr_de: editDrDe,
+          pc: editPc,
+          pm: editPm,
+          initiative: editInitiative,
+          defense: editDefense,
+          att_contact: editAttContact,
+          att_distance: editAttDistance,
+          att_magie: editAttMagie,
+          niveau: editNiveau,
+        } : {})
+      } : {
+        ...pj.stats,
+        sexe: editSexe,
+        age: editAge,
+        caracteristiques: editCaract,
+        pv: editPv,
+        pv_max: editPvMax,
+        dr_qty: editDrQty,
+        dr_de: editDrDe,
+        pc: editPc,
+        pm: editPm,
+        initiative: editInitiative,
+        defense: editDefense,
+        att_contact: editAttContact,
+        att_distance: editAttDistance,
+        att_magie: editAttMagie,
+        niveau: editNiveau,
+        ideal: editIdeal,
+        travers: editTravers,
+        historique: editHistorique,
+      };
+
       await supabase
-        .from("pj")
+        .from(table)
         .update({
           name: editName.trim() || pj.name,
           image_url: imageUrl,
-          stats: {
-            ...pj.stats,
-            sexe: editSexe,
-            age: editAge,
-            caracteristiques: editCaract,
-            pv: editPv,
-            pv_max: editPvMax,
-            dr_qty: editDrQty,
-            dr_de: editDrDe,
-            pc: editPc,
-            pm: editPm,
-            initiative: editInitiative,
-            defense: editDefense,
-            att_contact: editAttContact,
-            att_distance: editAttDistance,
-            att_magie: editAttMagie,
-            niveau: editNiveau,
-            ideal: editIdeal,
-            travers: editTravers,
-            historique: editHistorique,
-          },
+          stats: statsToSave,
         })
         .eq("id", pj.id);
+        
       setIsEditing(false);
       onEditSuccess();
     } catch (err: any) {
@@ -253,13 +291,16 @@ export function PersonnageDetail({
           });
         }
       });
+      
+      const table = type === "pnj" ? "pnj" : "pj";
       await supabase
-        .from("pj")
+        .from(table)
         .update({
           pathways: updatedPathways,
           stats: { ...pj.stats, niveau: newLevel },
         })
         .eq("id", pj.id);
+        
       setIsLevelingUp(false);
       setPendingRanks([]);
       onEditSuccess();
@@ -280,6 +321,9 @@ export function PersonnageDetail({
       </div>
     );
   }
+
+  // Vérification stricte : c'est un PNJ et la case combatant n'est pas cochée
+  const isNonCombatantPNJ = type === "pnj" && pj.stats?.is_combatant !== true;
 
   const caract = pj.stats?.caracteristiques ?? {};
   const displayImageUrl = imagePreview ?? pj.image_url;
@@ -321,35 +365,42 @@ export function PersonnageDetail({
                   autoFocus
                   className="font-serif text-3xl text-white tracking-wider bg-transparent border-b border-[#E3CCCD]/40 outline-none focus:border-[#E3CCCD]/80 w-full"
                 />
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[10px] uppercase tracking-widest text-white/40">
-                    Niv.
-                  </span>
-                  <input
-                    type="number"
-                    min={1}
-                    value={editNiveau}
-                    onChange={(e) =>
-                      setEditNiveau(parseInt(e.target.value) || 1)
-                    }
-                    className="w-10 text-center font-mono text-sm text-white bg-white/8 border border-white/15 rounded-lg py-0.5 outline-none focus:border-[#E3CCCD]/50"
-                  />
-                </div>
+                {!isNonCombatantPNJ && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] uppercase tracking-widest text-white/40">
+                      Niv.
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editNiveau}
+                      onChange={(e) =>
+                        setEditNiveau(parseInt(e.target.value) || 1)
+                      }
+                      className="w-10 text-center font-mono text-sm text-white bg-white/8 border border-white/15 rounded-lg py-0.5 outline-none focus:border-[#E3CCCD]/50"
+                    />
+                  </div>
+                )}
               </>
             ) : (
               <>
                 <h1 className="font-serif text-3xl text-white tracking-wider truncate">
                   {pj.name}
                 </h1>
-                <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-2.5 py-0.5 shrink-0">
-                  Niv. {currentLevel}
-                </span>
-                <button
-                  onClick={() => setIsLevelingUp(true)}
-                  className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
-                >
-                  <ArrowUpCircle className="w-3.5 h-3.5" /> Level Up
-                </button>
+                {!isNonCombatantPNJ && (
+                  <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-2.5 py-0.5 shrink-0">
+                    Niv. {currentLevel}
+                  </span>
+                )}
+                {/* Level Up caché pour les PNJ non combattants */}
+                {!isNonCombatantPNJ && type === "pj" && (
+                  <button
+                    onClick={() => setIsLevelingUp(true)}
+                    className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
+                  >
+                    <ArrowUpCircle className="w-3.5 h-3.5" /> Level Up
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -397,53 +448,160 @@ export function PersonnageDetail({
           </div>
         </div>
 
-        {/* TABS SELECTOR (Nouveau Design) */}
-        <div className="flex gap-1 border-b border-[#E3CCCD]/20 px-2 mt-2">
-          <button
-            onClick={() => setActiveTab("stats")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
-              activeTab === "stats"
-                ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-[1px] shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
-                : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
-            }`}
-          >
-            <Shield className="w-3.5 h-3.5" /> Fiche Technique
-          </button>
+        {/* TABS SELECTOR - Masqué si PNJ Non Combattant */}
+        {!isNonCombatantPNJ && (
+          <div className="flex gap-1 border-b border-[#E3CCCD]/20 px-2 mt-2">
+            <button
+              onClick={() => setActiveTab("stats")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                activeTab === "stats"
+                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" /> Fiche Technique
+            </button>
 
-          <button
-            onClick={() => setActiveTab("inventory")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
-              activeTab === "inventory"
-                ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-[1px] shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
-                : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
-            }`}
-          >
-            <Package className="w-3.5 h-3.5" /> Sac & Équipement
-          </button>
+            <button
+              onClick={() => setActiveTab("inventory")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                activeTab === "inventory"
+                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" /> Sac & Équipement
+            </button>
 
-          <button
-            onClick={() => setActiveTab("lore")}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
-              activeTab === "lore"
-                ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-[1px] shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
-                : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" /> Histoire & Lore
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveTab("lore")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                activeTab === "lore"
+                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? "Description & Notes" : "Histoire & Lore"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4 flex-1">
-        {/* ONGLET 1 : FICHE TECHNIQUE */}
-        {activeTab === "stats" && (
+        
+        {/* ========================================================= */}
+        {/* VUE UNIQUE : PNJ NON COMBATTANT                           */}
+        {/* ========================================================= */}
+        {isNonCombatantPNJ && (
+          <div className="flex flex-col md:flex-row gap-6 items-stretch animate-in fade-in duration-200 mt-2">
+            <div className="relative shrink-0 mx-auto md:mx-0">
+              <MagicCard
+                imageUrl={displayImageUrl}
+                title={pj.name}
+              />
+              {isEditing && (
+                <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
+                  <UploadCloud className="w-8 h-8 text-white/80" />
+                  <span className="text-[12px] text-white/70">Changer l'image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setImageFile(f);
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+                      reader.readAsDataURL(f);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            
+            <div className="flex-1 space-y-6">
+              {isEditing ? (
+                <>
+                  <div className="flex gap-4">
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Sexe</label>
+                      <select
+                        value={editSexe}
+                        onChange={(e) => setEditSexe(e.target.value)}
+                        className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                      >
+                        <option value="Masculin" className="bg-[#1E1941]">Masculin</option>
+                        <option value="Féminin" className="bg-[#1E1941]">Féminin</option>
+                        <option value="Autre" className="bg-[#1E1941]">Autre</option>
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Âge</label>
+                      <input
+                        type="text"
+                        value={editAge}
+                        onChange={(e) => setEditAge(e.target.value)}
+                        placeholder="ex : 45 ans"
+                        className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description publique</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl p-3.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
+                    <textarea
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      rows={5}
+                      className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  {(pj.stats?.sexe || pj.stats?.age) && (
+                    <div className="flex items-center gap-2 text-[12px] text-[#E3CCCD]/60 uppercase tracking-widest font-medium">
+                      {pj.stats.sexe} {pj.stats.age ? ` · ${pj.stats.age}` : ""}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h3 className="font-serif text-xl text-[#E3CCCD]">Description</h3>
+                    <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-24">
+                      {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
+                    <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24">
+                      {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VUES À ONGLETS : PJ & PNJ COMBATTANTS                     */}
+        {/* ========================================================= */}
+        {!isNonCombatantPNJ && activeTab === "stats" && (
           <>
             <div className="flex flex-col md:flex-row gap-3 items-stretch animate-in fade-in duration-200">
               <div className="relative shrink-0 mx-auto md:mx-0">
                 <MagicCard
                   imageUrl={displayImageUrl}
                   title={pj.name}
-                  badge={<PvBadge pvMax={pj.stats?.pv_max} />}
+                  badge={pj.stats?.pv_max ? <PvBadge pvMax={pj.stats.pv_max} /> : undefined}
                 />
                 {isEditing && (
                   <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
@@ -481,7 +639,7 @@ export function PersonnageDetail({
                   return (
                     <div
                       key={stat}
-                      className="flex flex-col items-center gap-0.5 min-w-[40px] md:min-w-0"
+                      className="flex flex-col items-center gap-0.5 min-w-10 md:min-w-0"
                     >
                       <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">
                         {stat}
@@ -721,7 +879,6 @@ export function PersonnageDetail({
                   );
                   
                   // On filtre les capacités pour ne garder que celles qui ont été acquises
-                  // On récupère le max rang acquis dans le tableau rangs_acquis (ex: si [1, 2], max est 2)
                   const maxRang = Math.max(...(pathway.rangs_acquis || [1]));
                   const filteredCapacites = voie?.capacites 
                     ? Object.fromEntries(
@@ -751,35 +908,108 @@ export function PersonnageDetail({
         )}
 
         {/* ONGLET 2 : INVENTAIRE */}
-        {activeTab === "inventory" && (
+        {!isNonCombatantPNJ && activeTab === "inventory" && (
           <InventoryTab 
             pjId={pj.id}
             profilId={pj.stats?.profil_id || voieDetails.find(v => v.profil_id)?.profil_id} 
             pjStats={pj.stats}
             onUpdateStats={async (newStats) => {
-              // Met à jour la base de données quand la monnaie change !
-              await supabase.from("pj").update({ stats: newStats }).eq("id", pj.id);
-              onEditSuccess(); // Rafraîchit l'UI parente
+              const table = type === "pnj" ? "pnj" : "pj";
+              await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);
+              onEditSuccess(); 
             }}
           />
         )}
 
-        {/* ONGLET 3 : LORE */}
-        {activeTab === "lore" && (
-          <LoreTab
-            stats={pj.stats}
-            isEditing={isEditing}
-            editSexe={editSexe}
-            setEditSexe={setEditSexe}
-            editAge={editAge}
-            setEditAge={setEditAge}
-            editIdeal={editIdeal}
-            setEditIdeal={setEditIdeal}
-            editTravers={editTravers}
-            setEditTravers={setEditTravers}
-            editHistorique={editHistorique}
-            setEditHistorique={setEditHistorique}
-          />
+        {/* ONGLET 3 : LORE (POUR PJ OU PNJ COMBATTANT) */}
+        {!isNonCombatantPNJ && activeTab === "lore" && (
+          type === "pnj" ? (
+            <div className="flex flex-col gap-6 items-stretch animate-in fade-in duration-200 mt-2">
+              <div className="flex-1 space-y-6">
+                {isEditing ? (
+                  <>
+                    <div className="flex gap-4">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Sexe</label>
+                        <select
+                          value={editSexe}
+                          onChange={(e) => setEditSexe(e.target.value)}
+                          className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                        >
+                          <option value="Masculin" className="bg-[#1E1941]">Masculin</option>
+                          <option value="Féminin" className="bg-[#1E1941]">Féminin</option>
+                          <option value="Autre" className="bg-[#1E1941]">Autre</option>
+                        </select>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Âge</label>
+                        <input
+                          type="text"
+                          value={editAge}
+                          onChange={(e) => setEditAge(e.target.value)}
+                          placeholder="ex : 45 ans"
+                          className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description publique</label>
+                      <textarea
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        rows={6}
+                        className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl p-3.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
+                      <textarea
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        rows={6}
+                        className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {(pj.stats?.sexe || pj.stats?.age) && (
+                      <div className="flex items-center gap-2 text-[12px] text-[#E3CCCD]/60 uppercase tracking-widest font-medium">
+                        {pj.stats.sexe} {pj.stats.age ? ` · ${pj.stats.age}` : ""}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <h3 className="font-serif text-xl text-[#E3CCCD]">Description</h3>
+                      <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-32">
+                        {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
+                      <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-32">
+                        {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <LoreTab
+              stats={pj.stats}
+              isEditing={isEditing}
+              editSexe={editSexe}
+              setEditSexe={setEditSexe}
+              editAge={editAge}
+              setEditAge={setEditAge}
+              editIdeal={editIdeal}
+              setEditIdeal={setEditIdeal}
+              editTravers={editTravers}
+              setEditTravers={setEditTravers}
+              editHistorique={editHistorique}
+              setEditHistorique={setEditHistorique}
+            />
+          )
         )}
       </div>
     </div>
