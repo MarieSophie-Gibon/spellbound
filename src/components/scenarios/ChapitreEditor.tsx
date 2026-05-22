@@ -3,14 +3,17 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords, 
-  Save, Trash2, GripVertical 
+  Save, Trash2, GripVertical, Image as ImageIcon, UploadCloud,
+  Maximize2, Minimize2
 } from "lucide-react";
 
 interface ChapitreEditorProps {
   chapitreId: string;
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
 }
 
-type BlockType = 'text' | 'quote' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy';
+type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy';
 
 interface Block {
   id: string;
@@ -18,7 +21,7 @@ interface Block {
   data: any;
 }
 
-export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
+export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }: ChapitreEditorProps) {
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,12 +71,14 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
     const newBlock: Block = {
       id: crypto.randomUUID(),
       type,
-      data: type === 'text' ? { text: "" } : type === 'quote' ? { text: "", author: "" } : {},
+      data: type === 'text' ? { text: "" } 
+          : type === 'quote' ? { text: "", author: "" } 
+          : type === 'image' ? { url: "", caption: "" } 
+          : {},
     };
     setBlocks([...blocks, newBlock]);
     setHasChanges(true);
     
-    // Scroll tout en bas doucement après l'ajout
     setTimeout(() => {
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }, 100);
@@ -87,6 +92,20 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
   const removeBlock = (id: string) => {
     setBlocks(blocks.filter(b => b.id !== id));
     setHasChanges(true);
+  };
+
+  const handleImageUpload = async (file: File, blockId: string) => {
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `scenarios/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
+      const { error } = await supabase.storage.from("compendium").upload(path, file);
+      if (error) throw error;
+      
+      const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
+      updateBlock(blockId, { url: urlData.publicUrl });
+    } catch (err: any) {
+      alert("Erreur lors de l'upload : " + err.message);
+    }
   };
 
   // --- Rendu des Blocs Spécifiques ---
@@ -132,6 +151,47 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
           </div>
         );
 
+      case 'image':
+        return (
+          <div className="space-y-3">
+            {block.data.url ? (
+              <div className="relative group/image flex justify-center">
+                <img src={block.data.url} alt="Illustration du scénario" className="max-h-[500px] rounded-xl object-contain border border-white/10" />
+                <button 
+                  onClick={() => updateBlock(block.id, { url: "" })} 
+                  className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-red-500/80 text-white rounded-lg opacity-0 group-hover/image:opacity-100 transition-all backdrop-blur-sm"
+                  title="Supprimer l'image"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center p-10 border-2 border-dashed border-white/20 rounded-xl hover:bg-white/5 cursor-pointer transition-colors bg-black/10">
+                <UploadCloud className="w-8 h-8 text-white/40 mb-3" />
+                <span className="text-sm text-white/60 font-medium">Ajouter une illustration</span>
+                <span className="text-xs text-white/30 mt-1">Cliquez ou glissez une image ici</span>
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) handleImageUpload(e.target.files[0], block.id);
+                  }} 
+                />
+              </label>
+            )}
+            {block.data.url && (
+              <input
+                type="text"
+                value={block.data.caption || ""}
+                onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
+                placeholder="Légende de l'image (optionnelle)..."
+                className="w-full bg-transparent text-center text-sm text-white/40 italic outline-none placeholder:text-white/20"
+              />
+            )}
+          </div>
+        );
+
       default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
@@ -154,23 +214,34 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
   return (
     <div className="flex-1 flex flex-col h-full relative">
       
-      {/* HEADER FIXE : Titre + Bouton Sauvegarder */}
+      {/* HEADER FIXE */}
       <div className="shrink-0 flex items-center justify-between p-6 border-b border-white/10 bg-black/20 backdrop-blur-sm z-10 sticky top-0">
         <h1 className="text-3xl font-serif text-white tracking-wide truncate pr-4">
           {chapitre.title}
         </h1>
-        <button
-          onClick={handleSave}
-          disabled={!hasChanges || isSaving}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-            hasChanges 
-              ? "bg-[#E3CCCD]/20 text-[#E3CCCD] border border-[#E3CCCD]/30 hover:bg-[#E3CCCD]/30 shadow-[0_0_15px_rgba(227,204,205,0.15)]" 
-              : "bg-white/5 text-white/30 border border-white/5 cursor-not-allowed"
-          }`}
-        >
-          <Save className="w-4 h-4" />
-          {isSaving ? "Sauvegarde..." : hasChanges ? "Enregistrer" : "À jour"}
-        </button>
+        
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onToggleFullscreen}
+            className="p-2.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-xl transition-colors border border-white/5"
+            title={isFullscreen ? "Réduire" : "Plein écran"}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+          
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+              hasChanges 
+                ? "bg-[#E3CCCD]/20 text-[#E3CCCD] border border-[#E3CCCD]/30 hover:bg-[#E3CCCD]/30 shadow-[0_0_15px_rgba(227,204,205,0.15)]" 
+                : "bg-white/5 text-white/30 border border-white/5 cursor-not-allowed"
+            }`}
+          >
+            <Save className="w-4 h-4" />
+            {isSaving ? "Sauvegarde..." : hasChanges ? "Enregistrer" : "À jour"}
+          </button>
+        </div>
       </div>
 
       {/* ZONE D'ÉDITION */}
@@ -187,7 +258,7 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
               {blocks.map((block) => (
                 <div key={block.id} className="group relative flex gap-3 items-start">
                   
-                  {/* Poignée de Drag & Drop + Supprimer (Visible au survol) */}
+                  {/* Actions Rapides (Drag & Drop + Supprimer) */}
                   <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1 transition-opacity pt-1 absolute -left-10">
                     <button className="p-1.5 text-white/30 hover:text-white hover:bg-white/10 rounded cursor-grab">
                       <GripVertical className="w-4 h-4" />
@@ -195,12 +266,12 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
                     <button 
                       onClick={() => removeBlock(block.id)}
                       className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-400/10 rounded"
+                      title="Supprimer ce bloc"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Le contenu du bloc */}
                   <div className="flex-1 min-w-0">
                     {renderBlock(block)}
                   </div>
@@ -218,6 +289,9 @@ export function ChapitreEditor({ chapitreId }: ChapitreEditorProps) {
               </button>
               <button onClick={() => addBlock('quote')} className="flex items-center gap-2 px-4 py-2 bg-[#E3CCCD]/5 hover:bg-[#E3CCCD]/15 border border-[#E3CCCD]/20 rounded-lg text-[12px] font-medium text-[#E3CCCD]/90 transition-colors">
                 <Quote className="w-4 h-4" /> Citation
+              </button>
+              <button onClick={() => addBlock('image')} className="flex items-center gap-2 px-4 py-2 bg-pink-500/5 hover:bg-pink-500/15 border border-pink-500/20 rounded-lg text-[12px] font-medium text-pink-400 transition-colors">
+                <ImageIcon className="w-4 h-4" /> Image
               </button>
               <button onClick={() => addBlock('location')} className="flex items-center gap-2 px-4 py-2 bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20 rounded-lg text-[12px] font-medium text-emerald-400 transition-colors">
                 <MapPin className="w-4 h-4" /> Lieu

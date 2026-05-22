@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen } from "lucide-react";
+import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2 } from "lucide-react";
 
 interface Chapitre {
   id: string;
@@ -25,6 +25,8 @@ interface ScenarioSidebarProps {
   onToggleScenario: (id: string) => void;
   onCreateScenario: () => void;
   onCreateChapitre: (scenarioId: string) => void;
+  onDeleteScenario: (id: string, title: string) => void;
+  onDeleteChapitre: (id: string, title: string) => void;
   onBack: () => void;
 }
 
@@ -38,11 +40,12 @@ export function ScenarioSidebar({
   onToggleScenario,
   onCreateScenario,
   onCreateChapitre,
+  onDeleteScenario,
+  onDeleteChapitre,
   onBack,
 }: ScenarioSidebarProps) {
   return (
     <div className="flex flex-col h-full">
-      {/* Liste Arborescente */}
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1 scrollbar-thin scrollbar-thumb-white/10">
         {isLoading ? (
           <div className="flex justify-center py-10">
@@ -61,7 +64,6 @@ export function ScenarioSidebar({
 
             return (
               <div key={scenario.id} className="space-y-0.5">
-                {/* Ligne Scénario (Dossier parent) */}
                 <div
                   onClick={() => onToggleScenario(scenario.id)}
                   className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left bg-white/2 hover:bg-white/5 border border-white/5 cursor-pointer group transition-all"
@@ -78,37 +80,60 @@ export function ScenarioSidebar({
                     </span>
                   </div>
                   
-                  {/* Raccourci de création de chapitre interne au scénario */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCreateChapitre(scenario.id);
-                    }}
-                    className="p-1 opacity-0 group-hover:opacity-100 text-white/40 hover:text-[#E3CCCD] hover:bg-white/10 rounded-md transition-all shrink-0"
-                    title="Ajouter un chapitre"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteScenario(scenario.id, scenario.title);
+                      }}
+                      className="p-1 opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
+                      title="Supprimer le scénario"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCreateChapitre(scenario.id);
+                      }}
+                      className="p-1 opacity-0 group-hover:opacity-100 text-white/40 hover:text-[#E3CCCD] hover:bg-white/10 rounded-md transition-all"
+                      title="Ajouter un chapitre"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Enfants : Chapitres sous forme d'accordéon */}
                 {isExpanded && (
                   <div className="pl-6 pr-1 py-0.5 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
                     {relatedChapitres.map((chapitre) => {
                       const isSelected = selectedChapitreId === chapitre.id;
                       return (
-                        <button
+                        <div
                           key={chapitre.id}
                           onClick={() => onSelectChapitre(chapitre.id)}
-                          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all text-[12px] group/item ${
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-[12px] group/item cursor-pointer ${
                             isSelected
                               ? "bg-[#E3CCCD]/10 text-[#E3CCCD] font-medium"
                               : "text-white/50 hover:bg-white/4 hover:text-white/80"
                           }`}
                         >
-                          <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
-                          <span className="truncate flex-1">{chapitre.title}</span>
-                        </button>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
+                            <span className="truncate">{chapitre.title}</span>
+                          </div>
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteChapitre(chapitre.id, chapitre.title);
+                            }}
+                            className="p-1 opacity-0 group-hover/item:opacity-100 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all shrink-0"
+                            title="Supprimer le chapitre"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       );
                     })}
                     {relatedChapitres.length === 0 && (
@@ -124,7 +149,6 @@ export function ScenarioSidebar({
         )}
       </div>
 
-      {/* Actions Générales en bas */}
       <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5">
         <button
           onClick={onCreateScenario}
