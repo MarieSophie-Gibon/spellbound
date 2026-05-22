@@ -161,6 +161,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
             chapitreId={selectedChapitreId} 
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(v => !v)}
+            campaignId={campaignId}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">

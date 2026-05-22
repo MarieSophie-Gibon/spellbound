@@ -7,11 +7,13 @@ import {
   Maximize2, Minimize2
 } from "lucide-react";
 import { LocationBlock } from "./blocks/LocationBlock";
+import { LootBlock } from "./blocks/LootBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  campaignId: string;
 }
 
 type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy';
@@ -22,7 +24,7 @@ interface Block {
   data: any;
 }
 
-export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }: ChapitreEditorProps) {
+export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId }: ChapitreEditorProps) {
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,7 +82,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
         : type === 'quote' ? { text: "", author: "" }
           : type === 'image' ? { url: "", caption: "" }
             : type === 'location' ? { title: "", description: "", imageUrl: "" }
-              : {},
+              : type === 'loot' ? { text: "", items: [] }
+                : {},
     };
     setBlocks([...blocks, newBlock]);
     setHasChanges(true);
@@ -163,7 +166,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
             value={block.data.text || ""}
             onChange={(e) => updateBlock(block.id, { text: e.target.value })}
             placeholder="Commencez à écrire votre récit ici..."
-            className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-[100px] placeholder:text-white/20"
+            className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-25 placeholder:text-white/20"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = "auto";
@@ -174,13 +177,13 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
 
       case 'quote':
         return (
-          <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-gradient-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl">
+          <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
             <textarea
               value={block.data.text || ""}
               onChange={(e) => updateBlock(block.id, { text: e.target.value })}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
-              className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-[60px] placeholder:text-[#E3CCCD]/30"
+              className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-15 placeholder:text-[#E3CCCD]/30"
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = "auto";
@@ -202,7 +205,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
           <div className="space-y-3">
             {block.data.url ? (
               <div className="relative group/image flex justify-center">
-                <img src={block.data.url} alt="Illustration du scénario" className="max-h-[500px] rounded-xl object-contain border border-white/10" />
+                <img src={block.data.url} alt="Illustration du scénario" className="max-h-125 rounded-xl object-contain border border-white/10" />
                 <button
                   onClick={() => updateBlock(block.id, { url: "" })}
                   className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-red-500/80 text-white rounded-lg opacity-0 group-hover/image:opacity-100 transition-all backdrop-blur-sm"
@@ -245,7 +248,17 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
             onChange={(newData) => updateBlock(block.id, newData)}
           />
         );
-      default:
+      
+      case 'loot': 
+        return (
+          <LootBlock
+            campaignId={campaignId}
+            data={block.data}
+            onChange={(newData) => updateBlock(block.id, newData)}
+          />
+        );
+
+        default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
             Bloc [{block.type}] en cours de construction...
@@ -286,8 +299,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
             onClick={handleSave}
             disabled={!hasChanges || isSaving}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${hasChanges
-                ? "bg-[#E3CCCD]/20 text-[#E3CCCD] border border-[#E3CCCD]/30 hover:bg-[#E3CCCD]/30 shadow-[0_0_15px_rgba(227,204,205,0.15)]"
-                : "bg-white/5 text-white/30 border border-white/5 cursor-not-allowed"
+              ? "bg-[#E3CCCD]/20 text-[#E3CCCD] border border-[#E3CCCD]/30 hover:bg-[#E3CCCD]/30 shadow-[0_0_15px_rgba(227,204,205,0.15)]"
+              : "bg-white/5 text-white/30 border border-white/5 cursor-not-allowed"
               }`}
           >
             <Save className="w-4 h-4" />
@@ -315,9 +328,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen }:
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={(e) => handleDrop(e, index)}
                   onDragEnd={handleDragEnd}
-                  className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors focus-within:bg-white/[0.02] ${dragOverIndex === index
-                      ? "border-t-2 border-[#E3CCCD] bg-white/[0.03]"
-                      : "hover:bg-white/[0.02]"
+                  className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors focus-within:bg-white/2 ${dragOverIndex === index
+                    ? "border-t-2 border-[#E3CCCD] bg-white/3"
+                    : "hover:bg-white/2"
                     }`}
                 >
 

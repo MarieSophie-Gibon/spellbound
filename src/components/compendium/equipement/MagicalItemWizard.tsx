@@ -23,7 +23,7 @@ export type EquipementType =
 
 interface EquipementWizardProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newItem?: any) => void;
   selectedType: EquipementType;
   initialData?: InitialEquipementData;
   campaignId?: string | null;
@@ -334,18 +334,21 @@ export default function EquipementWizard({
           .update(payload)
           .eq("id", initialData.id);
         if (error) throw error;
+        onSuccess(); // Mode édition, pas besoin de retourner l'objet
       } else {
-        const { error } = await supabase.from(table).insert(payload);
+        // AJOUTE .select().single() POUR RÉCUPÉRER L'OBJET CRÉÉ
+        const { data: newItem, error } = await supabase.from(table).insert(payload).select().single();
         if (error) throw error;
+        onSuccess(newItem); // <-- ON PASSE L'OBJET ICI
       }
 
-      onSuccess();
       onClose();
     } catch (err: any) {
       alert("Erreur lors de la sauvegarde : " + err.message);
     } finally {
       setIsSubmitting(false);
     }
+
   };
 
   const STEPS = [{ num: 1, label: "Identité" }];
@@ -361,10 +364,10 @@ export default function EquipementWizard({
               {isEditing ? "Modifier l'Objet" : "Nouvel Objet"} - {selectedType === "arme_contact"
                 ? "Arme de Contact"
                 : selectedType === "arme_distance"
-                ? "Arme à Distance"
-                : selectedType === "armure"
-                ? "Armure"
-                : "Équipement"}
+                  ? "Arme à Distance"
+                  : selectedType === "armure"
+                    ? "Armure"
+                    : "Équipement"}
             </p>
           </div>
           <button
