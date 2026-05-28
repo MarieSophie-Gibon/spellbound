@@ -202,7 +202,7 @@ export function PersonnageDetail({
       }
 
       const table = type === "pnj" ? "pnj" : "pj";
-      
+
       const statsToSave = type === "pnj" ? {
         ...pj.stats,
         sexe: editSexe,
@@ -246,15 +246,26 @@ export function PersonnageDetail({
         historique: editHistorique,
       };
 
+      // Déduire peuple_id depuis la voie du peuple (si elle existe)
+      let peupleId: string | null = null;
+      if (pj.pathways && Array.isArray(pj.pathways)) {
+        // Cherche la voie qui correspond à un peuple (type === 'peuple')
+        const peupleVoie = pj.pathways.find((v: any) => v.type === 'peuple' || v.isPeuple);
+        if (peupleVoie && peupleVoie.voie_id) {
+          peupleId = peupleVoie.voie_id;
+        }
+      }
+
       await supabase
         .from(table)
         .update({
           name: editName.trim() || pj.name,
           image_url: imageUrl,
           stats: statsToSave,
+          ...(peupleId ? { peuple_id: peupleId } : {}),
         })
         .eq("id", pj.id);
-        
+
       setIsEditing(false);
       onEditSuccess();
     } catch (err: any) {

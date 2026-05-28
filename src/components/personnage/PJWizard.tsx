@@ -410,14 +410,15 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         imageUrl = urlData.publicUrl;
       }
 
+
+      // Additionne tous les bonus de défense des armures sélectionnées
       let bonusDef = 0;
-      const armureProfil = profilEquipItems.find(
-        (item) => item.source === "armure",
-      );
-      if (armureProfil && armureProfil.details) {
-        const match = armureProfil.details.match(/([+-]?\d+)/);
-        if (match) bonusDef = parseInt(match[1], 10);
-      }
+      selectedEquipItems.forEach((item) => {
+        if (item.source === "armure" && item.details) {
+          const match = item.details.match(/([+-]?\d+)/);
+          if (match) bonusDef += parseInt(match[1], 10);
+        }
+      });
 
       const d = { ...derived, ...overrides };
       if (bonusDef) d.defense += bonusDef;
@@ -454,6 +455,8 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
           player_id: selectedPlayerId || user?.id || null,
           name: nom.trim(),
           image_url: imageUrl,
+          peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,
+          profils_id: selectedFamilleId,
           stats: {
             sexe,
             age: age.trim() || null,
@@ -530,7 +533,23 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
     return true;
   };
 
+
+  // Ajout dynamique du bonus de défense des armures sélectionnées
+  const getBonusDef = () => {
+    let bonusDef = 0;
+    selectedEquipItems.forEach((item) => {
+      if (item.source === "armure" && item.details) {
+        const match = item.details.match(/([+-]?\d+)/);
+        if (match) bonusDef += parseInt(match[1], 10);
+      }
+    });
+    return bonusDef;
+  };
+
   const dv = { ...derived, ...overrides } as any;
+  // Ajoute le bonus de défense des armures sélectionnées à la stat affichée
+  dv.defense = (derived.defense ?? 0) + (overrides.defense ?? 0) + getBonusDef();
+
   const setOverride = (key: string, value: number) =>
     setOverrides((prev) => ({ ...prev, [key]: value }));
 
@@ -1393,172 +1412,35 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
               </div>
             )}
 
-            {/* Sélection équipements */}
-            {(() => {
-              const SOURCE_LABELS: Record<string, string> = {
-                arme_contact: "Arme contact",
-                arme_distance: "Arme distance",
-                armure: "Armure",
-              };
-              const filtered = profilEquipItems.filter(
-                (item) =>
-                  !eqSearch ||
-                  item.nom.toLowerCase().includes(eqSearch.toLowerCase()),
-              );
-              const grouped = filtered.reduce<Record<string, EquipItem[]>>(
-                (acc, item) => {
-                  const cat = SOURCE_LABELS[item.source] ?? item.source;
-                  if (!acc[cat]) acc[cat] = [];
-                  acc[cat].push(item);
-                  return acc;
-                },
-                {},
-              );
-              const toggle = (item: EquipItem) =>
-                setSelectedEquipItems((prev) =>
-                  prev.some((x) => x.id === item.id && x.source === item.source)
-                    ? prev.filter(
-                        (x) => !(x.id === item.id && x.source === item.source),
-                      )
-                    : [...prev, item],
+            {/* Sélection équipements sous forme de badges/pills */}
+            <div className="flex flex-wrap gap-2 mt-2">
+              {profilEquipItems.map((item) => {
+                const selected = selectedEquipItems.some(
+                  (x) => x.id === item.id && x.source === item.source
                 );
-              return (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
-                      Équipements
-                    </label>
-                    {selectedEquipItems.length > 0 && (
-                      <span className="text-[11px] text-[#E3CCCD]/60">
-                        {selectedEquipItems.length} sélectionné
-                        {selectedEquipItems.length > 1 ? "s" : ""}
-                      </span>
+                return (
+                  <button
+                    key={item.source + '-' + item.id}
+                    type="button"
+                    className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[13px] transition-all select-none ${selected ? 'bg-[#E3CCCD]/20 border-[#E3CCCD] text-[#E3CCCD]' : 'bg-white/5 border-white/15 text-white/50 hover:bg-white/10'}`}
+                    onClick={() => {
+                      setSelectedEquipItems((prev) =>
+                        selected
+                          ? prev.filter((x) => !(x.id === item.id && x.source === item.source))
+                          : [...prev, item]
+                      );
+                    }}
+                  >
+                    {selected ? (
+                      <span className="text-green-400 text-[15px]">✓</span>
+                    ) : (
+                      <span className="text-white/30 text-[15px]">×</span>
                     )}
-                  </div>
-                  {/* Encarts équipements sélectionnés */}
-                  {selectedEquipItems.length > 0 && (
-                    <div className="space-y-1.5">
-                      {selectedEquipItems.map((item) => (
-                        <div
-                          key={`${item.source}-${item.id}`}
-                          className="flex items-start gap-3 p-3 rounded-xl border border-[#E3CCCD]/20 bg-[#E3CCCD]/5"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-[12px] font-medium text-[#E3CCCD]/90">
-                                {item.nom}
-                              </p>
-                              <span className="text-[10px] uppercase tracking-widest text-white/25 border border-white/10 rounded-full px-1.5 py-0.5">
-                                {SOURCE_LABELS[item.source]}
-                              </span>
-                            </div>
-                            {item.details && (
-                              <p className="text-[11px] text-white/50 leading-relaxed">
-                                {item.details}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => toggle(item)}
-                            className="text-white/20 hover:text-red-400/70 transition-colors shrink-0 mt-0.5 text-[13px] leading-none"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Dropdown */}
-                  <div className="relative" ref={eqDropdownRef}>
-                    <div
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors cursor-text ${eqDropdownOpen ? "border-white/30 bg-white/8" : "border-white/15 bg-white/5 hover:border-white/25"}`}
-                      onClick={() => setEqDropdownOpen(true)}
-                    >
-                      <input
-                        type="text"
-                        value={eqSearch}
-                        onChange={(e) => {
-                          setEqSearch(e.target.value);
-                          setEqDropdownOpen(true);
-                        }}
-                        onFocus={() => setEqDropdownOpen(true)}
-                        placeholder={
-                          profilEquipItems.length === 0
-                            ? "Aucun équipement associé au profil"
-                            : "Rechercher un équipement..."
-                        }
-                        className="flex-1 bg-transparent outline-none text-white text-[12px] placeholder:text-white/30"
-                      />
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-white/30 shrink-0 transition-transform cursor-pointer ${eqDropdownOpen ? "rotate-180" : ""}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEqDropdownOpen((o) => !o);
-                        }}
-                      />
-                    </div>
-                    {eqDropdownOpen && (
-                      <div className="absolute z-50 left-0 right-0 top-full mt-1 rounded-xl border border-white/15 bg-[#1E1941] shadow-2xl overflow-hidden max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
-                        {Object.entries(grouped).sort(([a], [b]) =>
-                          a.localeCompare(b),
-                        ).length === 0 ? (
-                          <p className="text-[12px] text-white/30 italic text-center py-4">
-                            Aucun résultat
-                          </p>
-                        ) : (
-                          Object.entries(grouped)
-                            .sort(([a], [b]) => a.localeCompare(b))
-                            .map(([cat, items]) => (
-                              <div key={cat}>
-                                <div className="px-3 py-1.5 text-[10px] uppercase tracking-widest text-white/25 bg-white/5 sticky top-0">
-                                  {cat}
-                                </div>
-                                {items.map((item) => {
-                                  const selected = selectedEquipItems.some(
-                                    (x) =>
-                                      x.id === item.id &&
-                                      x.source === item.source,
-                                  );
-                                  return (
-                                    <button
-                                      key={item.id}
-                                      type="button"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        toggle(item);
-                                      }}
-                                      className={`w-full text-left px-3 py-2.5 flex items-start justify-between gap-2 hover:bg-white/8 transition-colors ${selected ? "bg-[#E3CCCD]/8" : ""}`}
-                                    >
-                                      <div className="flex-1 min-w-0">
-                                        <p
-                                          className={`text-[12px] font-medium ${selected ? "text-[#E3CCCD]" : "text-white/65"}`}
-                                        >
-                                          {item.nom}
-                                        </p>
-                                        {item.details && (
-                                          <p className="text-[11px] text-white/30 leading-snug mt-0.5 truncate">
-                                            {item.details}
-                                          </p>
-                                        )}
-                                      </div>
-                                      {selected && (
-                                        <span className="text-[#E3CCCD]/60 text-[11px] shrink-0">
-                                          ✓
-                                        </span>
-                                      )}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
+                    <span>{item.nom}</span>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Grille dérivées */}
             {(() => {

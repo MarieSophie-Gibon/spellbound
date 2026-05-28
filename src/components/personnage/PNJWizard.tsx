@@ -395,6 +395,8 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
           campaign_id: campaignId,
           name: nom.trim(),
           image_url: imageUrl,
+          peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,
+          profils_id: selectedFamilleId,
           stats: pnjStats,
           pathways: pjVoies,
           inventory: isCombatant ? {

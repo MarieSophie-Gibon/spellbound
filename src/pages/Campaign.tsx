@@ -2,6 +2,7 @@ import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignStats } from "@/hooks/useCampaigns";
 import { Users, Skull, BookMarked, CalendarDays } from "lucide-react";
+import { PJList } from "@/components/campaign/PJList";
 
 interface CampaignProps {
     campaign: Campaign;
@@ -72,6 +73,11 @@ export function CampaignHome({ campaign }: CampaignProps) {
                         </>
                     )}
                 </div>
+            </div>
+
+            {/* Liste design des personnages joueurs */}
+            <div className="max-w-6xl mx-auto">
+                <PJList campaignId={campaign.id} />
             </div>
         </div>
     );
