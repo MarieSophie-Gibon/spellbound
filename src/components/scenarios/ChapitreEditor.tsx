@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
+import { InvestigationBlock } from "./blocks/InvestigationBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -83,7 +84,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           : type === 'image' ? { url: "", caption: "" }
             : type === 'location' ? { title: "", description: "", imageUrl: "" }
               : type === 'loot' ? { text: "", items: [] }
-                : {},
+                : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "", failure: "" }
+                  : {},
     };
     setBlocks([...blocks, newBlock]);
     setHasChanges(true);
@@ -258,6 +260,13 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           />
         );
 
+      case 'investigation':
+        return (
+          <InvestigationBlock
+            data={block.data}
+            onChange={(newData) => updateBlock(block.id, newData)}
+          />
+        );
         default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
