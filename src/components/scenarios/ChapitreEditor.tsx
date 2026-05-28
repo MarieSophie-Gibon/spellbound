@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
-  Save, Trash2, GripVertical, Image as ImageIcon, UploadCloud,
-  Maximize2, Minimize2
+  Trash2, GripVertical, Image as ImageIcon, UploadCloud,
+  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3
 } from "lucide-react";
 import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
@@ -29,13 +29,24 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // États d'édition et sauvegarde
+  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Menu d'ajout volant (Side Tab)
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
 
   // États pour le Drag & Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
+  // Pour défiler automatiquement vers le nouveau bloc
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
     setIsLoading(true);
     const { data } = await supabase
@@ -46,8 +57,11 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
     if (data) {
       setChapitre(data);
-      setBlocks(data.content || []);
+      const loadedBlocks = data.content || [];
+      setBlocks(loadedBlocks);
       setHasChanges(false);
+      // Si le chapitre est vide, on passe direct en édition
+      setIsEditing(loadedBlocks.length === 0);
     }
     setIsLoading(false);
   }, [chapitreId]);
@@ -56,22 +70,43 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     fetchChapitre();
   }, [fetchChapitre]);
 
-  const handleSave = async () => {
-    if (!chapitre) return;
+  // --- Sauvegarde Automatique (Auto-save) ---
+  const handleSave = useCallback(async (currentBlocks: Block[]) => {
+    if (!chapitreId) return;
     setIsSaving(true);
     try {
       const { error } = await supabase
         .from("chapitres")
-        .update({ content: blocks })
+        .update({ content: currentBlocks })
         .eq("id", chapitreId);
 
       if (error) throw error;
       setHasChanges(false);
+      setLastSaved(new Date());
     } catch (err: any) {
-      alert("Erreur lors de la sauvegarde : " + err.message);
+      console.error("Erreur auto-save :", err.message);
     } finally {
       setIsSaving(false);
     }
+  }, [chapitreId]);
+
+  // Déclencheur Auto-save avec Debounce (2 secondes après dernière modif)
+  useEffect(() => {
+    if (hasChanges && isEditing) {
+      const timer = setTimeout(() => {
+        handleSave(blocks);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [blocks, hasChanges, isEditing, handleSave]);
+
+  // --- Bascule Lecture / Édition ---
+  const toggleMode = (forceEdit?: boolean) => {
+    const newMode = forceEdit !== undefined ? forceEdit : !isEditing;
+    if (!newMode && hasChanges) {
+      handleSave(blocks); // Force la sauvegarde avant de repasser en lecture
+    }
+    setIsEditing(newMode);
   };
 
   // --- Gestion des Blocs ---
@@ -81,17 +116,18 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       type,
       data: type === 'text' ? { text: "" }
         : type === 'quote' ? { text: "", author: "" }
-          : type === 'image' ? { url: "", caption: "" }
-            : type === 'location' ? { title: "", description: "", imageUrl: "" }
-              : type === 'loot' ? { text: "", items: [] }
-                : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "", failure: "" }
-                  : {},
+        : type === 'image' ? { url: "", caption: "" }
+        : type === 'location' ? { title: "", description: "", imageUrl: "" }
+        : type === 'loot' ? { text: "", items: [] }
+        : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "" }
+        : {},
     };
     setBlocks([...blocks, newBlock]);
     setHasChanges(true);
+    setIsAddMenuOpen(false);
 
     setTimeout(() => {
-      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
 
@@ -121,23 +157,21 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   // --- Logique Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (!isEditing) return e.preventDefault();
     setDraggedIndex(index);
-    // Permet de rendre l'élément semi-transparent pendant le drag
     setTimeout(() => {
-      if (e.target instanceof HTMLElement) {
-        e.target.style.opacity = '0.4';
-      }
+      if (e.target instanceof HTMLElement) e.target.style.opacity = '0.4';
     }, 0);
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault(); // Nécessaire pour autoriser le "drop"
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
-    }
+    if (!isEditing) return;
+    e.preventDefault();
+    if (dragOverIndex !== index) setDragOverIndex(index);
   };
 
   const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    if (!isEditing) return;
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === targetIndex) return;
 
@@ -152,9 +186,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
-    if (e.target instanceof HTMLElement) {
-      e.target.style.opacity = '1';
-    }
+    if (e.target instanceof HTMLElement) e.target.style.opacity = '1';
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
@@ -163,29 +195,33 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const renderBlock = (block: Block) => {
     switch (block.type) {
       case 'text':
-        return (
+        return isEditing ? (
           <textarea
             value={block.data.text || ""}
             onChange={(e) => updateBlock(block.id, { text: e.target.value })}
             placeholder="Commencez à écrire votre récit ici..."
-            className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-25 placeholder:text-white/20"
+            className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 rounded transition-colors"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = "auto";
               target.style.height = `${target.scrollHeight}px`;
             }}
           />
+        ) : (
+          <div className="w-full text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap px-2 py-1">
+            {block.data.text || <span className="italic text-white/30">Texte vide...</span>}
+          </div>
         );
 
       case 'quote':
-        return (
-          <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl">
+        return isEditing ? (
+          <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-gradient-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
             <textarea
               value={block.data.text || ""}
               onChange={(e) => updateBlock(block.id, { text: e.target.value })}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
-              className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-15 placeholder:text-[#E3CCCD]/30"
+              className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-[#E3CCCD]/30"
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
                 target.style.height = "auto";
@@ -200,10 +236,22 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               className="w-full mt-2 bg-transparent text-white/40 text-sm italic outline-none placeholder:text-white/20"
             />
           </div>
+        ) : (
+          <div className="relative pl-6 py-3 border-l-4 border-[#E3CCCD]/60 bg-gradient-to-r from-[#E3CCCD]/10 to-transparent rounded-r-xl mb-2">
+            <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/20 -z-10" />
+            <div className="text-[#E3CCCD] font-serif text-lg leading-relaxed whitespace-pre-wrap">
+              "{block.data.text}"
+            </div>
+            {block.data.author && (
+              <div className="mt-2 text-[#E3CCCD]/50 text-sm italic">
+                — {block.data.author}
+              </div>
+            )}
+          </div>
         );
 
       case 'image':
-        return (
+        return isEditing ? (
           <div className="space-y-3">
             {block.data.url ? (
               <div className="relative group/image flex justify-center">
@@ -241,36 +289,40 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               />
             )}
           </div>
+        ) : (
+          block.data.url && (
+            <div className="flex flex-col items-center py-4">
+              <img src={block.data.url} alt="Illustration" className="max-h-125 rounded-xl object-contain border border-white/10 shadow-xl" />
+              {block.data.caption && <span className="mt-3 text-sm text-white/50 italic">{block.data.caption}</span>}
+            </div>
+          )
         );
 
       case 'location':
         return (
-          <LocationBlock
-            data={block.data}
-            onChange={(newData) => updateBlock(block.id, newData)}
-          />
+          <div className={!isEditing ? "pointer-events-none" : ""}>
+            <LocationBlock data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+          </div>
         );
       
       case 'loot': 
         return (
-          <LootBlock
-            campaignId={campaignId}
-            data={block.data}
-            onChange={(newData) => updateBlock(block.id, newData)}
-          />
+          <div className={!isEditing ? "pointer-events-none opacity-90" : ""}>
+            <LootBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+          </div>
         );
 
       case 'investigation':
         return (
-          <InvestigationBlock
-            data={block.data}
-            onChange={(newData) => updateBlock(block.id, newData)}
-          />
+          <div className={!isEditing ? "pointer-events-none" : ""}>
+            <InvestigationBlock data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+          </div>
         );
-        default:
+
+      default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
-            Bloc [{block.type}] en cours de construction...
+            Bloc [{block.type}] en mode lecture seule.
           </div>
         );
     }
@@ -290,72 +342,110 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     <div className="flex-1 flex flex-col h-full relative">
 
       {/* HEADER FIXE */}
-      <div className="shrink-0 flex items-center justify-between p-6 border-b border-white/10 bg-black/20 backdrop-blur-sm z-10 sticky top-0">
-        <h1 className="text-3xl font-serif text-white tracking-wide truncate pr-4">
-          {chapitre.title}
-        </h1>
+      <div className="shrink-0 flex items-center justify-between px-6 h-16 border-b border-white/10 bg-[#1E1941]/90 backdrop-blur-md z-20 sticky top-0 shadow-sm">
+        
+        {/* Titre et Auto-Save Côte à Côte */}
+        <div className="flex items-center gap-4 min-w-0 pr-4">
+          <h1 className="text-xl md:text-2xl font-serif text-white tracking-wide truncate leading-none">
+            {chapitre.title}
+          </h1>
+          
+          {/* Indicateur d'Auto-Save (Pilule avec Icônes) */}
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 border border-white/5 text-[10px] font-mono select-none">
+            {isSaving ? (
+              <><CloudUpload className="w-3.5 h-3.5 text-sky-400 animate-pulse" /> <span className="text-white/60">Sauvegarde...</span></>
+            ) : hasChanges ? (
+              <><PenTool className="w-3 h-3 text-amber-400" /> <span className="text-white/60">Modifié</span></>
+            ) : lastSaved ? (
+              <><CheckCircle2 className="w-3 h-3 text-emerald-400" /> <span className="text-white/60">Sauvegardé</span></>
+            ) : (
+              <><CheckCircle2 className="w-3 h-3 text-white/20" /> <span className="text-white/30">À jour</span></>
+            )}
+          </div>
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4 shrink-0">
+          
+          {/* SWITCH SEGMENTÉ : LECTURE / ÉDITION */}
+          <div className="flex p-1 bg-black/40 rounded-lg border border-white/10">
+            <button
+              onClick={() => toggleMode(false)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
+                !isEditing 
+                  ? 'bg-sky-500/20 text-sky-400 shadow-sm' 
+                  : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lecture</span>
+            </button>
+            <button
+              onClick={() => toggleMode(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
+                isEditing 
+                  ? 'bg-[#E3CCCD]/20 text-[#E3CCCD] shadow-sm' 
+                  : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Édition</span>
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Bouton Plein Écran */}
           <button
             onClick={onToggleFullscreen}
-            className="p-2.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-xl transition-colors border border-white/5"
-            title={isFullscreen ? "Réduire" : "Plein écran"}
+            className="p-1.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-lg transition-colors border border-white/5"
+            title={isFullscreen ? "Quitter le plein écran" : "Plein écran"}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-
-          <button
-            onClick={handleSave}
-            disabled={!hasChanges || isSaving}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${hasChanges
-              ? "bg-[#E3CCCD]/20 text-[#E3CCCD] border border-[#E3CCCD]/30 hover:bg-[#E3CCCD]/30 shadow-[0_0_15px_rgba(227,204,205,0.15)]"
-              : "bg-white/5 text-white/30 border border-white/5 cursor-not-allowed"
-              }`}
-          >
-            <Save className="w-4 h-4" />
-            {isSaving ? "Sauvegarde..." : hasChanges ? "Enregistrer" : "À jour"}
           </button>
         </div>
       </div>
 
-      {/* ZONE D'ÉDITION */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-thin scrollbar-thumb-white/10">
-        <div className="max-w-4xl mx-auto space-y-6 pb-32 animate-in fade-in slide-in-from-bottom-4">
+      {/* ZONE PRINCIPALE DU CHAPITRE */}
+      <div className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-thin scrollbar-thumb-white/10 relative">
+        <div className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4">
 
           {/* BOUCLE SUR LES BLOCS */}
           {blocks.length === 0 ? (
-            <p className="text-white/30 italic font-light text-center py-10">
-              Ce chapitre est vide. Ajoutez votre premier bloc pour commencer le récit.
+            <p className="text-white/30 italic font-light text-center py-20">
+              {isEditing ? "Ce chapitre est vide. Utilisez l'onglet à droite pour ajouter votre premier bloc." : "Ce chapitre ne contient aucun récit."}
             </p>
           ) : (
             <div className="space-y-4">
               {blocks.map((block, index) => (
                 <div
                   key={block.id}
-                  draggable
+                  draggable={isEditing}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={(e) => handleDrop(e, index)}
                   onDragEnd={handleDragEnd}
-                  className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors focus-within:bg-white/2 ${dragOverIndex === index
-                    ? "border-t-2 border-[#E3CCCD] bg-white/3"
-                    : "hover:bg-white/2"
-                    }`}
+                  className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
+                    isEditing && dragOverIndex === index ? "border-t-2 border-[#E3CCCD] bg-white/5" : ""
+                  } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : ""}`}
                 >
+                  {/* Actions Rapides (Grip & Delete) - Visibles qu'en édition */}
+                  {isEditing && (
+                    <div className="opacity-30 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col items-center gap-1 pt-1 w-7 md:w-10 shrink-0 transition-opacity">
+                      <button className="p-1 md:p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded cursor-grab">
+                        <GripVertical className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => removeBlock(block.id)}
+                        className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
+                        title="Supprimer ce bloc"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
 
-                  {/* Actions Rapides (Intégrées dans le bloc) */}
-                  <div className="opacity-40 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col items-center gap-1 pt-1 w-7 md:w-10 shrink-0 transition-opacity">
-                    <button className="p-1 md:p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded cursor-grab">
-                      <GripVertical className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => removeBlock(block.id)}
-                      className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
-                      title="Supprimer ce bloc"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  {/* Wrapper factice pour compenser la largeur des actions en mode lecture */}
+                  {!isEditing && <div className="w-7 md:w-10 shrink-0 hidden md:block" />}
 
                   {/* Contenu du bloc */}
                   <div className="flex-1 min-w-0 pt-1 pointer-events-auto">
@@ -366,39 +456,62 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             </div>
           )}
 
-          {/* MENU D'AJOUT DE BLOCS */}
-          <div className="pt-8 mt-12 border-t border-white/10">
-            <p className="text-[10px] uppercase tracking-widest text-white/40 mb-4">Ajouter un bloc</p>
-            <div className="flex flex-wrap gap-3">
-              <button onClick={() => addBlock('text')} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[12px] font-medium text-white/80 transition-colors">
-                <Type className="w-4 h-4" /> Texte
+          <div ref={bottomRef} className="h-10" />
+        </div>
+      </div>
+
+      {/* SIDE TAB : AJOUT DE BLOCS (Uniquement en édition) */}
+      {isEditing && (
+        <div 
+          className="absolute right-0 top-25 z-40 flex items-start"
+          onMouseLeave={() => setIsAddMenuOpen(false)}
+        >
+          {/* Menu déroulant vers la gauche */}
+          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isAddMenuOpen ? 'w-[180px] opacity-100 mr-2' : 'w-0 opacity-0 mr-0'}`}>
+            <div className="flex flex-col bg-[#1E1941]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 gap-1 w-[180px]">
+              <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#E3CCCD]/50 border-b border-white/5 mb-1 font-bold">
+                Ajouter un bloc
+              </div>
+              <button onClick={() => addBlock('text')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-xl text-[12px] text-white/80 transition-colors w-full text-left">
+                <Type className="w-4 h-4 text-white/40" /> Texte
               </button>
-              <button onClick={() => addBlock('quote')} className="flex items-center gap-2 px-4 py-2 bg-[#E3CCCD]/5 hover:bg-[#E3CCCD]/15 border border-[#E3CCCD]/20 rounded-lg text-[12px] font-medium text-[#E3CCCD]/90 transition-colors">
-                <Quote className="w-4 h-4" /> Citation
+              <button onClick={() => addBlock('quote')} className="flex items-center gap-3 px-3 py-2 hover:bg-[#E3CCCD]/10 rounded-xl text-[12px] text-[#E3CCCD]/90 transition-colors w-full text-left">
+                <Quote className="w-4 h-4 text-[#E3CCCD]/50" /> Citation
               </button>
-              <button onClick={() => addBlock('image')} className="flex items-center gap-2 px-4 py-2 bg-pink-500/5 hover:bg-pink-500/15 border border-pink-500/20 rounded-lg text-[12px] font-medium text-pink-400 transition-colors">
-                <ImageIcon className="w-4 h-4" /> Image
+              <button onClick={() => addBlock('image')} className="flex items-center gap-3 px-3 py-2 hover:bg-pink-500/10 rounded-xl text-[12px] text-pink-300 transition-colors w-full text-left">
+                <ImageIcon className="w-4 h-4 text-pink-400/50" /> Image
               </button>
-              <button onClick={() => addBlock('location')} className="flex items-center gap-2 px-4 py-2 bg-emerald-500/5 hover:bg-emerald-500/15 border border-emerald-500/20 rounded-lg text-[12px] font-medium text-emerald-400 transition-colors">
-                <MapPin className="w-4 h-4" /> Lieu
+              <button onClick={() => addBlock('location')} className="flex items-center gap-3 px-3 py-2 hover:bg-emerald-500/10 rounded-xl text-[12px] text-emerald-300 transition-colors w-full text-left">
+                <MapPin className="w-4 h-4 text-emerald-400/50" /> Lieu
               </button>
-              <button onClick={() => addBlock('loot')} className="flex items-center gap-2 px-4 py-2 bg-amber-500/5 hover:bg-amber-500/15 border border-amber-500/20 rounded-lg text-[12px] font-medium text-amber-400 transition-colors">
-                <Package className="w-4 h-4" /> Loot
+              <button onClick={() => addBlock('loot')} className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-300 transition-colors w-full text-left">
+                <Package className="w-4 h-4 text-amber-400/50" /> Trésor / Loot
               </button>
-              <button onClick={() => addBlock('investigation')} className="flex items-center gap-2 px-4 py-2 bg-sky-500/5 hover:bg-sky-500/15 border border-sky-500/20 rounded-lg text-[12px] font-medium text-sky-400 transition-colors">
-                <Search className="w-4 h-4" /> Enquête
+              <button onClick={() => addBlock('investigation')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-300 transition-colors w-full text-left">
+                <Search className="w-4 h-4 text-sky-400/50" /> Enquête
               </button>
-              <button onClick={() => addBlock('npc')} className="flex items-center gap-2 px-4 py-2 bg-violet-500/5 hover:bg-violet-500/15 border border-violet-500/20 rounded-lg text-[12px] font-medium text-violet-400 transition-colors">
-                <Users className="w-4 h-4" /> PNJ
+              <div className="h-px bg-white/5 my-0.5 w-full" />
+              <button onClick={() => addBlock('npc')} className="flex items-center gap-3 px-3 py-2 hover:bg-violet-500/10 rounded-xl text-[12px] text-violet-300 transition-colors w-full text-left">
+                <Users className="w-4 h-4 text-violet-400/50" /> Personnage (PNJ)
               </button>
-              <button onClick={() => addBlock('enemy')} className="flex items-center gap-2 px-4 py-2 bg-red-500/5 hover:bg-red-500/15 border border-red-500/20 rounded-lg text-[12px] font-medium text-red-400 transition-colors">
-                <Swords className="w-4 h-4" /> Ennemi
+              <button onClick={() => addBlock('enemy')} className="flex items-center gap-3 px-3 py-2 hover:bg-red-500/10 rounded-xl text-[12px] text-red-300 transition-colors w-full text-left">
+                <Swords className="w-4 h-4 text-red-400/50" /> Ennemi / Combat
               </button>
             </div>
           </div>
 
+          {/* Onglet Déclencheur */}
+          <button
+            onMouseEnter={() => setIsAddMenuOpen(true)}
+            onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+            className="flex items-center justify-center bg-[#E3CCCD]/10 hover:bg-[#E3CCCD]/20 border border-[#E3CCCD]/20 border-r-0 rounded-l-xl p-3 text-[#E3CCCD] transition-colors shadow-lg backdrop-blur-md"
+            title="Ajouter un bloc"
+          >
+            <Plus className={`w-5 h-5 transition-transform duration-300 ${isAddMenuOpen ? 'rotate-45' : ''}`} />
+          </button>
         </div>
-      </div>
+      )}
+
     </div>
   );
 }
