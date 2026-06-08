@@ -17,6 +17,7 @@ interface ChapitreEditorProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   campaignId: string;
+  onOpenCombatDashboard?: (chapitreId: string) => void;
 }
 
 type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy';
@@ -27,7 +28,7 @@ interface Block {
   data: any;
 }
 
-export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId }: ChapitreEditorProps) {
+export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, onOpenCombatDashboard }: ChapitreEditorProps) {
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -333,7 +334,18 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       case 'enemy':
         return (
           <div className={!isEditing ? "pointer-events-none" : ""}>
-            <EnemyBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+            <EnemyBlock
+              campaignId={campaignId}
+              data={block.data}
+              onChange={(newData) => updateBlock(block.id, newData)}
+              onOpenCombatDashboard={() => {
+                const nextBlocks = blocks.map((b) => b.id === block.id ? { ...b, data: { ...b.data, combatEngaged: true } } : b);
+                setBlocks(nextBlocks);
+                setHasChanges(false);
+                void handleSave(nextBlocks);
+                onOpenCombatDashboard?.(chapitreId);
+              }}
+            />
           </div>
         );
 
@@ -438,13 +450,16 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                 <div
                   key={block.id}
                   draggable={isEditing}
+                  onClick={() => {
+                    if (!isEditing) toggleMode(true);
+                  }}
                   onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={(e) => handleDrop(e, index)}
                   onDragEnd={handleDragEnd}
                   className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
                     isEditing && dragOverIndex === index ? "border-t-2 border-[#E3CCCD] bg-white/5" : ""
-                  } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : ""}`}
+                  } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : "cursor-text"}`}
                 >
                   {/* Actions Rapides (Grip & Delete) - Visibles qu'en édition */}
                   {isEditing && (
@@ -474,7 +489,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             </div>
           )}
 
-          <div ref={bottomRef} className="h-10" />
+            <div ref={bottomRef} className="h-10" />
         </div>
       </div>
 

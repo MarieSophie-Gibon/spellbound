@@ -5,6 +5,7 @@ import { theme } from '@/lib/theme'
 interface MagicCardProps {
   title?: ReactNode
   imageUrl?: string | null
+  size?: 'default' | 'compact'
   onClick?: () => void
   children?: ReactNode
   badge?: ReactNode
@@ -13,13 +14,17 @@ interface MagicCardProps {
   onDuplicate?: (e: React.MouseEvent) => void
 }
 
-export function MagicCard({ title, imageUrl, onClick, children, badge, onEdit, onDelete, onDuplicate }: MagicCardProps) {
+export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onDuplicate }: MagicCardProps) {
   const bgImage = imageUrl || '/default-bg.jpg'
+  const isCompact = size === 'compact'
+  const cardSizeClass = isCompact ? 'w-48 h-72' : 'w-60 h-95'
+  const titleClass = isCompact ? 'text-lg' : 'text-xl'
+  const contentPositionClass = isCompact ? 'bottom-6 left-5 right-5' : 'bottom-10 left-8 right-8'
 
   return (
     <div 
       onClick={onClick}
-      className="relative w-60 h-95 rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(55,42,132,0.6)]"
+      className={`relative ${cardSizeClass} rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(55,42,132,0.6)]`}
     >
       {/* Inner clipped layers */}
       <div className="absolute inset-0 rounded-lg overflow-hidden">
@@ -69,9 +74,9 @@ export function MagicCard({ title, imageUrl, onClick, children, badge, onEdit, o
         )}
         
         {/* Layer 4: Contenu */}
-        <div className="absolute bottom-10 left-8 right-8 flex flex-col justify-end">
+        <div className={`absolute ${contentPositionClass} flex flex-col justify-end`}>
           {title && (
-            <h3 className="text-xl font-serif text-white leading-snug tracking-wide">
+            <h3 className={`${titleClass} font-serif text-white leading-snug tracking-wideb text-center`}>
               {title}
             </h3>
           )}
@@ -85,7 +90,7 @@ export function MagicCard({ title, imageUrl, onClick, children, badge, onEdit, o
 
       {/* Badge (outside overflow-hidden) */}
       {badge && (
-        <div className="absolute top-0 right-10 z-30">
+        <div className="absolute top-0 right-2 z-30">
           {badge}
         </div>
       )}

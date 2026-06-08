@@ -12,10 +12,12 @@ interface EnemyBlockProps {
         entityType?: 'monster' | 'npc';
         nom?: string;
         imageUrl?: string;
+        combatEngaged?: boolean;
         comportement?: string;
         notes?: string;
     };
     onChange: (newData: Partial<EnemyBlockProps["data"]>) => void;
+    onOpenCombatDashboard?: () => void;
 }
 
 interface SearchResult {
@@ -42,7 +44,7 @@ function isValidUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function EnemyBlock({ campaignId, data, onChange }: EnemyBlockProps) {
+export function EnemyBlock({ campaignId, data, onChange, onOpenCombatDashboard }: EnemyBlockProps) {
     const [searchType, setSearchType] = useState<'monster' | 'npc'>('monster');
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -269,7 +271,7 @@ export function EnemyBlock({ campaignId, data, onChange }: EnemyBlockProps) {
 
             {/* Bouton Reset */}
             <button
-                onClick={() => onChange({ entityId: undefined, entityType: undefined, nom: undefined, imageUrl: undefined, comportement: undefined, notes: undefined })}
+                onClick={() => onChange({ entityId: undefined, entityType: undefined, nom: undefined, imageUrl: undefined, combatEngaged: undefined, comportement: undefined, notes: undefined })}
                 className="absolute top-3 right-3 p-1.5 bg-black/40 hover:bg-red-500/80 text-white rounded-lg opacity-0 group-hover/block:opacity-100 transition-all z-10"
                 title="Changer d'ennemi"
             >
@@ -289,10 +291,29 @@ export function EnemyBlock({ campaignId, data, onChange }: EnemyBlockProps) {
 
                 {/* Header */}
                 <div className="p-4 md:p-5 border-b border-red-500/10">
-                    <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-red-400/80 font-bold">
-                        {data.entityType === 'monster' ? <Ghost className="w-3 h-3" /> : <Users className="w-3 h-3" />}
-                        {data.entityType === 'monster' ? "Monstre" : "PNJ Hostile"}
-                    </span>
+                    <div className="flex items-start justify-between gap-3">
+                        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-red-400/80 font-bold">
+                            {data.entityType === 'monster' ? <Ghost className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                            {data.entityType === 'monster' ? "Monstre" : "PNJ Hostile"}
+                        </span>
+
+                        <button
+                            onClick={() => {
+                                if (!data.combatEngaged) {
+                                    onChange({ combatEngaged: true });
+                                }
+                                onOpenCombatDashboard?.();
+                            }}
+                            className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors ${data.combatEngaged
+                                ? 'bg-red-500/30 border-red-400/50 text-red-100'
+                                : 'bg-black/30 border-red-500/30 text-red-300 hover:bg-red-500/15'
+                                }`}
+                            title="Ouvrir le dashboard de combat"
+                        >
+                            <Swords className="w-3.5 h-3.5" />
+                            {data.combatEngaged ? 'En combat' : 'Combat'}
+                        </button>
+                    </div>
                     <h3 className="text-lg font-serif text-white tracking-wide mt-1">{data.nom}</h3>
                 </div>
 

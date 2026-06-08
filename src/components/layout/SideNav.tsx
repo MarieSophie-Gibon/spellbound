@@ -7,6 +7,7 @@ interface SideNavProps {
   activeTab: 'grimoire' | 'compendium' | 'scenarios' | 'personnages' | 'none';
   onTabChange: (tab: 'grimoire' | 'compendium' | 'scenarios' | 'personnages' | 'none') => void;
   tabs?: string[];
+  forceCollapsed?: boolean;
 }
 
 // On ajoute la prop isCollapsed
@@ -47,22 +48,22 @@ const NavItem = ({ label, icon: Icon, active, onClick, isCollapsed }: any) => {
   );
 };
 
-export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendium", "scenarios", "personnages"] }: SideNavProps) {
+export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendium", "scenarios", "personnages"], forceCollapsed = false }: SideNavProps) {
   const { session } = useAuthStore();
   
   // LOGIQUE DE RÉTRACTION : Rétracté si un onglet est actif !
-  const isCollapsed = activeTab !== 'none';
+  const isCollapsed = forceCollapsed || activeTab !== 'none';
 
   return (
     <aside
-      className="relative z-20 w-24 h-[70vh] self-start flex flex-col items-center rounded-br-[5rem] shadow-[4px_0_24px_rgba(0,0,0,0.5)] shrink-0 transition-all duration-300"
+      className={`relative z-20 ${isCollapsed ? 'w-16' : 'w-24'} h-[70vh] self-start flex flex-col items-center rounded-br-[5rem] shadow-[4px_0_24px_rgba(0,0,0,0.5)] shrink-0 transition-all duration-300`}
       style={theme.gradientNav}
     >
       <div className={theme.strokeRight} />
       <img
         src="/logo.svg"
         alt="Spellbound Logo"
-        className="relative z-5 w-24 h-24 object-contain"
+        className={`relative z-5 ${isCollapsed ? 'w-16 h-16 mt-2' : 'w-24 h-24'} object-contain transition-all duration-300`}
       />
 
       {session && (

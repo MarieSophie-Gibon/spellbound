@@ -10,6 +10,7 @@ import { Grimoire } from "@/pages/Grimoire";
 import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
+import { Combat } from "@/pages/Combat";
 import { Scenarios } from "@/pages/Scenarios"; // <-- NOUVEL IMPORT
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
@@ -45,6 +46,7 @@ function App() {
   // Determine active tab from route
   // Détermine les onglets visibles selon la route
   const isCampaignRoute = location.pathname.startsWith("/campaign");
+  const isCombatRoute = location.pathname.startsWith("/campaign/combat");
   const getActiveTab = () => {
     if (isCampaignRoute && location.pathname.includes("grimoire")) return "grimoire";
     if (isCampaignRoute && location.pathname.includes("compendium")) return "compendium";
@@ -100,6 +102,7 @@ function App() {
             activeTab={getActiveTab()}
             onTabChange={handleTabChange}
             tabs={getTabs()}
+            forceCollapsed={isCombatRoute}
           />
         )}
 
@@ -204,6 +207,16 @@ function App() {
                       campaignId={activeCampaign.id}
                       onBack={() => navigate("/campaign")}
                     />
+                  ) : (
+                    <Navigate to="/" />
+                  )
+                }
+              />
+              <Route
+                path="/campaign/combat"
+                element={
+                  activeCampaign ? (
+                    <Combat campaignId={activeCampaign.id} />
                   ) : (
                     <Navigate to="/" />
                   )

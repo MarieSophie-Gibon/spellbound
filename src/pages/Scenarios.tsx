@@ -6,6 +6,7 @@ import { ScenarioSidebar } from "@/components/scenarios/ScenarioSidebar";
 import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioModals";
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";
 import { BookOpen, AlertTriangle } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 interface ScenariosProps {
   campaignId: string;
@@ -62,6 +63,8 @@ function DeleteNodeModal({
 }
 
 export function Scenarios({ campaignId, onBack }: ScenariosProps) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [scenarios, setScenarios] = useState<any[]>([]);
   const [chapitres, setChapitres] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,6 +107,13 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    const chapitreFromQuery = searchParams.get("chapitreId");
+    if (chapitreFromQuery) {
+      setSelectedChapitreId(chapitreFromQuery);
+    }
+  }, [searchParams]);
 
   const handleToggleScenario = (id: string) => {
     setExpandedScenarios((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -162,6 +172,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(v => !v)}
             campaignId={campaignId}
+            onOpenCombatDashboard={(chapId) => navigate(`/campaign/combat?chapitreId=${chapId}`)}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
