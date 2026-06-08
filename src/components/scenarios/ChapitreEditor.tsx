@@ -9,6 +9,7 @@ import {
 import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
 import { InvestigationBlock } from "./blocks/InvestigationBlock";
+import { NpcBlock } from "./blocks/NpcBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -120,6 +121,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         : type === 'location' ? { title: "", description: "", imageUrl: "" }
         : type === 'loot' ? { text: "", items: [] }
         : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "" }
+        : type === 'npc' ? { npcId: undefined, nom: undefined, imageUrl: undefined }
         : {},
     };
     setBlocks([...blocks, newBlock]);
@@ -319,6 +321,12 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           </div>
         );
 
+      case 'npc':
+        return (
+          <div className={!isEditing ? "pointer-events-none" : ""}>
+            <NpcBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+          </div>
+        );
       default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">

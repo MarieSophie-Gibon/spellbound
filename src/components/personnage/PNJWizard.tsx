@@ -34,10 +34,20 @@ import type {
 // Types
 // ─────────────────────────────────────────────
 
+interface CreatedPnj {
+  id: string;
+  name: string;
+  image_url: string | null;
+}
+
 interface PNJWizardProps {
   campaignId: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (pnj?: CreatedPnj) => void;
+}
+
+function isValidUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
@@ -180,7 +190,13 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
       if (!isCombatant) return;
 
       // Sinon on charge le reste pour le combat
-      const { data: fData } = await supabase.from("profils").select("id, nom, description, equipement_base, maitrise_equipement, image_url, data, famille:familles(nom, pv_niveau, de_recuperation, bonus_chance), voies(id, nom, capacites)").or(`campaign_id.eq.${campaignId},campaign_id.is.null`).order("nom");
+      const profilsQuery = supabase
+        .from("profils")
+        .select("id, nom, description, equipement_base, maitrise_equipement, image_url, data, famille:familles(nom, pv_niveau, de_recuperation, bonus_chance), voies(id, nom, capacites)")
+        .order("nom");
+      const { data: fData } = isValidUuid(campaignId)
+        ? await profilsQuery.or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
+        : await profilsQuery.is("campaign_id", null);
       if (fData) {
         setFamilles(
           fData.map((f: any) => {
@@ -323,6 +339,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
 
   const handleSubmit = async () => {
     if (!nom.trim()) return alert("Le nom est obligatoire.");
+    if (!isValidUuid(campaignId)) return alert("Aucune campagne valide sélectionnée.");
     setIsSubmitting(true);
     try {
       let imageUrl: string | null = null;
@@ -395,8 +412,8 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
           campaign_id: campaignId,
           name: nom.trim(),
           image_url: imageUrl,
-          peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,
-          profils_id: selectedFamilleId,
+          peuple_id: (isDemiElf ? selectedDemiElfVoieId : selectedPeupleId) || null,
+          profils_id: isCombatant ? (selectedFamilleId || null) : null,
           stats: pnjStats,
           pathways: pjVoies,
           inventory: isCombatant ? {
@@ -421,7 +438,8 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         await supabase.from("pj_inventaire").insert(itemsToInsert);
       }
 
-      onSuccess();
+      const created = pnjInsertData?.[0] ? { id: pnjInsertData[0].id, name: pnjInsertData[0].name, image_url: pnjInsertData[0].image_url } : undefined;
+      onSuccess(created);
       onClose();
     } catch (err: any) {
       alert("Erreur : " + err.message);
