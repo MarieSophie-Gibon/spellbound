@@ -10,7 +10,7 @@ import type { MonstreStats, MonstreCombat, MonstreAttaque, MonstreCapacite } fro
 
 interface MonsterWizardProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (monster?: { id: string; nom: string; image_url?: string | null }) => void;
   campaignId?: string;
   initialData?: InitialMonstreData;
 }
@@ -137,12 +137,16 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
       if (isEditing && initialData) {
         const { error } = await supabase.from("bestiaire").update(payload).eq("id", initialData.id);
         if (error) throw error;
+        onSuccess({ id: initialData.id, nom: payload.nom, image_url: payload.image_url });
       } else {
-        const { error } = await supabase.from("bestiaire").insert(payload);
+        const { data: created, error } = await supabase
+          .from("bestiaire")
+          .insert(payload)
+          .select("id, nom, image_url")
+          .single();
         if (error) throw error;
+        onSuccess(created ?? undefined);
       }
-
-      onSuccess();
       onClose();
     } catch (err: any) {
       alert("Erreur lors de la sauvegarde : " + err.message);

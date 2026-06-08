@@ -10,6 +10,7 @@ import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
 import { InvestigationBlock } from "./blocks/InvestigationBlock";
 import { NpcBlock } from "./blocks/NpcBlock";
+import { EnemyBlock } from "./blocks/EnemyBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -122,6 +123,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         : type === 'loot' ? { text: "", items: [] }
         : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "" }
         : type === 'npc' ? { npcId: undefined, nom: undefined, imageUrl: undefined }
+        : type === 'enemy' ? { enemyId: undefined, nom: undefined, imageUrl: undefined }
         : {},
     };
     setBlocks([...blocks, newBlock]);
@@ -327,7 +329,15 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             <NpcBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
           </div>
         );
-      default:
+      
+      case 'enemy':
+        return (
+          <div className={!isEditing ? "pointer-events-none" : ""}>
+            <EnemyBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+          </div>
+        );
+
+        default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
             Bloc [{block.type}] en mode lecture seule.
