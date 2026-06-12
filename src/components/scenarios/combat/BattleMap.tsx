@@ -1,0 +1,428 @@
+import { useRef, useState, useCallback, useEffect } from "react";
+import { ImagePlus, Loader2, Minus, MonitorPlay, Plus, Trash2, X, ZoomIn } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import type { Combatant, MapToken } from "./types";
+import { CONDITION_OPTIONS } from "./types";
+
+interface BattleMapProps {
+  imageUrl: string | null;
+  onChange: (url: string | null) => void;
+  combatants: Combatant[];
+  mapTokens: MapToken[];
+  onUpdateTokens: (tokens: MapToken[]) => void;
+  activeCombatantId?: string | null;
+}
+
+async function uploadBattleMap(file: File): Promise<string | null> {
+  const ext = file.name.split(".").pop();
+  const fileName = `${crypto.randomUUID()}.${ext}`;
+  const filePath = `battlemaps/${fileName}`;
+  const { error } = await supabase.storage.from("wiki-images").upload(filePath, file);
+  if (error) { console.error("Erreur upload battlemap :", error.message); return null; }
+  const { data } = supabase.storage.from("wiki-images").getPublicUrl(filePath);
+  return data.publicUrl;
+}
+
+export function tokenRingClass(type: string) {
+  if (type === "pj") return "border-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
+  if (type === "monster") return "border-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]";
+  return "border-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]";
+}
+
+export const BATTLEMAP_CHANNEL = "spellbound-battlemap";
+
+export interface BattleMapBroadcast {
+  type: "update";
+  imageUrl: string | null;
+  mapTokens: MapToken[];
+  combatants: Combatant[];
+  activeCombatantId: string | null;
+  tokenSize: number;
+}
+
+type ImgRect = { left: number; top: number; width: number; height: number };
+
+/** Calcule la zone réellement occupée par l'image dans un conteneur object-contain. */
+function computeContainRect(containerW: number, containerH: number, nw: number, nh: number): ImgRect {
+  const scale = Math.min(containerW / nw, containerH / nh);
+  const w = nw * scale, h = nh * scale;
+  return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
+}
+
+export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const mapZoneRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // Div positionné exactement sur les pixels rendus de l'image (sans les bandes noires)
+  const imgContainerRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const tokenElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const [uploading, setUploading] = useState(false);
+  const dragCountRef = useRef(0);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [playerTabOpen, setPlayerTabOpen] = useState(false);
+
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panStartRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
+  const isPanningRef = useRef(false);
+
+  const [tokenSize, setTokenSize] = useState(40);
+
+  // Rect en coordonnées locales de innerRef (avant transform)
+  const [imgLocalRect, setImgLocalRect] = useState<ImgRect | null>(null);
+
+  const draggingRef = useRef<{ combatantId: string; ox: number; oy: number } | null>(null);
+  const livePosRef = useRef<{ x: number; y: number } | null>(null);
+  const [isDraggingToken, setIsDraggingToken] = useState(false);
+
+  // ── Broadcast ────────────────────────────────────────────────────────────────
+  const stateRef = useRef<BattleMapBroadcast>({
+    type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize,
+  });
+  useEffect(() => {
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize };
+  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize]);
+
+  useEffect(() => {
+    const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
+    channelRef.current = ch;
+    ch.onmessage = (e) => { if (e.data?.type === "request") ch.postMessage(stateRef.current); };
+    return () => ch.close();
+  }, []);
+
+  useEffect(() => {
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize });
+  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize]);
+
+  const openPlayerView = () => { window.open("/battlemap", "_blank", "noopener"); setPlayerTabOpen(true); };
+
+  // ── Calcul du rect image-aligné (coordonnées locales innerRef) ───────────────
+  const updateImgRect = useCallback(() => {
+    if (!innerRef.current || !imgRef.current) return;
+    const { naturalWidth: nw, naturalHeight: nh } = imgRef.current;
+    if (!nw || !nh) return;
+    setImgLocalRect(computeContainRect(innerRef.current.offsetWidth, innerRef.current.offsetHeight, nw, nh));
+  }, []);
+
+  useEffect(() => {
+    if (!innerRef.current) return;
+    const ro = new ResizeObserver(updateImgRect);
+    ro.observe(innerRef.current);
+    return () => ro.disconnect();
+  }, [updateImgRect]);
+
+  // ── Conversion écran → % image ───────────────────────────────────────────────
+  // imgContainerRef.getBoundingClientRect() tient compte du zoom/pan CSS
+  const screenToMapPct = useCallback((clientX: number, clientY: number): { x: number; y: number } | null => {
+    const el = imgContainerRef.current ?? innerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    return {
+      x: Math.max(1, Math.min(99, ((clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(1, Math.min(99, ((clientY - rect.top) / rect.height) * 100)),
+    };
+  }, []);
+
+  const clampZoom = (z: number) => Math.min(4, Math.max(0.4, z));
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    if (!mapZoneRef.current) return;
+    const rect = mapZoneRef.current.getBoundingClientRect();
+    const cx = e.clientX - rect.left - rect.width / 2;
+    const cy = e.clientY - rect.top - rect.height / 2;
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(prev => {
+      const next = clampZoom(prev * delta);
+      setPan(p => ({ x: cx + (p.x - cx) * (next / prev), y: cy + (p.y - cy) * (next / prev) }));
+      return next;
+    });
+  }, []);
+
+  const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    isPanningRef.current = true;
+    panStartRef.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, [pan]);
+
+  const handleBgPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!isPanningRef.current || !panStartRef.current) return;
+    setPan({ x: panStartRef.current.px + (e.clientX - panStartRef.current.mx), y: panStartRef.current.py + (e.clientY - panStartRef.current.my) });
+  }, []);
+
+  const handleBgPointerUp = useCallback(() => { isPanningRef.current = false; panStartRef.current = null; }, []);
+  const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setUploading(true);
+    const url = await uploadBattleMap(file);
+    setUploading(false);
+    if (url) { onChange(url); resetView(); }
+  };
+
+  const handleMapDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCountRef.current = 0;
+    setIsDragOver(false);
+    const raw = e.dataTransfer.getData("text/plain");
+    if (raw) {
+      try {
+        const { combatantId } = JSON.parse(raw) as { combatantId: string };
+        if (combatantId) {
+          const pos = screenToMapPct(e.clientX, e.clientY);
+          if (pos) { onUpdateTokens([...mapTokens.filter(t => t.combatantId !== combatantId), { combatantId, x: pos.x, y: pos.y }]); return; }
+        }
+      } catch { /* pas un jeton */ }
+    }
+    const file = e.dataTransfer.files[0];
+    if (file) void handleFile(file);
+  };
+
+  const removeToken = (id: string) => onUpdateTokens(mapTokens.filter(t => t.combatantId !== id));
+  const enterDrag = (e: React.DragEvent) => { e.preventDefault(); dragCountRef.current++; setIsDragOver(true); };
+  const leaveDrag = () => { dragCountRef.current--; if (dragCountRef.current <= 0) { dragCountRef.current = 0; setIsDragOver(false); } };
+
+  // ── Drag DOM-direct ──────────────────────────────────────────────────────────
+  const commitTokenDrag = useCallback(() => {
+    const d = draggingRef.current;
+    const pos = livePosRef.current;
+    if (d && pos) onUpdateTokens(mapTokens.map(t => t.combatantId === d.combatantId ? { ...t, ...pos } : t));
+    draggingRef.current = null;
+    livePosRef.current = null;
+    setIsDraggingToken(false);
+  }, [mapTokens, onUpdateTokens]);
+
+  useEffect(() => {
+    if (!isDraggingToken) return;
+    const onMove = (e: PointerEvent) => {
+      const d = draggingRef.current;
+      if (!d) return;
+      const el = imgContainerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const px = ((e.clientX - rect.left) / rect.width) * 100;
+      const py = ((e.clientY - rect.top) / rect.height) * 100;
+      const newX = Math.max(1, Math.min(99, px - d.ox));
+      const newY = Math.max(1, Math.min(99, py - d.oy));
+      livePosRef.current = { x: newX, y: newY };
+      const tokenEl = tokenElsRef.current.get(d.combatantId);
+      if (tokenEl) { tokenEl.style.left = `${newX}%`; tokenEl.style.top = `${newY}%`; }
+    };
+    const onUp = () => commitTokenDrag();
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    return () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+    };
+  }, [isDraggingToken, commitTokenDrag]);
+
+  const tokenPointerDown = (e: React.PointerEvent, token: MapToken) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const pct = screenToMapPct(e.clientX, e.clientY);
+    if (!pct) return;
+    draggingRef.current = { combatantId: token.combatantId, ox: pct.x - token.x, oy: pct.y - token.y };
+    livePosRef.current = { x: token.x, y: token.y };
+    setIsDraggingToken(true);
+  };
+
+  const setTokenEl = (id: string) => (el: HTMLDivElement | null) => {
+    if (el) tokenElsRef.current.set(id, el); else tokenElsRef.current.delete(id);
+  };
+
+  return (
+    <div className="relative w-full h-full">
+      <div
+        ref={mapZoneRef}
+        className="absolute inset-0 bottom-18 rounded-xl overflow-hidden bg-black/20"
+        style={{ cursor: isDraggingToken ? "grabbing" : "grab" }}
+        onWheel={handleWheel}
+        onDragEnter={enterDrag}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={leaveDrag}
+        onDrop={handleMapDrop}
+      >
+        {imageUrl ? (
+          <>
+            {/* Calque transformé */}
+            <div
+              ref={innerRef}
+              className="absolute inset-0"
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center", willChange: "transform" }}
+              onPointerDown={handleBgPointerDown}
+              onPointerMove={handleBgPointerMove}
+              onPointerUp={handleBgPointerUp}
+              onPointerLeave={handleBgPointerUp}
+            >
+              {/* Image de fond */}
+              <img
+                ref={imgRef}
+                src={imageUrl}
+                alt="Carte de combat"
+                className="w-full h-full object-contain pointer-events-none select-none"
+                onLoad={updateImgRect}
+                draggable={false}
+              />
+
+              {/* Conteneur de tokens aligné sur les pixels réels de l'image */}
+              <div
+                ref={imgContainerRef}
+                className="absolute"
+                style={imgLocalRect ? {
+                  left: imgLocalRect.left,
+                  top: imgLocalRect.top,
+                  width: imgLocalRect.width,
+                  height: imgLocalRect.height,
+                } : { inset: 0 }}
+              >
+                {mapTokens.map(token => {
+                  const combatant = combatants.find(c => c.id === token.combatantId);
+                  if (!combatant) return null;
+                  const isActive = combatant.id === activeCombatantId;
+                  const sz = tokenSize;
+                  const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
+                  return (
+                    <div
+                      key={token.combatantId}
+                      ref={setTokenEl(token.combatantId)}
+                      style={{ left: `${token.x}%`, top: `${token.y}%`, transform: "translate(-50%, -50%)", zIndex: 20 }}
+                      className="absolute group/token select-none touch-none"
+                      onPointerDown={(e) => tokenPointerDown(e, token)}
+                    >
+                      {isActive && (
+                        <div className="absolute rounded-full border-2 border-amber-400 animate-ping pointer-events-none opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
+                      )}
+                      <div
+                        className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
+                        style={{ width: sz, height: sz, cursor: "grab" }}
+                      >
+                        <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                      </div>
+                      {/* Bulles de conditions */}
+                      {activeConditions.length > 0 && (
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
+                          {activeConditions.slice(0, 3).map(opt => (
+                            <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none" style={{ fontSize: Math.max(8, sz * 0.22) }}>
+                        <span className="text-white/90 bg-black/75 backdrop-blur px-1.5 py-0.5 rounded block text-center leading-tight">{combatant.name}</span>
+                      </div>
+                      <button
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); removeToken(token.combatantId); }}
+                        className="absolute rounded-full bg-black/80 border border-white/30 flex items-center justify-center text-white/70 hover:text-white hover:bg-red-600/90 transition-all opacity-0 group-hover/token:opacity-100 cursor-pointer"
+                        style={{ width: 16, height: 16, top: -6, right: -6, zIndex: 31 }}
+                      >
+                        <X className="w-2 h-2" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {isDragOver && (
+              <div className="absolute inset-0 border-2 border-dashed border-white/50 rounded-xl bg-white/5 pointer-events-none flex items-center justify-center z-10">
+                <span className="text-white/70 text-sm bg-black/50 px-3 py-1.5 rounded-lg backdrop-blur">Déposer ici</span>
+              </div>
+            )}
+
+            <div className="absolute top-3 right-3 flex gap-1.5 z-30 pointer-events-auto">
+              <button
+                onClick={openPlayerView}
+                className={`p-1.5 rounded-lg backdrop-blur border transition-colors ${playerTabOpen ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-300 hover:bg-emerald-500/40" : "bg-black/60 border-white/20 text-white/70 hover:text-white"}`}
+                title="Ouvrir la vue joueur"
+              >
+                <MonitorPlay className="w-4 h-4" />
+              </button>
+              <button onClick={() => inputRef.current?.click()} className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-white border border-white/20 transition-colors" title="Remplacer la carte"><ImagePlus className="w-4 h-4" /></button>
+              <button onClick={() => onChange(null)} className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-red-300 border border-white/20 transition-colors" title="Supprimer la carte"><Trash2 className="w-4 h-4" /></button>
+            </div>
+
+            <div className="absolute bottom-3 left-3 flex items-center gap-1 z-30 pointer-events-auto">
+              <button onClick={() => setZoom(z => clampZoom(z * 0.8))} className="p-1 rounded bg-black/60 backdrop-blur text-white/60 hover:text-white border border-white/15 transition-colors"><Minus className="w-3 h-3" /></button>
+              <button onClick={resetView} className="px-1.5 py-0.5 rounded bg-black/60 backdrop-blur text-[9px] text-white/60 hover:text-white border border-white/15 transition-colors min-w-8 text-center" title="Réinitialiser la vue">{Math.round(zoom * 100)}%</button>
+              <button onClick={() => setZoom(z => clampZoom(z * 1.25))} className="p-1 rounded bg-black/60 backdrop-blur text-white/60 hover:text-white border border-white/15 transition-colors"><Plus className="w-3 h-3" /></button>
+            </div>
+          </>
+        ) : (
+          <div
+            onClick={() => !uploading && inputRef.current?.click()}
+            onPointerDown={(e) => e.stopPropagation()}
+            className={`w-full h-full rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-4 group ${isDragOver ? "border-white/60 bg-white/10" : "border-white/15 bg-white/3 hover:bg-white/6 hover:border-white/30"}`}
+          >
+            {uploading ? (
+              <><Loader2 className="w-8 h-8 text-white/40 animate-spin" /><span className="text-[12px] text-white/40">Upload en cours...</span></>
+            ) : (
+              <>
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                  <ImagePlus className="w-7 h-7 text-white/30 group-hover:text-white/55 transition-colors" />
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-[13px] text-white/50 group-hover:text-white/70 font-medium">Carte de combat</p>
+                  <p className="text-[11px] text-white/25 group-hover:text-white/40">Cliquer ou glisser une image</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="absolute bottom-0 inset-x-0 h-16 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl px-4 flex items-center gap-3 overflow-x-auto scrollbar-none">
+        <span className="text-[9px] uppercase tracking-widest text-white/30 font-semibold shrink-0 pr-3 border-r border-white/10">Jetons</span>
+        {combatants.length === 0 ? (
+          <p className="text-[11px] text-white/25 italic flex-1">Aucun combattant dans l'arène</p>
+        ) : combatants.map(combatant => {
+          const isPlaced = mapTokens.some(t => t.combatantId === combatant.id);
+          const isActive = combatant.id === activeCombatantId;
+          return (
+            <div
+              key={combatant.id}
+              draggable={!!imageUrl}
+              onDragStart={(e) => { e.dataTransfer.setData("text/plain", JSON.stringify({ combatantId: combatant.id })); e.dataTransfer.effectAllowed = "move"; }}
+              className={`relative shrink-0 group/tt select-none ${imageUrl ? "cursor-grab active:cursor-grabbing" : "opacity-40 cursor-not-allowed"}`}
+              title={combatant.name}
+            >
+              <div className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-transform group-hover/tt:scale-110 ${tokenRingClass(combatant.type)} ${isPlaced ? "opacity-50" : ""}`}>
+                <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" />
+              </div>
+              {isPlaced && (
+                <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-black flex items-center justify-center">
+                  <span className="text-[6px] text-black font-bold leading-none">✓</span>
+                </div>
+              )}
+              {isActive && <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-black animate-pulse" />}
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 pointer-events-none opacity-0 group-hover/tt:opacity-100 transition-opacity whitespace-nowrap z-50">
+                <span className="text-[9px] text-white bg-black/80 backdrop-blur px-1.5 py-0.5 rounded">{combatant.name}</span>
+              </div>
+            </div>
+          );
+        })}
+        {imageUrl && (
+          <>
+            <div className="shrink-0 h-8 w-px bg-white/10 ml-auto" />
+            <div className="shrink-0 flex items-center gap-2 pl-2">
+              <ZoomIn className="w-3.5 h-3.5 text-white/30 shrink-0" />
+              <input type="range" min={24} max={72} step={4} value={tokenSize} onChange={(e) => setTokenSize(Number(e.target.value))} className="w-20 accent-white/60 cursor-pointer" title="Taille des jetons" />
+              <span className="text-[9px] text-white/30 w-6 text-right">{tokenSize}</span>
+            </div>
+          </>
+        )}
+      </div>
+
+      <input ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleFile(file); e.target.value = ""; }}
+      />
+    </div>
+  );
+}

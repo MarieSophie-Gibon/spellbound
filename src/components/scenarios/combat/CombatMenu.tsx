@@ -44,7 +44,7 @@ export function CombatMenu({
   };
 
   return (
-    <div className="absolute top-11 left-4 z-50 flex items-start gap-2">
+    <div className={`absolute top-11 left-4 z-50 flex items-start gap-2 ${isOpen ? "pointer-events-auto" : "pointer-events-none"}`}>
       {/* Panneau principal */}
       <div
         className={`w-56 bg-[#1C1740]/60 backdrop-blur-2xl border border-white/14 rounded-2xl p-3 transition-all duration-200

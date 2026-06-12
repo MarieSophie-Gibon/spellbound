@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import {
   type Combatant,
   type ChapitreBlock,
+  type MapToken,
   type MonsterStatsMap,
   type PersistedCombatState,
   type SearchResult,
@@ -15,6 +16,7 @@ import { CombatTabButton } from "./combat/CombatTabButton";
 import { CombatantRow } from "./combat/CombatantRow";
 import { CombatantCard } from "./combat/CombatantCard";
 import { CombatMenu } from "./combat/CombatMenu";
+import { BattleMap } from "./combat/BattleMap";
 
 interface CombatDashboardProps {
   chapitreId: string;
@@ -41,6 +43,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   const [round, setRound] = useState(1);
   const [selectedCombatantId, setSelectedCombatantId] = useState<string | null>(null);
 
+  const [battlemapUrl, setBattlemapUrl] = useState<string | null>(null);
+  const [mapTokens, setMapTokens] = useState<MapToken[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchType, setSearchType] = useState<"monster" | "npc">("monster");
   const [searchTerm, setSearchTerm] = useState("");
@@ -89,6 +93,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         setCombatants(dbState.combatants);
         setActiveCombatantId(dbState.activeCombatantId ?? null);
         setRound(toNumber(dbState.round, 1));
+        setBattlemapUrl(dbState.battlemapUrl ?? null);
+        setMapTokens(dbState.mapTokens ?? []);
         setIsHydrated(true);
         return;
       }
@@ -102,6 +108,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         setCombatants(parsed.combatants);
         setActiveCombatantId(parsed.activeCombatantId ?? null);
         setRound(toNumber(parsed.round, 1));
+        setBattlemapUrl(parsed.battlemapUrl ?? null);
+        setMapTokens(parsed.mapTokens ?? []);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
@@ -110,13 +118,13 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   // --- Persist ---
   useEffect(() => {
     if (!isHydrated) return;
-    const payload: PersistedCombatState = { combatants, activeCombatantId, round };
+    const payload: PersistedCombatState = { combatants, activeCombatantId, round, battlemapUrl, mapTokens };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     const timer = setTimeout(() => {
       void supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, isHydrated]);
+  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, isHydrated]);
 
   // --- Guard: combatant actif doit toujours exister, et on démarre par le premier ---
   useEffect(() => {
@@ -412,7 +420,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   // ---------------------------------------------------------------- RENDER
 
   return (
-    <div className="relative w-full h-full min-h-175 overflow-hidden font-sans bg-transparent">
+    <div className="relative w-full h-full overflow-hidden font-sans bg-transparent">
 
       {/* Bouton Menu MJ (gauche) */}
       <CombatTabButton
@@ -466,6 +474,18 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         </div>
       )}
 
+      {/* BattleMap — remplit tout l'espace entre la timeline et le bord droit */}
+      <div className="absolute top-14 bottom-0 left-88 right-4 z-0 overflow-hidden py-2 pr-2">
+        <BattleMap
+          imageUrl={battlemapUrl}
+          onChange={setBattlemapUrl}
+          combatants={orderedCombatants}
+          mapTokens={mapTokens}
+          onUpdateTokens={setMapTokens}
+          activeCombatantId={activeCombatantId}
+        />
+      </div>
+
       {/* Timeline gauche */}
       {orderedCombatants.length > 0 && (
         <div className="absolute left-6 top-32 bottom-24 w-80 flex flex-col gap-1 overflow-y-auto overflow-x-visible z-10 scrollbar-none pb-12">
@@ -492,6 +512,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
           <div>
             <CombatantCard
               combatant={selectedCombatant}
+              onClose={() => setSelectedCombatantId(null)}
               onUpdatePv={(newPv) =>
                 setCombatants((prev) =>
                   prev.map((c) => c.id === selectedCombatant.id ? { ...c, pv: newPv } : c)

@@ -102,15 +102,23 @@ export interface SearchResult {
   capacites?: Array<{ nom?: string; type?: string; description?: string }> | null;
 }
 
+export interface MapToken {
+  combatantId: string;
+  x: number; // 0–100 %
+  y: number; // 0–100 %
+}
+
 export interface PersistedCombatState {
   combatants: Combatant[];
   activeCombatantId: string | null;
   round: number;
+  battlemapUrl?: string | null;
+  mapTokens?: MapToken[];
 }
 
 export const CONDITION_OPTIONS: Array<{ key: ConditionKey; label: string; bg: string; icon: string }> = [
-  { key: "ko",         label: "KO",         bg: "bg-gray-600",   icon: "💤" },
-  { key: "poisoned",   label: "Empoisonné", bg: "bg-green-500",  icon: "💀" },
+  { key: "ko",         label: "KO",         bg: "bg-gray-600",   icon: "\u{1F480}" },
+  { key: "poisoned",   label: "Empoisonné", bg: "bg-green-500",  icon: "🟣" },
   { key: "prone",      label: "À terre",    bg: "bg-orange-500", icon: "⏬" },
   { key: "stunned",    label: "Étourdi",    bg: "bg-red-500",    icon: "✋" },
   { key: "invisible",  label: "Invisible",  bg: "bg-sky-500",    icon: "👁️" },

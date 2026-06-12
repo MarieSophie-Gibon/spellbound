@@ -8,6 +8,7 @@ interface CombatantCardProps {
     combatant: Combatant;
     onUpdatePv: (newPv: number) => void;
     onToggleCondition: (cond: ConditionKey) => void;
+    onClose?: () => void;
 }
 
 function signedNum(n: number) {
@@ -53,7 +54,7 @@ function VoieAccordion({ voie, expanded, onToggle }: { voie: VoieEntry; expanded
     );
 }
 
-export function CombatantCard({ combatant, onUpdatePv, onToggleCondition }: CombatantCardProps) {
+export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClose }: CombatantCardProps) {
     const [expandedVoie, setExpandedVoie] = useState<string | null>(null);
     const [editOpen, setEditOpen] = useState(false);
     const [pvDelta, setPvDelta] = useState<string>("1");
@@ -90,6 +91,16 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition }: Comb
 
     return (
         <div className="animate-in fade-in duration-200 relative">
+            {/* Bouton fermer la carte */}
+            {onClose && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); onClose(); }}
+                    className="absolute -top-2 -right-2 z-20 w-6 h-6 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white/60 hover:text-white hover:bg-black/90 transition-all"
+                    title="Fermer"
+                >
+                    <X className="w-3 h-3" />
+                </button>
+            )}
             {/* Aura colorée : rouge pour monstres, neutre pour PJ/PNJ */}
             {isMonster && (
                 <div className="absolute -inset-2 rounded-3xl pointer-events-none z-0" style={{ background: "radial-gradient(ellipse at center, rgba(220,38,38,0.18) 0%, transparent 70%)" }} />

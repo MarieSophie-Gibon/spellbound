@@ -12,6 +12,7 @@ import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
 import { Combat } from "@/pages/Combat";
 import { Scenarios } from "@/pages/Scenarios"; // <-- NOUVEL IMPORT
+import { PlayerView } from "@/pages/PlayerView";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
@@ -21,6 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Copy, Loader2 } from "lucide-react";
 
 function App() {
+  const location = useLocation();
+  // Route joueur — page autonome sans layout
+  if (location.pathname === "/battlemap") return <PlayerView />;
+
   const { session, isLoading, initializeAuth } = useAuthStore();
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
@@ -31,7 +36,6 @@ function App() {
   const [showDuplicateCampaignModal, setShowDuplicateCampaignModal] = useState(false);
   const [duplicateName, setDuplicateName] = useState("");
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     const unsubscribe = initializeAuth();
