@@ -127,36 +127,37 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
   // --- Recherche debounced ---
   useEffect(() => {
-    if (!searchTerm.trim()) { setSearchResults([]); return; }
     const timer = setTimeout(async () => {
       setLoadingSearch(true);
       try {
         if (searchType === "monster") {
-          const { data } = await supabase
+          let query = supabase
             .from("bestiaire")
             .select("id, nom, image_url, combat, stats, attaques, capacites")
             .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
-            .ilike("nom", `%${searchTerm}%`)
             .order("nom")
-            .limit(20);
+            .limit(100);
+          if (searchTerm.trim()) query = query.ilike("nom", `%${searchTerm}%`);
+          const { data } = await query;
           setSearchResults((data ?? []).map((m) => ({
             id: m.id, name: m.nom, image_url: m.image_url, type: "monster" as const,
             combat: m.combat, stats: m.stats, attaques: m.attaques, capacites: m.capacites,
           })));
         } else {
-          const { data } = await supabase
+          let query = supabase
             .from("pnj")
             .select("id, name, image_url, stats")
             .eq("campaign_id", campaignId)
-            .ilike("name", `%${searchTerm}%`)
             .order("name")
             .limit(20);
+          if (searchTerm.trim()) query = query.ilike("name", `%${searchTerm}%`);
+          const { data } = await query;
           setSearchResults((data ?? []).map((npc) => ({
             id: npc.id, name: npc.name, image_url: npc.image_url, type: "npc" as const, stats: npc.stats,
           })));
         }
       } finally { setLoadingSearch(false); }
-    }, 250);
+    }, searchTerm.trim() ? 250 : 0);
     return () => clearTimeout(timer);
   }, [searchType, searchTerm, campaignId]);
 
@@ -359,14 +360,17 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
   const addEnemyFromSearch = (result: SearchResult) => {
     const pvMax = toNumber(result.combat?.pv_max ?? result.combat?.pv ?? result.stats?.pv_max ?? result.stats?.pv, 10);
-    upsertCombatants([{
+    const newEntry: Combatant = {
       id: makeCombatantId(), entityId: result.id, type: result.type, name: result.name,
       imageUrl: result.image_url ?? undefined,
       initiative: toNumber(result.combat?.initiative ?? result.stats?.initiative, 0),
       pv: pvMax, pvMax, defense: toNumber(result.combat?.defense ?? result.stats?.defense, 0),
       conditions: [],
       details: result.type === "monster" ? { stats: (result.stats as MonsterStatsMap) ?? undefined, combat: result.combat, attaques: result.attaques, capacites: result.capacites } : undefined,
-    }]);
+    };
+    // On ajoute directement sans dédupliquer sur entityId : plusieurs instances du même monstre sont autorisées
+    setCombatants((prev) => [...prev, newEntry]);
+    setIsMenuOpen(false);
     setSearchTerm("");
     setSearchResults([]);
   };

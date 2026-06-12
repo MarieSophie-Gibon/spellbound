@@ -57,6 +57,12 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition }: Comb
     const [expandedVoie, setExpandedVoie] = useState<string | null>(null);
     const [editOpen, setEditOpen] = useState(false);
     const [pvDelta, setPvDelta] = useState<string>("1");
+    const [expandedAttacks, setExpandedAttacks] = useState<Set<number>>(new Set());
+    const toggleAttack = (idx: number) => setExpandedAttacks((prev) => {
+        const next = new Set(prev);
+        if (next.has(idx)) next.delete(idx); else next.add(idx);
+        return next;
+    });
 
     const ribbonShape = "polygon(0 0, 100% 0, 100% 75%, 50% 100%, 0 75%)";
     const isPJ = combatant.type === "pj";
@@ -256,58 +262,98 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition }: Comb
                                     }).filter(Boolean)
                                 ) ?? [];
                                 return acquired.length
-                                    ? acquired.map((cap, idx) => cap && (
-                                        <div key={idx} className="bg-white/6 rounded-lg px-2.5 py-2 border border-white/10">
-                                            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                                                <span className="text-xs font-semibold text-white">{cap.nom}</span>
-                                                {cap.type && cap.type !== "passif" && (
-                                                    <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded px-1 py-0.5">{cap.type}</span>
-                                                )}
-                                                <span className="ml-auto text-[8px] text-white/30">{cap.voieNom} · R{cap.rang}</span>
+                                    ? acquired.map((cap, idx) => {
+                                        if (!cap) return null;
+                                        const isOpen = expandedAttacks.has(1000 + idx);
+                                        return (
+                                            <div key={idx}
+                                                onClick={(e) => { e.stopPropagation(); toggleAttack(1000 + idx); }}
+                                                className="bg-white/6 rounded-lg px-2.5 py-2 border border-white/10 cursor-pointer hover:border-white/20 transition-colors"
+                                            >
+                                                <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                                    <span className="text-xs font-semibold text-white">{cap.nom}</span>
+                                                    {cap.type && cap.type !== "passif" && (
+                                                        <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded px-1 py-0.5">{cap.type}</span>
+                                                    )}
+                                                    <span className="ml-auto text-[8px] text-white/30">{cap.voieNom} · R{cap.rang}</span>
+                                                    <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                                </div>
+                                                <p className={`text-[10px] text-white/55 leading-relaxed ${isOpen ? '' : 'line-clamp-3'}`}>{cap.description}</p>
                                             </div>
-                                            <p className="text-[10px] text-white/55 leading-relaxed line-clamp-3">{cap.description}</p>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                     : <p className="text-[10px] text-white/30 italic">Aucune capacité acquise.</p>;
                             })()}
                         </div>
                     ) : isMonster ? (
                         <div className="overflow-y-auto space-y-1.5 scrollbar-none max-h-72">
-                            {attacks.map((atk, idx) => (
-                                <div key={idx} className="bg-red-950/30 rounded-lg px-2.5 py-2 flex items-center justify-between border border-red-500/20">
-                                    <div className="text-white flex-1 min-w-0 pr-2">
-                                        <div className="text-xs font-semibold truncate">{atk.attaque_base || "Attaque"}</div>
-                                        {atk.dm && <div className="text-[10px] text-white/45 truncate">{atk.dm}</div>}
+                            {attacks.map((atk, idx) => {
+                                const isOpen = expandedAttacks.has(idx);
+                                return (
+                                    <div key={idx}
+                                        onClick={(e) => { e.stopPropagation(); toggleAttack(idx); }}
+                                        className="bg-red-950/30 rounded-lg px-2.5 py-2 border border-red-500/20 cursor-pointer hover:border-red-500/40 transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="text-white flex-1 min-w-0 pr-1">
+                                                <div className={`text-xs font-semibold ${isOpen ? '' : 'truncate'}`}>{atk.attaque_base || "Attaque"}</div>
+                                                {atk.dm && <div className={`text-[10px] text-white/45 ${isOpen ? '' : 'truncate'}`}>{atk.dm}</div>}
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <div className="px-1.5 py-0.5 rounded border border-red-400/20 text-[8px] text-red-300/60 tracking-wider uppercase">action</div>
+                                                <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="px-1.5 py-0.5 rounded border border-red-400/20 text-[8px] text-red-300/60 tracking-wider uppercase shrink-0">action</div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {combatant.details?.capacites?.length ? (
                                 <>
                                     <div className="h-px bg-red-500/15 my-1" />
-                                    {combatant.details.capacites.map((cap, idx) => (
-                                        <div key={idx} className="bg-white/5 rounded-lg px-2.5 py-2 border border-white/10">
-                                            <div className="flex items-center justify-between gap-2 mb-0.5">
-                                                <span className="text-xs font-semibold text-white truncate">{cap.nom}</span>
-                                                {cap.type && <span className="text-[8px] uppercase tracking-wider text-white/45 border border-white/15 rounded px-1 py-0.5 shrink-0">{cap.type}</span>}
+                                    {combatant.details.capacites.map((cap, idx) => {
+                                        const capIdx = attacks.length + idx;
+                                        const isOpen = expandedAttacks.has(capIdx);
+                                        return (
+                                            <div key={idx}
+                                                onClick={(e) => { e.stopPropagation(); toggleAttack(capIdx); }}
+                                                className="bg-white/5 rounded-lg px-2.5 py-2 border border-white/10 cursor-pointer hover:border-white/20 transition-colors"
+                                            >
+                                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                                    <span className="text-xs font-semibold text-white truncate">{cap.nom}</span>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        {cap.type && <span className="text-[8px] uppercase tracking-wider text-white/45 border border-white/15 rounded px-1 py-0.5">{cap.type}</span>}
+                                                        <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                                    </div>
+                                                </div>
+                                                {cap.description && <p className={`text-[10px] text-white/50 leading-relaxed ${isOpen ? '' : 'line-clamp-2'}`}>{cap.description}</p>}
                                             </div>
-                                            {cap.description && <p className="text-[10px] text-white/50 leading-relaxed line-clamp-2">{cap.description}</p>}
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </>
                             ) : null}
                         </div>
                     ) : (
                         <div className="overflow-y-auto space-y-1.5 scrollbar-none max-h-72">
-                            {attacks.map((atk, idx) => (
-                                <div key={idx} className="bg-white/6 rounded-lg px-2.5 py-2 flex items-center justify-between border border-white/10">
-                                    <div className="text-white flex-1 min-w-0 pr-2">
-                                        <div className="text-xs font-semibold truncate">{atk.attaque_base || "Attaque"}</div>
-                                        {atk.dm && <div className="text-[10px] text-white/45 truncate">{atk.dm}</div>}
+                            {attacks.map((atk, idx) => {
+                                const isOpen = expandedAttacks.has(idx);
+                                return (
+                                    <div key={idx}
+                                        onClick={(e) => { e.stopPropagation(); toggleAttack(idx); }}
+                                        className="bg-white/6 rounded-lg px-2.5 py-2 border border-white/10 cursor-pointer hover:border-white/20 transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="text-white flex-1 min-w-0 pr-1">
+                                                <div className={`text-xs font-semibold ${isOpen ? '' : 'truncate'}`}>{atk.attaque_base || "Attaque"}</div>
+                                                {atk.dm && <div className={`text-[10px] text-white/45 ${isOpen ? '' : 'truncate'}`}>{atk.dm}</div>}
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <div className="px-1.5 py-0.5 rounded border border-white/15 text-[8px] text-white/55 tracking-wider uppercase">action</div>
+                                                <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="px-1.5 py-0.5 rounded border border-white/15 text-[8px] text-white/55 tracking-wider uppercase shrink-0">action</div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {combatant.voies?.length ? (
                                 <>
                                     <div className="h-px bg-white/10 my-1" />

@@ -304,9 +304,9 @@ export function EnemyBlock({ campaignId, data, onChange, onOpenCombatDashboard }
                                 }
                                 onOpenCombatDashboard?.();
                             }}
-                            className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors ${data.combatEngaged
-                                ? 'bg-red-500/30 border-red-400/50 text-red-100'
-                                : 'bg-black/30 border-red-500/30 text-red-300 hover:bg-red-500/15'
+                            className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all cursor-pointer pointer-events-auto ${data.combatEngaged
+                                ? 'bg-red-500/30 border-red-400/50 text-red-100 hover:bg-red-500/50 hover:border-red-400/80 active:scale-95'
+                                : 'bg-black/30 border-red-500/40 text-red-300 hover:bg-red-500/25 hover:border-red-400/60 hover:text-red-200 active:scale-95'
                                 }`}
                             title="Ouvrir le dashboard de combat"
                         >
