@@ -69,6 +69,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
   const [chapitres, setChapitres] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedChapitreId, setSelectedChapitreId] = useState<string | null>(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string | null>(null);
   const [expandedScenarios, setExpandedScenarios] = useState<Record<string, boolean>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -152,8 +153,10 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       chapitres={chapitres}
       isLoading={isLoading}
       selectedChapitreId={selectedChapitreId}
+      selectedScenarioId={selectedScenarioId}
       expandedScenarios={expandedScenarios}
-      onSelectChapitre={setSelectedChapitreId}
+      onSelectChapitre={(id) => { setSelectedChapitreId(id); setSelectedScenarioId(null); }}
+      onSelectScenario={(id) => { setSelectedScenarioId(id); setSelectedChapitreId(null); }}
       onToggleScenario={handleToggleScenario}
       onCreateScenario={() => setShowScenarioModal(true)}
       onCreateChapitre={(scenarioId) => setChapitreModalConfig({ isOpen: true, scenarioId })}
@@ -174,7 +177,45 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
             campaignId={campaignId}
             onOpenCombatDashboard={(chapId) => navigate(`/campaign/combat?chapitreId=${chapId}`)}
           />
-        ) : (
+        ) : selectedScenarioId ? (() => {
+          const sc = scenarios.find(s => s.id === selectedScenarioId);
+          const relatedChapitres = chapitres.filter(c => c.scenario_id === selectedScenarioId).sort((a, b) => a.ordre - b.ordre);
+          return (
+            <div className="flex-1 p-8 md:p-10 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+              <div className="max-w-2xl mx-auto space-y-8">
+                <div className="space-y-3">
+                  <h1 className="font-serif text-3xl text-white tracking-wider">{sc?.title}</h1>
+                  {sc?.description ? (
+                    <p className="text-[14px] text-white/60 leading-relaxed whitespace-pre-wrap">{sc.description}</p>
+                  ) : (
+                    <p className="text-[13px] text-white/25 italic">Aucune description.</p>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <h2 className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 font-semibold">Chapitres</h2>
+                  {relatedChapitres.length === 0 ? (
+                    <p className="text-[13px] text-white/25 italic">Aucun chapitre pour ce scénario.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {relatedChapitres.map((ch, idx) => (
+                        <button
+                          key={ch.id}
+                          onClick={() => { setSelectedChapitreId(ch.id); setSelectedScenarioId(null); }}
+                          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-white/8 bg-white/3 hover:bg-[#E3CCCD]/8 hover:border-[#E3CCCD]/20 transition-all text-left group"
+                        >
+                          <span className="text-[11px] text-white/30 font-mono shrink-0 w-6 text-right">{idx + 1}</span>
+                          <BookOpen className="w-4 h-4 text-[#E3CCCD]/40 shrink-0 group-hover:text-[#E3CCCD]/70 transition-colors" />
+                          <span className="text-[13px] text-white/70 group-hover:text-white transition-colors truncate">{ch.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })() : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
             <BookOpen className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />
             <h2 className="font-serif text-xl text-white tracking-widest uppercase mb-2 leading-none">

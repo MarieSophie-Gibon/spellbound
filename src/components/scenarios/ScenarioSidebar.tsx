@@ -20,8 +20,10 @@ interface ScenarioSidebarProps {
   chapitres: Chapitre[];
   isLoading: boolean;
   selectedChapitreId: string | null;
+  selectedScenarioId: string | null;
   expandedScenarios: Record<string, boolean>;
   onSelectChapitre: (id: string) => void;
+  onSelectScenario: (id: string) => void;
   onToggleScenario: (id: string) => void;
   onCreateScenario: () => void;
   onCreateChapitre: (scenarioId: string) => void;
@@ -35,8 +37,10 @@ export function ScenarioSidebar({
   chapitres,
   isLoading,
   selectedChapitreId,
+  selectedScenarioId,
   expandedScenarios,
   onSelectChapitre,
+  onSelectScenario,
   onToggleScenario,
   onCreateScenario,
   onCreateChapitre,
@@ -65,8 +69,15 @@ export function ScenarioSidebar({
             return (
               <div key={scenario.id} className="space-y-0.5">
                 <div
-                  onClick={() => onToggleScenario(scenario.id)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-left bg-white/2 hover:bg-white/5 border border-white/5 cursor-pointer group transition-all"
+                  onClick={() => {
+                    onSelectScenario(scenario.id);
+                    onToggleScenario(scenario.id);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left border cursor-pointer group transition-all ${
+                    selectedScenarioId === scenario.id && !selectedChapitreId
+                      ? "bg-[#E3CCCD]/8 border-[#E3CCCD]/20"
+                      : "bg-white/2 hover:bg-white/5 border-white/5"
+                  }`}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <ChevronDown
