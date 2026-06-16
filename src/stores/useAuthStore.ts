@@ -35,13 +35,13 @@ interface AuthState {
   signOut: () => Promise<void>
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
   role: 'player',
   isLoading: true, // true par défaut le temps que Supabase vérifie la session active
 
-  isMJ: () => useAuthStore.getState().role === 'mj',
+  isMJ: () => get().role === 'mj',
 
   initializeAuth: () => {
     // 1. Récupération de la session initiale
