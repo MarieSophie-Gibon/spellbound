@@ -19,7 +19,7 @@ export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMo
 
   return (
     <div
-      className={`relative w-full h-15 flex items-center group cursor-pointer transition-all duration-200
+      className={`relative w-full h-15 shrink-0 flex items-center group cursor-pointer transition-all duration-200
         ${isActive ? "brightness-125" : ""}
         ${isSelected ? "brightness-110 translate-x-1.5" : "opacity-90 hover:opacity-100 hover:translate-x-1 hover:brightness-105"}`}
       onClick={onSelect}
