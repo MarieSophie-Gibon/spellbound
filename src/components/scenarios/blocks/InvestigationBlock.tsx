@@ -28,7 +28,7 @@ export function InvestigationBlock({ data, onChange }: InvestigationBlockProps) 
               type="text"
               value={data.title || ""}
               onChange={(e) => onChange({ title: e.target.value })}
-              placeholder="Titre de l'enquête (ex: Fouiller le bureau...)"
+              placeholder="Titre de l'enquête - action (ex: Fouiller le bureau...)"
               className="w-full bg-transparent font-serif text-lg text-sky-100 outline-none placeholder:text-sky-100/30 mb-1"
             />
             <textarea
