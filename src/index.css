@@ -118,6 +118,18 @@
 }
 
 @layer base {
+
+/* ── Tiptap rich-text renderer ──────────────────────────────────────────── */
+.tiptap-editor h1 { font-family: serif; font-size: 1.6rem; color: white; margin: 1.5rem 0 0.5rem; display: block !important; line-height: 1.3; }
+.tiptap-editor h2 { font-family: serif; font-size: 1.3rem; color: white; margin: 1.2rem 0 0.4rem; display: block !important; line-height: 1.3; }
+.tiptap-editor p { margin-bottom: 0.75rem; min-height: 1rem; display: block !important; }
+.tiptap-editor ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; display: block !important; }
+.tiptap-editor ol { list-style-type: decimal; padding-left: 1.5rem; margin-bottom: 1rem; display: block !important; }
+.tiptap-editor strong { font-weight: 600; color: white; }
+.tiptap-editor table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 1.5rem 0; border: 1px solid rgba(227, 204, 205, 0.3); background: rgba(30, 25, 65, 0.2); border-radius: 8px; overflow: hidden; }
+.tiptap-editor td, .tiptap-editor th { min-width: 1em; border: 1px solid rgba(227, 204, 205, 0.15); padding: 10px 12px; vertical-align: top; box-sizing: border-box; position: relative; }
+.tiptap-editor th { background-color: rgba(227, 204, 205, 0.1); font-weight: 600; text-align: left; color: white; }
+.tiptap-editor .column-resize-handle { background-color: rgba(227, 204, 205, 0.4); bottom: -2px; pointer-events: none; position: absolute; right: -2px; top: 0; width: 4px; }
   * {
     @apply border-border outline-ring/50;
     }

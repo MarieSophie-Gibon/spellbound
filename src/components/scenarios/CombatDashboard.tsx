@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, GripVertical, RefreshCcw } from "lucide-react";
+import { ArrowLeft, BookOpen, GripVertical, RefreshCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   type Combatant,
@@ -17,6 +17,7 @@ import { CombatantRow } from "./combat/CombatantRow";
 import { CombatantCard } from "./combat/CombatantCard";
 import { CombatMenu } from "./combat/CombatMenu";
 import { BattleMap } from "./combat/BattleMap";
+import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 
 interface CombatDashboardProps {
   chapitreId: string;
@@ -40,6 +41,7 @@ function sortCombatants(combatants: Combatant[]): Combatant[] {
 }
 
 export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: CombatDashboardProps) {
+  const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
   const [round, setRound] = useState(1);
@@ -506,6 +508,13 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
       {/* Boutons droite */}
       <div className="absolute top-0 right-4 z-40 flex items-center gap-1.5">
+        <CombatTabButton
+          onClick={() => openPopup()}
+          icon={<BookOpen className="w-3 h-3 text-indigo-200" />}
+          label="Grimoire"
+          aria-label="Ouvrir le grimoire"
+          className="px-3.5"
+        />
         {onBackToScenario && (
           <CombatTabButton
             onClick={onBackToScenario}
@@ -622,7 +631,6 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   );
 }
 
-// TODO : permettre d'ouvrir en popup des règles issus du grimoire partout dans l'interface (par exemple les règles de combat, les sorts, etc.) --> ça pourrait être fait en ajoutant un composant Modal qui affiche le contenu du grimoire en fonction d'un ID ou d'une référence.
 // TODO : travailler sur l'interface mobile pour que les joueurs puissent voir et gérer leur fiche personnage et les combats --> ça pourrait être fait en adaptant le layout avec des media queries et en utilisant des composants responsive pour la Timeline et la BattleMap.
 // TODO : filtrer l'interface pc/mobile pour que les joueurs ne voient pas les informations sensibles (par exemple les PV des monstres) --> ça pourrait être fait en ajoutant un rôle "MJ" et en filtrant l'affichage des informations en fonction du rôle de l'utilisateur.
 // TODO : créer un système d'encounter pour que les joueurs puissent avoir accès aux monsters et aux PNJ effectivement rencontrés dans le scénario --> ça pourrait être fait en ajoutant un composant Encounter qui liste les monstres et PNJ rencontrés (dans leur interface mobile, système de "pokedex").
