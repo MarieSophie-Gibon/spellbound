@@ -24,7 +24,6 @@ export function CombatMenu({
   importingEngaged,
   onImportCompany,
   onImportEngaged,
-  searchType,
   searchTerm,
   searchResults,
   onSetSearchType,

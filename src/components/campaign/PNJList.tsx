@@ -1,7 +1,8 @@
 
 import { useEffect, useState } from 'react';
-import type { Peuple } from '@/types/compendium';
 import { supabase } from '@/lib/supabase';
+
+interface PeupleRef { id: string; nom: string; image_url: string | null; }
 
 interface PNJListProps {
   campaignId: string;
@@ -20,7 +21,7 @@ interface PNJ {
 
 export function PNJList({ campaignId }: PNJListProps) {
   const [pnjs, setPnjs] = useState<PNJ[]>([]);
-  const [peuples, setPeuples] = useState<Peuple[]>([]);
+  const [peuples, setPeuples] = useState<PeupleRef[]>([]);
   const [profils, setProfils] = useState<{ id: string; nom: string }[]>([]);
 
   useEffect(() => {

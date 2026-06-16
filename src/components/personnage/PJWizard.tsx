@@ -9,7 +9,6 @@ import {
   Image as ImageIcon,
   UploadCloud,
   Info,
-  ChevronDown,
   Heart,
   RefreshCw,
   Star,
@@ -132,7 +131,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
   const [armesDistance, setArmesDistance] = useState<EquipItem[]>([]);
   const [armures, setArmures] = useState<EquipItem[]>([]);
   const [selectedEquipItems, setSelectedEquipItems] = useState<EquipItem[]>([]);
-  const [eqSearch, setEqSearch] = useState("");
+  const [_eqSearch, _setEqSearch] = useState("");
   const [eqDropdownOpen, setEqDropdownOpen] = useState(false);
   const eqDropdownRef = useRef<HTMLDivElement>(null);
   const [derived, setDerived] = useState(() =>
