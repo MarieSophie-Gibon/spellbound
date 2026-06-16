@@ -4,8 +4,9 @@ import { supabase } from "@/lib/supabase";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
-  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3
+  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen
 } from "lucide-react";
+import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
 import { InvestigationBlock } from "./blocks/InvestigationBlock";
@@ -29,6 +30,7 @@ interface Block {
 }
 
 export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, onOpenCombatDashboard }: ChapitreEditorProps) {
+  const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -421,6 +423,17 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               <span className="hidden sm:inline">Édition</span>
             </button>
           </div>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Bouton Grimoire */}
+          <button
+            onClick={() => openPopup()}
+            className="p-1.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-lg transition-colors border border-white/5"
+            title="Ouvrir le grimoire"
+          >
+            <BookOpen className="w-4 h-4" />
+          </button>
 
           <div className="w-px h-5 bg-white/10" />
 
