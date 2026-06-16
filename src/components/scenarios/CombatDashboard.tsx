@@ -575,6 +575,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               onRemove={() => removeCombatant(combatant.id)}
               onMoveUp={() => moveBy(combatant.id, -1)}
               onMoveDown={() => moveBy(combatant.id, 1)}
+              onToggleHidden={() => setCombatants((prev) => prev.map((c) => c.id === combatant.id ? { ...c, hidden: !c.hidden } : c))}
             />
           ))}
         </div>
@@ -621,7 +622,6 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   );
 }
 
-// TODO : permettre de "cacher" certains combatants aux joueurs (par exemple les monstres) --> ça pourrait être fait en ajoutant un champ "visible" sur les combatants, et en filtrant l'affichage côté BattleMap et Timeline.
 // TODO : permettre d'ouvrir en popup des règles issus du grimoire partout dans l'interface (par exemple les règles de combat, les sorts, etc.) --> ça pourrait être fait en ajoutant un composant Modal qui affiche le contenu du grimoire en fonction d'un ID ou d'une référence.
 // TODO : travailler sur l'interface mobile pour que les joueurs puissent voir et gérer leur fiche personnage et les combats --> ça pourrait être fait en adaptant le layout avec des media queries et en utilisant des composants responsive pour la Timeline et la BattleMap.
 // TODO : filtrer l'interface pc/mobile pour que les joueurs ne voient pas les informations sensibles (par exemple les PV des monstres) --> ça pourrait être fait en ajoutant un rôle "MJ" et en filtrant l'affichage des informations en fonction du rôle de l'utilisateur.

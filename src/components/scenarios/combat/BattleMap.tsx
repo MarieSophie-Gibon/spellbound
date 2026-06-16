@@ -383,7 +383,8 @@ function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTok
                   if (!combatant) return null;
                   const isActive = combatant.id === activeCombatantId;
                   return (
-                    <MapTokenMarker
+                    <div key={token.combatantId} className={combatant.hidden ? "opacity-40 grayscale" : ""}>
+                      <MapTokenMarker
                       key={token.combatantId}
                       token={token}
                       combatant={combatant}
@@ -393,6 +394,7 @@ function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTok
                       onRemove={removeToken}
                       setTokenEl={setTokenEl}
                     />
+                    </div>
                   );
                 })}
               </div>

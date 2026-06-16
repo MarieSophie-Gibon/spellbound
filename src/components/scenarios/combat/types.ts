@@ -65,6 +65,7 @@ export interface Combatant {
   pvMax: number;
   defense?: number;
   conditions: ConditionKey[];
+  hidden?: boolean;
   tactics?: string;
   notes?: string;
   details?: MonsterDetails;

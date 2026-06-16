@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, EyeOff, X } from "lucide-react";
 import { CONDITION_OPTIONS, FANION_BG } from "./types";
 import type { Combatant, ConditionKey } from "./types";
 
@@ -12,9 +12,10 @@ interface CombatantRowProps {
   onRemove: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onToggleHidden?: () => void;
 }
 
-export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMoveDown, onSelect, onRemove, onMoveUp, onMoveDown }: CombatantRowProps) {
+export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMoveDown, onSelect, onRemove, onMoveUp, onMoveDown, onToggleHidden }: CombatantRowProps) {
   const fanionBg = FANION_BG[combatant.type];
 
   return (
@@ -63,30 +64,39 @@ export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMo
           className="flex items-center justify-center text-white hover:text-indigo-200 disabled:opacity-20 disabled:cursor-default transition-colors"
           title="Remonter"
         >
-          <ChevronUp className="w-4 h-4" />
+          <ChevronUp className="w-3.5 h-3.5" />
         </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="flex items-center justify-center text-white/60 hover:text-red-300 transition-colors"
-          title="Retirer du combat"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="flex items-center justify-center text-white/60 hover:text-red-300 transition-colors"
+            title="Retirer du combat"
+          >
+            <X className="w-3 h-3" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleHidden?.(); }}
+            className={`flex items-center justify-center transition-colors ${combatant.hidden ? "text-amber-300 hover:text-amber-200" : "text-white/60 hover:text-sky-300"}`}
+            title={combatant.hidden ? "Visible aux joueurs" : "Cacher aux joueurs"}
+          >
+            {combatant.hidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+          </button>
+        </div>
         <button
           onClick={(e) => { e.stopPropagation(); onMoveDown?.(); }}
           disabled={!canMoveDown}
           className="flex items-center justify-center text-white hover:text-indigo-200 disabled:opacity-20 disabled:cursor-default transition-colors"
           title="Descendre"
         >
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Corps du fanion — rétracté si inactif */}
+      {/* Corps du fanion — rétracté si inactif, grisé si caché */}
       <div
         className={`absolute top-1/2 -translate-y-1/2 h-11 transition-all duration-300 ${
           isActive ? "left-7 right-4" : "left-7 right-[20%]"
-        }`}
+        } ${combatant.hidden ? "opacity-40 grayscale" : ""}`}
         style={{ clipPath: "polygon(0% 0%, 88% 0%, 100% 50%, 88% 100%, 0% 100%)", background: "rgba(255,255,255,0.55)" }}
       >
         <div

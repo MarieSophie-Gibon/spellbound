@@ -112,7 +112,7 @@ export function PlayerView() {
             >
               {state.mapTokens.map(token => {
                 const combatant = state.combatants.find(c => c.id === token.combatantId);
-                if (!combatant) return null;
+                if (!combatant || combatant.hidden) return null;
                 const isActive = combatant.id === state.activeCombatantId;
                 const sz = state.tokenSize;
                 const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
