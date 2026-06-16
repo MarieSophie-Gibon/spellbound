@@ -1,16 +1,23 @@
 import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
-import { useCampaignStats } from "@/hooks/useCampaigns";
-import { Users, Skull, BookMarked, CalendarDays } from "lucide-react";
+import { useCampaignStats, useCreateCampaignInvitation } from "@/hooks/useCampaigns";
+import { Users, Skull, BookMarked, CalendarDays, Ticket, Copy, Loader2 } from "lucide-react";
 import { PJList } from "@/components/campaign/PJList";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useState } from "react";
 
 interface CampaignProps {
     campaign: Campaign;
 }
 
 export function CampaignHome({ campaign }: CampaignProps) {
+    const role = useAuthStore((s) => s.role);
+    const isMJ = role === "mj";
     const bgImage = campaign.image_url || '/default-bg.jpg';
     const { data: stats } = useCampaignStats(campaign.id);
+    const createInvitation = useCreateCampaignInvitation();
+    const [inviteCode, setInviteCode] = useState<string | null>(null);
+    const [inviteError, setInviteError] = useState<string | null>(null);
 
     const createdAt = campaign.created_at
         ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(campaign.created_at))
@@ -73,6 +80,42 @@ export function CampaignHome({ campaign }: CampaignProps) {
                         </>
                     )}
                 </div>
+
+                {isMJ && (
+                    <div className="rounded-xl border border-amber-300/20 bg-amber-500/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-amber-200/90">
+                            <Ticket className="w-3.5 h-3.5" />
+                            <span className="text-[11px] uppercase tracking-widest">Invitation joueurs</span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setInviteError(null);
+                                createInvitation.mutate(
+                                    { campaignId: campaign.id },
+                                    {
+                                        onSuccess: (inv) => setInviteCode(inv.code),
+                                        onError: (err: any) => setInviteError(err?.message ?? "Impossible de créer le code"),
+                                    }
+                                );
+                            }}
+                            className="w-full rounded-lg border border-amber-200/20 bg-amber-400/10 hover:bg-amber-400/20 text-amber-100 text-[11px] py-2 transition-colors"
+                        >
+                            {createInvitation.isPending ? <Loader2 className="w-3.5 h-3.5 mx-auto animate-spin" /> : "Générer un code"}
+                        </button>
+                        {inviteCode && (
+                            <button
+                                onClick={async () => {
+                                    await navigator.clipboard.writeText(inviteCode);
+                                }}
+                                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-white text-[11px] py-2 transition-colors"
+                            >
+                                <Copy className="w-3.5 h-3.5" />
+                                {inviteCode}
+                            </button>
+                        )}
+                        {inviteError && <p className="text-[10px] text-red-300">{inviteError}</p>}
+                    </div>
+                )}
             </div>
 
             {/* Liste design des personnages joueurs */}

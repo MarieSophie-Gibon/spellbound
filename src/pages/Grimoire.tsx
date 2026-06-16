@@ -13,9 +13,10 @@ interface GrimoireProps {
   isGlobal?: boolean;
   onBack: () => void;
   campaignId?: string;
+  readOnly?: boolean;
 }
 
-export function Grimoire({ isGlobal = true, onBack, campaignId }: GrimoireProps) {
+export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false }: GrimoireProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingPageData, setEditingPageData] = useState<InitialPageData | null>(null);
   const [pages, setPages] = useState<WikiPage[]>([]);
@@ -166,6 +167,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId }: GrimoireProps)
       expandedCats={expandedCats}
       draggedItem={draggedItem}
       dragOverTarget={dragOverTarget}
+      readOnly={readOnly}
       onSelectPage={(id) => { handleCancel(); setSelectedPageId(id); }}
       onCreatePage={() => { handleCancel(); setIsCreating(true); setSelectedPageId(null); }}
       onBack={onBack}
@@ -196,7 +198,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId }: GrimoireProps)
       )}
 
       <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen}>
-        {isCreating ? (
+        {isCreating && !readOnly ? (
           <PageEditor
             initialData={editingPageData ?? undefined}
             categories={categories}
@@ -211,6 +213,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId }: GrimoireProps)
           <PageView
             page={selectedPage}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onEdit={handleEdit}
             onDelete={() => setDeleteTarget(selectedPageId!)}
             onToggleFullscreen={() => setIsFullscreen((f) => !f)}

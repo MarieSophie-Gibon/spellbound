@@ -23,9 +23,10 @@ import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equ
 interface CompendiumProps {
   onBack: () => void;
   campaignId?: string;
+  readOnly?: boolean;
 }
 
-export function Compendium({ onBack, campaignId }: CompendiumProps) {
+export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumProps) {
   const [activeSection, setActiveSection] = useState<Section | null>('peuples');
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [selectedPeupleId, setSelectedPeupleId] = useState<string | null>(null);
@@ -318,6 +319,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
       onCreateObjet={(type) => { setCreateObjetType(type); setShowCreateObjet(true); }}
       onCreateVoiePrestige={() => setShowVoiePrestigeWizard(true)}
       onBack={onBack}
+      readOnly={readOnly}
     />
   );
 
@@ -329,6 +331,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             peuple={selectedPeuple}
             voie={selectedVoie}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditWizard(true)}
             onDelete={() => setShowDeleteConfirm(true)}
@@ -337,6 +340,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           <FamilleDetail
             famille={selectedFamilleArchetype}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditFamilleArchetype(true)}
             onDelete={() => setShowDeleteFamilleArchetypeConfirm(true)}
@@ -347,6 +351,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             familleArchetype={famillesArchetypes.find(f => f.id === selectedProfil.famille_id)}
             voies={selectedProfilVoies}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditProfil(true)}
             onDelete={() => setShowDeleteFamilleConfirm(true)}
@@ -355,6 +360,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           <MonsterDetail
             monstre={selectedMonstre}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditMonster(true)}
             onDelete={() => setShowDeleteMonsterConfirm(true)}
@@ -364,6 +370,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
             equipements={filteredEquipements}
             selectedTable={selectedEquipementTable}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={(eq) => { setEditingEquipement(eq); setShowEditObjet(true); }}
             onDelete={(eq) => { setDeletingEquipement(eq); setShowDeleteObjetConfirm(true); }}
@@ -372,6 +379,7 @@ export function Compendium({ onBack, campaignId }: CompendiumProps) {
           <VoiePrestigeDetail
             voie={selectedVoiePrestige}
             isFullscreen={isFullscreen}
+            readOnly={readOnly}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => { setEditingVoiePrestige(selectedVoiePrestige); setShowVoiePrestigeWizard(true); }}
             onDelete={() => setShowDeleteVoiePrestigeConfirm(true)}

@@ -1,13 +1,14 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { ImagePlus, Loader2, Minus, MonitorPlay, Plus, Trash2, X, ZoomIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { Combatant, MapToken } from "./types";
+import type { Combatant, EncounterEntry, MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
 
 interface BattleMapProps {
   imageUrl: string | null;
   onChange: (url: string | null) => void;
   combatants: Combatant[];
+  encounters: EncounterEntry[];
   mapTokens: MapToken[];
   onUpdateTokens: (tokens: MapToken[]) => void;
   activeCombatantId?: string | null;
@@ -36,6 +37,7 @@ export interface BattleMapBroadcast {
   imageUrl: string | null;
   mapTokens: MapToken[];
   combatants: Combatant[];
+  encounters: EncounterEntry[];
   activeCombatantId: string | null;
   tokenSize: number;
   zoom: number;
@@ -110,7 +112,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
+function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -143,11 +145,11 @@ function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTok
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan,
+    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan };
-  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize, zoom, pan]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan };
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, zoom, pan]);
 
   useEffect(() => {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
@@ -157,8 +159,8 @@ function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTok
   }, []);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan });
-  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize, zoom, pan]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan });
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, zoom, pan]);
 
   useEffect(() => {
     return () => {
@@ -501,6 +503,7 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.imageUrl === next.imageUrl &&
     prev.onChange === next.onChange &&
     prev.combatants === next.combatants &&
+    prev.encounters === next.encounters &&
     prev.mapTokens === next.mapTokens &&
     prev.onUpdateTokens === next.onUpdateTokens &&
     prev.activeCombatantId === next.activeCombatantId

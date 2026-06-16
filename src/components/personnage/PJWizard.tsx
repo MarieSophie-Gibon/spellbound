@@ -150,9 +150,11 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
       // Joueurs
       const { data: playersData } = await supabase
         .from("utilisateurs")
-        .select("id, pseudo")
+        .select("id, pseudo, role")
         .order("pseudo");
-      if (playersData) setPlayers(playersData);
+      if (playersData) {
+        setPlayers(playersData.filter((p: any) => p.role !== "mj"));
+      }
 
       // Peuples avec leur voie
       const { data: pData } = await supabase
@@ -443,15 +445,11 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         });
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
       const { data: pjInsertData, error } = await supabase
         .from("pj")
         .insert({
           campaign_id: campaignId,
-          player_id: selectedPlayerId || user?.id || null,
+          user_id: selectedPlayerId || null,
           name: nom.trim(),
           image_url: imageUrl,
           peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,

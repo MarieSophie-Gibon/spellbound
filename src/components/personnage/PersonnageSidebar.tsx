@@ -21,6 +21,7 @@ interface PersonnageSidebarProps {
     onCreatePNJClick?: () => void;
     onCreateClick?: () => void; // Fallback (ancienne prop)
     onBack?: () => void;
+    readOnly?: boolean;
 }
 
 export function PersonnageSidebar({ 
@@ -32,7 +33,8 @@ export function PersonnageSidebar({
     onCreatePJClick, 
     onCreatePNJClick, 
     onCreateClick, 
-    onBack 
+    onBack,
+    readOnly,
 }: PersonnageSidebarProps) {
     // État local pour savoir quel onglet est actif
     const [activeTab, setActiveTab] = useState<"pj" | "pnj">("pj");
@@ -133,17 +135,19 @@ export function PersonnageSidebar({
 
             {/* FOOTER : BOUTONS D'ACTION */}
             <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5">
-                <button
+                {!readOnly && (
+                  <button
                     onClick={handleCreate}
                     className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border transition-all text-[12px] font-medium ${
                         activeTab === "pj"
                         ? "bg-[#E3CCCD]/10 border-[#E3CCCD]/25 text-[#E3CCCD]/80 hover:bg-[#E3CCCD]/20 hover:text-[#E3CCCD]"
                         : "bg-sky-500/10 border-sky-500/25 text-sky-400/80 hover:bg-sky-500/20 hover:text-sky-400"
                     }`}
-                >
+                  >
                     <UserPlus className="w-4 h-4" />
                     Créer un {activeTab === "pj" ? "PJ" : "PNJ"}
-                </button>
+                  </button>
+                )}
                 {onBack && (
                     <button
                         onClick={onBack}

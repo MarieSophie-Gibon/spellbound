@@ -25,10 +25,10 @@ interface FooterProps {
 
 
 export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onDuplicateCampaign, onSwitchCampaign }: FooterProps) {
-  const { session, signOut } = useAuthStore();
+  const { session, signOut, role } = useAuthStore();
   const profile = useProfile();
 
-  const isMJ = profile?.role === "mj";
+  const isMJ = role === "mj" || profile?.role === "mj";
   const displayName = session?.user?.email?.split("@")[0] || "Voyageur";
 
   // --- Gestion du Hover + Click pour profil ---
@@ -57,7 +57,7 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
     }, 200);
   };
 
-  const { data: campaigns } = useCampaigns();
+  const { data: campaigns } = useCampaigns(role);
 
   return (
     <footer

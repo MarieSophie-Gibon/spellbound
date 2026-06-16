@@ -4,12 +4,13 @@ import type { FamilleArchetype } from "@/types/compendium";
 interface FamilleDetailProps {
     famille: FamilleArchetype;
     isFullscreen: boolean;
+    readOnly?: boolean;
     onToggleFullscreen: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }
 
-export function FamilleDetail({ famille, isFullscreen, onToggleFullscreen, onEdit, onDelete }: FamilleDetailProps) {
+export function FamilleDetail({ famille, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: FamilleDetailProps) {
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
 
@@ -25,12 +26,8 @@ export function FamilleDetail({ famille, isFullscreen, onToggleFullscreen, onEdi
                     <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                         {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                     </button>
-                    <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-                        <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
+                    {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
                 </div>
             </div>
 

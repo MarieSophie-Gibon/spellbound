@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import {
   type Combatant,
   type ChapitreBlock,
+  type EncounterEntry,
   type MapToken,
   type MonsterStatsMap,
   type PersistedCombatState,
@@ -49,6 +50,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
   const [battlemapUrl, setBattlemapUrl] = useState<string | null>(null);
   const [mapTokens, setMapTokens] = useState<MapToken[]>([]);
+  const [encounters, setEncounters] = useState<EncounterEntry[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchType, setSearchType] = useState<"monster" | "npc">("monster");
   const [searchTerm, setSearchTerm] = useState("");
@@ -167,6 +169,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         setRound(toNumber(dbState.round, 1));
         setBattlemapUrl(dbState.battlemapUrl ?? null);
         setMapTokens(dbState.mapTokens ?? []);
+        setEncounters(dbState.encounters ?? []);
         setIsHydrated(true);
         return;
       }
@@ -182,6 +185,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         setRound(toNumber(parsed.round, 1));
         setBattlemapUrl(parsed.battlemapUrl ?? null);
         setMapTokens(parsed.mapTokens ?? []);
+        setEncounters(parsed.encounters ?? []);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
@@ -190,13 +194,42 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   // --- Persist ---
   useEffect(() => {
     if (!isHydrated) return;
-    const payload: PersistedCombatState = { combatants, activeCombatantId, round, battlemapUrl, mapTokens };
+    const payload: PersistedCombatState = { combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     const timer = setTimeout(() => {
       void supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, isHydrated]);
+  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated]);
+
+  // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    setEncounters((prev) => {
+      const known = new Map(prev.map((e) => [e.key, e]));
+      let changed = false;
+
+      for (const c of combatants) {
+        if (c.type !== "monster" && c.type !== "npc") continue;
+        const key = `${c.type}:${c.entityId ?? c.id}`;
+        if (known.has(key)) continue;
+
+        known.set(key, {
+          key,
+          entityId: c.entityId,
+          type: c.type,
+          name: c.name,
+          imageUrl: c.imageUrl,
+          firstSeenAt: Date.now(),
+        });
+        changed = true;
+      }
+
+      if (!changed) return prev;
+      return [...known.values()].sort((a, b) => b.firstSeenAt - a.firstSeenAt);
+    });
+  }, [combatants, isHydrated]);
 
   // --- Guard: combatant actif doit toujours exister, et on démarre par le premier ---
   useEffect(() => {
@@ -563,6 +596,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
           imageUrl={battlemapUrl}
           onChange={setBattlemapUrl}
           combatants={orderedCombatants}
+          encounters={encounters}
           mapTokens={mapTokens}
           onUpdateTokens={setMapTokens}
           activeCombatantId={activeCombatantId}
@@ -631,6 +665,3 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   );
 }
 
-// TODO : travailler sur l'interface mobile pour que les joueurs puissent voir et gérer leur fiche personnage et les combats --> ça pourrait être fait en adaptant le layout avec des media queries et en utilisant des composants responsive pour la Timeline et la BattleMap.
-// TODO : filtrer l'interface pc/mobile pour que les joueurs ne voient pas les informations sensibles (par exemple les PV des monstres) --> ça pourrait être fait en ajoutant un rôle "MJ" et en filtrant l'affichage des informations en fonction du rôle de l'utilisateur.
-// TODO : créer un système d'encounter pour que les joueurs puissent avoir accès aux monsters et aux PNJ effectivement rencontrés dans le scénario --> ça pourrait être fait en ajoutant un composant Encounter qui liste les monstres et PNJ rencontrés (dans leur interface mobile, système de "pokedex").

@@ -9,12 +9,13 @@ interface ProfilDetailProps {
     familleArchetype?: FamilleArchetype;
     voies: FamilleVoie[];
     isFullscreen: boolean;
+    readOnly?: boolean;
     onToggleFullscreen: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }
 
-export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, onToggleFullscreen, onEdit, onDelete }: ProfilDetailProps) {
+export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: ProfilDetailProps) {
     const equipAssoc = profil.data?.equipement_associe as { arme_contact?: string[]; arme_distance?: string[]; armure?: string[] } | undefined;
     const hasEquipAssoc = equipAssoc && (equipAssoc.arme_contact?.length || equipAssoc.arme_distance?.length || equipAssoc.armure?.length);
 
@@ -58,12 +59,8 @@ export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, on
                     <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                         {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                     </button>
-                    <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-                        <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
+                    {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
                 </div>
             </div>
 

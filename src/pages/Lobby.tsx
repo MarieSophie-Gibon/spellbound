@@ -1,15 +1,16 @@
 import { useState } from "react";
-import { useCampaigns, useDeleteCampaign, useDuplicateCampaign } from "@/hooks/useCampaigns";
+import { useCampaigns, useDeleteCampaign, useDuplicateCampaign, useJoinCampaignByCode } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
-import { Loader2, Copy } from "lucide-react";
+import { Loader2, Copy, Ticket } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 interface LobbyProps {
   onSelectCampaign: (campaign: Campaign) => void;
@@ -17,13 +18,18 @@ interface LobbyProps {
 }
 
 export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
-  const { data: campaigns, isLoading } = useCampaigns();
+  const role = useAuthStore((s) => s.role);
+  const isMJ = role === 'mj';
+  const { data: campaigns, isLoading } = useCampaigns(role);
+  const joinByCode = useJoinCampaignByCode();
   const deleteCampaign = useDeleteCampaign();
   const duplicateCampaign = useDuplicateCampaign();
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
   const [duplicatingCampaign, setDuplicatingCampaign] = useState<Campaign | null>(null);
   const [duplicateName, setDuplicateName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -55,19 +61,61 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         `}
       </style>
       <div className="flex-1 flex items-center justify-center w-full h-full p-8 md:pr-24">
-        <div className="flex flex-wrap items-center justify-center gap-8">
-          <MagicCard
-            onClick={onCreateCampaign}
-            title={
-              <>
-                Créer une
-                <br />
-                nouvelle
-                <br />
-                campagne
-              </>
-            }
-          />
+        <div className="w-full max-w-6xl flex flex-col items-center gap-6">
+          {!isMJ && (
+            <div className="w-full max-w-xl rounded-2xl border border-white/15 bg-black/20 backdrop-blur-md px-4 py-4">
+              <div className="flex items-center gap-2 mb-2 text-white/85">
+                <Ticket className="w-4 h-4 text-amber-300" />
+                <p className="text-xs uppercase tracking-widest">Rejoindre une campagne</p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder="Code invitation (ex: A7K2M9QX)"
+                  className="bg-white/5 border-white/15 text-white placeholder:text-white/35"
+                />
+                <Button
+                  disabled={!inviteCode.trim() || joinByCode.isPending}
+                  onClick={() => {
+                    setJoinError(null);
+                    joinByCode.mutate(
+                      { code: inviteCode },
+                      {
+                        onSuccess: (campaign) => {
+                          setInviteCode("");
+                          onSelectCampaign(campaign);
+                        },
+                        onError: (err: any) => {
+                          setJoinError(err?.message ?? "Impossible de rejoindre la campagne");
+                        },
+                      }
+                    );
+                  }}
+                  className="bg-amber-600 hover:bg-amber-500 text-white"
+                >
+                  {joinByCode.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rejoindre"}
+                </Button>
+              </div>
+              {joinError && <p className="text-xs text-red-300 mt-2">{joinError}</p>}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-center gap-8">
+          {isMJ && (
+            <MagicCard
+              onClick={onCreateCampaign}
+              title={
+                <>
+                  Créer une
+                  <br />
+                  nouvelle
+                  <br />
+                  campagne
+                </>
+              }
+            />
+          )}
 
           {campaigns?.map((campaign) => (
             <MagicCard
@@ -75,11 +123,12 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
               onClick={() => onSelectCampaign(campaign)}
               imageUrl={campaign.image_url}
               title={campaign.nom}
-              onEdit={(e) => { e.stopPropagation(); setEditingCampaign(campaign); }}
-              onDuplicate={(e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); }}
-              onDelete={(e) => { e.stopPropagation(); setDeletingCampaign(campaign); }}
+              onEdit={isMJ ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
+              onDuplicate={isMJ ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
+              onDelete={isMJ ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
             />
           ))}
+          </div>
         </div>
       </div>
 

@@ -55,12 +55,14 @@ interface PersonnageDetailProps {
     id: string;
     name: string;
     image_url: string | null;
+    user_id?: string | null;
     stats: any;
     pathways: any;
     inventory: any;
   } | null;
   type?: "pj" | "pnj";
   isFullscreen: boolean;
+  readOnly?: boolean;
   onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
@@ -73,6 +75,7 @@ export function PersonnageDetail({
   pj,
   type = "pj",
   isFullscreen,
+  readOnly,
   onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
@@ -92,6 +95,8 @@ export function PersonnageDetail({
 
   // Form Fields State
   const [editName, setEditName] = useState("");
+  const [editUserId, setEditUserId] = useState("");
+  const [players, setPlayers] = useState<Array<{ id: string; pseudo: string }>>([]);
   const [editSexe, setEditSexe] = useState("Masculin");
   const [editAge, setEditAge] = useState("");
   const [editCaract, setEditCaract] = useState<Record<StatKey, number>>(
@@ -148,8 +153,24 @@ export function PersonnageDetail({
   }, [isLevelingUp]);
 
   useEffect(() => {
+    if (type !== "pj") return;
+    supabase
+      .from("utilisateurs")
+      .select("id, pseudo, role")
+      .order("pseudo")
+      .then(({ data }) => {
+        if (data) {
+          setPlayers((data as any[])
+            .filter((p) => p.role !== "mj")
+            .map((p) => ({ id: p.id, pseudo: p.pseudo })));
+        }
+      });
+  }, [type]);
+
+  useEffect(() => {
     if (!pj) return;
     setEditName(pj.name);
+    setEditUserId(type === "pj" ? (pj.user_id ?? "") : "");
     setEditSexe(pj.stats?.sexe ?? "Masculin");
     setEditAge(pj.stats?.age ?? "");
     const c = pj.stats?.caracteristiques ?? {};
@@ -262,6 +283,7 @@ export function PersonnageDetail({
           name: editName.trim() || pj.name,
           image_url: imageUrl,
           stats: statsToSave,
+          ...(type === "pj" ? { user_id: editUserId || null } : {}),
           ...(peupleId ? { peuple_id: peupleId } : {}),
         })
         .eq("id", pj.id);
@@ -338,6 +360,7 @@ export function PersonnageDetail({
 
   const caract = pj.stats?.caracteristiques ?? {};
   const displayImageUrl = imagePreview ?? pj.image_url;
+  const assignedPlayer = players.find((p) => p.id === (pj.user_id ?? ""));
   const currentLevel = pj.stats?.niveau ?? 1;
   const targetLevel = currentLevel + 1;
   const pointsSpent = pendingRanks.reduce(
@@ -442,22 +465,50 @@ export function PersonnageDetail({
               </>
             ) : (
               <>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={onDeleteClick}
-                  className="p-1 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                {!readOnly && (
+                  <button
+                    onClick={onDeleteClick}
+                    className="p-1 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </>
             )}
           </div>
         </div>
+
+        {type === "pj" && (
+          <div className="px-2 mt-1">
+            {isEditing ? (
+              <div className="max-w-sm space-y-1.5">
+                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Joueur rattaché</label>
+                <select
+                  value={editUserId}
+                  onChange={(e) => setEditUserId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                >
+                  <option value="" className="bg-[#1E1941] text-white/50">— Aucun joueur assigné —</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">{p.pseudo}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="text-[11px] text-[#E3CCCD]/60 uppercase tracking-widest">
+                Joueur : {assignedPlayer?.pseudo ?? "Non assigné"}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* TABS SELECTOR - Masqué si PNJ Non Combattant */}
         {!isNonCombatantPNJ && (

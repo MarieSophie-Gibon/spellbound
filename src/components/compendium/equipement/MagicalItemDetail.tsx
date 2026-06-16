@@ -19,6 +19,7 @@ type EquipementDetailProps = {
   equipements: any[];
   selectedTable: EquipementType;
   isFullscreen: boolean;
+  readOnly?: boolean;
   onToggleFullscreen: () => void;
   onEdit: (equipement: any) => void;
   onDelete: (equipement: any) => void;
@@ -47,6 +48,7 @@ export function EquipementDetail({
   equipements,
   selectedTable,
   isFullscreen,
+  readOnly,
   onToggleFullscreen,
   onEdit,
   onDelete,
@@ -93,6 +95,7 @@ export function EquipementDetail({
               key={eq.id}
               equipement={eq}
               tableType={selectedTable}
+              readOnly={readOnly}
               onEdit={() => onEdit(eq)}
               onDelete={() => onDelete(eq)}
             />
@@ -106,11 +109,13 @@ export function EquipementDetail({
 function EquipementRow({
   equipement,
   tableType,
+  readOnly,
   onEdit,
   onDelete,
 }: {
   equipement: any;
   tableType: EquipementType;
+  readOnly?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -200,20 +205,12 @@ function EquipementRow({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <button
-          onClick={onEdit}
-          className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-        >
-          <Pencil className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={onDelete}
-          className="p-1.5 text-white/40 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button onClick={onEdit} className="p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+          <button onClick={onDelete} className="p-1.5 text-white/40 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+        </div>
+      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ interface CompendiumSidebarProps {
   onCreateObjet: (type: EquipementType) => void;
   onCreateVoiePrestige: () => void;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 export function CompendiumSidebar({
@@ -71,6 +72,7 @@ export function CompendiumSidebar({
   onCreateObjet,
   onCreateVoiePrestige,
   onBack,
+  readOnly,
 }: CompendiumSidebarProps) {
   const [expandedGroupes, setExpandedGroupes] = useState<Set<string>>(new Set());
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
@@ -364,7 +366,7 @@ export function CompendiumSidebar({
       </div>
 
       {/* ACTIONS */}
-      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateFamille={onCreateFamille} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} />
+      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateFamille={onCreateFamille} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} readOnly={readOnly} />
     </>
   );
 }
@@ -383,13 +385,13 @@ const OBJET_TYPES = [
   { key: "equipement" as EquipementType, label: "Autre Équipement", icon: Package },
 ];
 
-function SidebarActions({ onCreatePeuple, onCreateFamille, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack }: { onCreatePeuple: () => void; onCreateFamille: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void }) {
+function SidebarActions({ onCreatePeuple, onCreateFamille, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack, readOnly }: { onCreatePeuple: () => void; onCreateFamille: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void; readOnly?: boolean }) {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showObjetTypes, setShowObjetTypes] = React.useState(false);
 
   return (
     <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5 relative">
-      {showMenu && (
+      {!readOnly && showMenu && (
         <div className="absolute bottom-27.5 left-4 right-4 bg-[#1E1941]/95 border border-[#E3CCCD]/30 rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">
           <button
             onClick={() => { onCreatePeuple(); setShowMenu(false); }}
@@ -446,16 +448,18 @@ function SidebarActions({ onCreatePeuple, onCreateFamille, onCreateProfil, onCre
         </div>
       )}
 
-      <button
-        onClick={() => setShowMenu(m => !m)}
-        className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border ${showMenu ? 'border-[#E3CCCD] bg-[#29206A]/60' : 'border-[#E3CCCD]/30 bg-[#29206A]/40'} text-white hover:bg-white/10 text-[13px] transition-all shadow-lg`}
-      >
-        <div className="flex items-center gap-3">
-          <Plus className={`w-4 h-4 transition-transform ${showMenu ? 'rotate-45 text-[#E3CCCD]' : ''}`} />
-          Peupler...
-        </div>
-        <ChevronDown className={`w-4 h-4 transition-transform ${showMenu ? "rotate-180 text-[#E3CCCD]" : "text-white/50"}`} />
-      </button>
+      {!readOnly && (
+        <button
+          onClick={() => setShowMenu(m => !m)}
+          className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border ${showMenu ? 'border-[#E3CCCD] bg-[#29206A]/60' : 'border-[#E3CCCD]/30 bg-[#29206A]/40'} text-white hover:bg-white/10 text-[13px] transition-all shadow-lg`}
+        >
+          <div className="flex items-center gap-3">
+            <Plus className={`w-4 h-4 transition-transform ${showMenu ? 'rotate-45 text-[#E3CCCD]' : ''}`} />
+            Peupler...
+          </div>
+          <ChevronDown className={`w-4 h-4 transition-transform ${showMenu ? "rotate-180 text-[#E3CCCD]" : "text-white/50"}`} />
+        </button>
+      )}
 
       <button onClick={onBack} className="w-full flex items-center justify-start px-3 gap-3 py-2 text-white/60 hover:text-white text-[13px] transition-colors">
         <ArrowLeft className="w-4 h-4" /> Retour

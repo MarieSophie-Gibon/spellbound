@@ -11,12 +11,14 @@ import { AlertTriangle } from "lucide-react";
 interface PersonnagesProps {
   campaignId: string;
   onBack: () => void;
+  readOnly?: boolean;
 }
 
 interface Character {
   id: string;
   name: string;
   image_url: string | null;
+  user_id?: string | null;
   stats: any;
   pathways: any;
   inventory: any;
@@ -71,7 +73,7 @@ function DeleteCharacterModal({
   );
 }
 
-export function Personnages({ campaignId, onBack }: PersonnagesProps) {
+export function Personnages({ campaignId, onBack, readOnly = false }: PersonnagesProps) {
   const [pjs, setPjs] = useState<Character[]>([]);
   const [pnjs, setPnjs] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -89,7 +91,7 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
   // Récupère les PJ ET les PNJ
   const fetchData = useCallback(async () => {
     const [pjRes, pnjRes] = await Promise.all([
-      supabase.from("pj").select("id, name, image_url, stats, pathways, inventory").eq("campaign_id", campaignId).order("name"),
+      supabase.from("pj").select("id, name, image_url, user_id, stats, pathways, inventory").eq("campaign_id", campaignId).order("name"),
       supabase.from("pnj").select("id, name, image_url, stats, pathways, inventory").eq("campaign_id", campaignId).order("name")
     ]);
     
@@ -132,9 +134,10 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
             pnjs={pnjs}
             isLoading={isLoading}
             selectedId={selectedId}
+            readOnly={readOnly}
             onSelect={(id, type) => {
               setSelectedId(id);
-              if (type) setSelectedType(type); // Met à jour le type sélectionné (pj ou pnj) !
+              if (type) setSelectedType(type);
             }}
             onCreatePJClick={() => setShowPJWizard(true)}
             onCreatePNJClick={() => setShowPNJWizard(true)}
@@ -144,8 +147,9 @@ export function Personnages({ campaignId, onBack }: PersonnagesProps) {
       >
         <PersonnageDetail
           pj={selectedCharacter}
-          type={selectedType} // <--- C'EST CETTE PROP QUI CHANGE TOUT LE VISUEL
+          type={selectedType}
           isFullscreen={isFullscreen}
+          readOnly={readOnly}
           onToggleFullscreen={() => setIsFullscreen((v) => !v)}
           onDeleteClick={() => setShowDeleteConfirm(true)}
           onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}

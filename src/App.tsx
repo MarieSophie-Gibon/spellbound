@@ -11,7 +11,7 @@ import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
 import { Combat } from "@/pages/Combat";
-import { Scenarios } from "@/pages/Scenarios"; // <-- NOUVEL IMPORT
+import { Scenarios } from "@/pages/Scenarios";
 import { PlayerView } from "@/pages/PlayerView";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
@@ -27,6 +27,8 @@ function App() {
   if (location.pathname === "/battlemap") return <PlayerView />;
 
   const { session, isLoading, initializeAuth } = useAuthStore();
+  const role = useAuthStore((s) => s.role);
+  const isMJ = role === 'mj';
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
@@ -61,9 +63,13 @@ function App() {
     return "none";
   };
 
-  // Onglets visibles selon le contexte
+  // Onglets visibles selon le contexte et le rôle
   const getTabs = () => {
-    if (isCampaignRoute) return ["grimoire", "compendium", "scenarios", "personnages"];
+    if (isCampaignRoute) {
+      const campaignTabs = ["grimoire", "compendium", "personnages"];
+      if (isMJ) campaignTabs.splice(2, 0, "scenarios"); // MJ seulement
+      return campaignTabs;
+    }
     return ["grimoire", "compendium"];
   };
 
@@ -156,6 +162,7 @@ function App() {
                 element={
                   <Grimoire
                     isGlobal={true}
+                    readOnly={!isMJ}
                     onBack={() => navigate("/")}
                   />
                 }
@@ -164,6 +171,7 @@ function App() {
                 path="/compendium"
                 element={
                   <Compendium
+                    readOnly={!isMJ}
                     onBack={() => navigate("/")}
                   />
                 }
@@ -174,6 +182,7 @@ function App() {
                   <Grimoire
                     isGlobal={false}
                     campaignId={activeCampaign?.id}
+                    readOnly={!isMJ}
                     onBack={() => navigate("/campaign")}
                   />
                 }
@@ -183,22 +192,22 @@ function App() {
                 element={
                   <Compendium
                     campaignId={activeCampaign?.id}
+                    readOnly={!isMJ}
                     onBack={() => navigate("/campaign")}
                   />
                 }
               />
               
-              {/* ROUTE DES SCÉNARIOS MISE À JOUR */}
+              {/* SCÉNARIOS — MJ uniquement */}
               <Route
                 path="/campaign/scenarios"
                 element={
-                  activeCampaign ? (
+                  !activeCampaign ? <Navigate to="/" /> :
+                  !isMJ ? <Navigate to="/campaign" /> : (
                     <Scenarios
                       campaignId={activeCampaign.id}
                       onBack={() => navigate("/campaign")}
                     />
-                  ) : (
-                    <Navigate to="/" />
                   )
                 }
               />
@@ -209,6 +218,7 @@ function App() {
                   activeCampaign ? (
                     <Personnages
                       campaignId={activeCampaign.id}
+                      readOnly={!isMJ}
                       onBack={() => navigate("/campaign")}
                     />
                   ) : (
@@ -216,13 +226,13 @@ function App() {
                   )
                 }
               />
+              {/* COMBAT — MJ uniquement (second écran) */}
               <Route
                 path="/campaign/combat"
                 element={
-                  activeCampaign ? (
+                  !activeCampaign ? <Navigate to="/" /> :
+                  !isMJ ? <Navigate to="/campaign" /> : (
                     <Combat campaignId={activeCampaign.id} />
-                  ) : (
-                    <Navigate to="/" />
                   )
                 }
               />

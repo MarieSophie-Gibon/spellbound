@@ -109,12 +109,22 @@ export interface MapToken {
   y: number; // 0–100 %
 }
 
+export interface EncounterEntry {
+  key: string;
+  entityId?: string;
+  type: CombatantType;
+  name: string;
+  imageUrl?: string;
+  firstSeenAt: number;
+}
+
 export interface PersistedCombatState {
   combatants: Combatant[];
   activeCombatantId: string | null;
   round: number;
   battlemapUrl?: string | null;
   mapTokens?: MapToken[];
+  encounters?: EncounterEntry[];
 }
 
 export const CONDITION_OPTIONS: Array<{ key: ConditionKey; label: string; bg: string; icon: string }> = [

@@ -9,18 +9,165 @@ export interface Campaign {
   created_at?: string | null
 }
 
-export function useCampaigns() {
+interface CampaignIdRow {
+  campaign_id: string | null
+}
+
+function isMissingTableError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === '42P01'
+}
+
+function createInviteCode(length = 8): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(length)
+  crypto.getRandomValues(bytes)
+  let code = ''
+  for (let i = 0; i < length; i += 1) {
+    code += chars[bytes[i] % chars.length]
+  }
+  return code
+}
+
+export function useCampaigns(role?: 'mj' | 'player') {
   return useQuery({
-    queryKey: ['campaigns'],
+    queryKey: ['campaigns', role],
     queryFn: async () => {
+      if (role === 'player') {
+        // Joueur : campagnes où il a un PJ OU une adhésion via invitation
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return [] as Campaign[]
+
+        const { data: pjRows, error: pjErr } = await supabase
+          .from('pj')
+          .select('campaign_id')
+          .eq('user_id', user.id)
+        if (pjErr) throw pjErr
+
+        let memberRows: CampaignIdRow[] = []
+        const { data: membershipData, error: memberErr } = await supabase
+          .from('campaign_members')
+          .select('campaign_id')
+          .eq('user_id', user.id)
+
+        if (memberErr) {
+          // Compat : si la table d'invitations/membres n'existe pas encore, on reste sur le flux PJ.
+          if (!isMissingTableError(memberErr)) throw memberErr
+        } else {
+          memberRows = (membershipData ?? []) as CampaignIdRow[]
+        }
+
+        const campaignIds = [...new Set(
+          [...(pjRows ?? []), ...memberRows]
+            .map((r) => r.campaign_id)
+            .filter(Boolean)
+        )] as string[]
+        if (campaignIds.length === 0) return [] as Campaign[]
+
+        const { data, error } = await supabase
+          .from('campagnes')
+          .select('*')
+          .in('id', campaignIds)
+          .order('created_at', { ascending: false })
+        if (error) throw error
+        return data as Campaign[]
+      }
+
+      // MJ : toutes les campagnes
       const { data, error } = await supabase
         .from('campagnes')
         .select('*')
         .order('created_at', { ascending: false })
-      
       if (error) throw error
       return data as Campaign[]
     }
+  })
+}
+
+export interface CampaignInvitation {
+  id: string
+  campaign_id: string
+  code: string
+  expires_at: string | null
+}
+
+export function useCreateCampaignInvitation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ campaignId, expiresInHours = 72 }: { campaignId: string; expiresInHours?: number }) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Utilisateur non connecté')
+
+      const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
+
+      for (let i = 0; i < 3; i += 1) {
+        const code = createInviteCode()
+        const { data, error } = await supabase
+          .from('campaign_invitations')
+          .insert({
+            campaign_id: campaignId,
+            code,
+            created_by: user.id,
+            expires_at: expiresAt,
+          })
+          .select('id, campaign_id, code, expires_at')
+          .single()
+
+        if (!error && data) return data as CampaignInvitation
+        if (error && !String(error.message).toLowerCase().includes('duplicate')) throw error
+      }
+
+      throw new Error("Impossible de générer un code d'invitation unique")
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+
+export function useJoinCampaignByCode() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ code }: { code: string }) => {
+      const normalized = code.trim().toUpperCase()
+      if (!normalized) throw new Error('Code invitation vide')
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Utilisateur non connecté')
+
+      const { data: invitation, error: inviteErr } = await supabase
+        .from('campaign_invitations')
+        .select('id, campaign_id, code, expires_at')
+        .eq('code', normalized)
+        .single()
+
+      if (inviteErr || !invitation) {
+        throw new Error("Code d'invitation invalide")
+      }
+
+      if (invitation.expires_at && new Date(invitation.expires_at).getTime() < Date.now()) {
+        throw new Error("Ce code d'invitation a expiré")
+      }
+
+      const { error: memberErr } = await supabase
+        .from('campaign_members')
+        .upsert({ campaign_id: invitation.campaign_id, user_id: user.id }, { onConflict: 'campaign_id,user_id' })
+
+      if (memberErr) throw memberErr
+
+      const { data: campaign, error: campaignErr } = await supabase
+        .from('campagnes')
+        .select('*')
+        .eq('id', invitation.campaign_id)
+        .single()
+
+      if (campaignErr) throw campaignErr
+      return campaign as Campaign
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    },
   })
 }
 
