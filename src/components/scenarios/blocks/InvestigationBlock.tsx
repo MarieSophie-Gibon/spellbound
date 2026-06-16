@@ -1,4 +1,4 @@
-import { Search, Dices, CheckCircle2 } from "lucide-react";
+import { Search, Dices, CheckCircle2, XCircle } from "lucide-react";
 
 interface InvestigationBlockProps {
   data: {
@@ -7,6 +7,7 @@ interface InvestigationBlockProps {
     stat?: string;
     dd?: number;
     success?: string;
+    failure?: string;
   };
   onChange: (newData: Partial<InvestigationBlockProps["data"]>) => void;
 }
@@ -89,6 +90,24 @@ export function InvestigationBlock({ data, onChange }: InvestigationBlockProps) 
             onChange={(e) => onChange({ success: e.target.value })}
             placeholder="Ce qu'ils découvrent s'ils réussissent le jet (sinon, ils ne trouvent rien de spécial)..."
             className="w-full bg-transparent text-emerald-50/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-[60px] placeholder:text-emerald-500/30"
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = "auto";
+              target.style.height = `${target.scrollHeight}px`;
+            }}
+          />
+        </div>
+
+        <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-3 flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-red-400">
+            <XCircle className="w-4 h-4" />
+            <span className="text-[11px] uppercase tracking-widest font-bold">En cas d'échec</span>
+          </div>
+          <textarea
+            value={data.failure || ""}
+            onChange={(e) => onChange({ failure: e.target.value })}
+            placeholder="Conséquences en cas d'échec (indice partiel, fausse piste, coût, menace, etc.)..."
+            className="w-full bg-transparent text-red-50/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-[60px] placeholder:text-red-500/30"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = "auto";

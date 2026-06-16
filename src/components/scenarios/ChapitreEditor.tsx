@@ -124,7 +124,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         : type === 'image' ? { url: "", caption: "" }
         : type === 'location' ? { title: "", description: "", imageUrl: "" }
         : type === 'loot' ? { text: "", items: [] }
-        : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "" }
+        : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "", failure: "" }
         : type === 'npc' ? { npcId: undefined, nom: undefined, imageUrl: undefined }
         : type === 'enemy' ? { enemyId: undefined, nom: undefined, imageUrl: undefined }
         : {},
