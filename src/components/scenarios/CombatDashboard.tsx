@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, RefreshCcw } from "lucide-react";
+import { ArrowLeft, GripVertical, RefreshCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   type Combatant,
@@ -23,6 +23,8 @@ interface CombatDashboardProps {
   campaignId: string;
   onBackToScenario?: () => void;
 }
+
+type FloatingCardPosition = { x: number; y: number };
 
 const STORAGE_PREFIX = "spellbound:combat-dashboard:";
 
@@ -52,6 +54,10 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   const [, setLoadingSearch] = useState(false);
   const [importingCompany, setImportingCompany] = useState(false);
   const [importingEngaged, setImportingEngaged] = useState(false);
+  const [cardPositions, setCardPositions] = useState<Record<string, FloatingCardPosition>>({});
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const cardDragRef = useRef<{ combatantId: string; offsetX: number; offsetY: number } | null>(null);
 
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
@@ -78,6 +84,70 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     () => orderedCombatants.find((c) => c.id === selectedCombatantId) ?? null,
     [orderedCombatants, selectedCombatantId]
   );
+
+  const getDefaultCardPosition = (): FloatingCardPosition => {
+    if (typeof window === "undefined") return { x: 960, y: 170 };
+    return {
+      x: Math.max(16, window.innerWidth - 460),
+      y: Math.max(80, Math.round(window.innerHeight * 0.12)),
+    };
+  };
+
+  useEffect(() => {
+    if (!selectedCombatantId) return;
+    setCardPositions((prev) => {
+      if (prev[selectedCombatantId]) return prev;
+      return { ...prev, [selectedCombatantId]: getDefaultCardPosition() };
+    });
+  }, [selectedCombatantId]);
+
+  useEffect(() => {
+    if (!draggingCardId) return;
+
+    const onMove = (e: PointerEvent) => {
+      const drag = cardDragRef.current;
+      const cardRect = cardRef.current?.getBoundingClientRect();
+      if (!drag || !cardRect) return;
+
+      const minX = 8;
+      const minY = 8;
+      const maxX = Math.max(minX, window.innerWidth - cardRect.width - 8);
+      const maxY = Math.max(minY, window.innerHeight - cardRect.height - 8);
+
+      const x = Math.max(minX, Math.min(maxX, e.clientX - drag.offsetX));
+      const y = Math.max(minY, Math.min(maxY, e.clientY - drag.offsetY));
+
+      setCardPositions((prev) => ({ ...prev, [drag.combatantId]: { x, y } }));
+    };
+
+    const stopDrag = () => {
+      setDraggingCardId(null);
+      cardDragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, [draggingCardId]);
+
+  const startCardDrag = (e: React.PointerEvent, combatantId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    cardDragRef.current = {
+      combatantId,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+    };
+    setDraggingCardId(combatantId);
+  };
 
   // --- Bootstrap (Supabase → localStorage) ---
   useEffect(() => {
@@ -419,6 +489,10 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
   // ---------------------------------------------------------------- RENDER
 
+  const selectedCardPosition = selectedCombatant
+    ? (cardPositions[selectedCombatant.id] ?? getDefaultCardPosition())
+    : null;
+
   return (
     <div className="relative w-full h-full overflow-hidden font-sans bg-transparent">
 
@@ -507,8 +581,19 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       )}
 
       {/* Carte de détail */}
-      {selectedCombatant && (
-        <div className="fixed top-[42%] -translate-y-1/2 right-8 lg:right-16 z-50 pointer-events-auto">
+      {selectedCombatant && selectedCardPosition && (
+        <div
+          ref={cardRef}
+          className="fixed z-50 pointer-events-auto"
+          style={{ left: selectedCardPosition.x, top: selectedCardPosition.y }}
+        >
+          <div
+            onPointerDown={(e) => startCardDrag(e, selectedCombatant.id)}
+            className={`mb-1.5 ml-auto w-fit rounded-full border border-white/10 bg-black/35 p-1 text-white/35 select-none touch-none transition-colors hover:text-white/55 hover:border-white/20 ${draggingCardId === selectedCombatant.id ? "cursor-grabbing" : "cursor-grab"}`}
+            title="Déplacer la fiche"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
           <div>
             <CombatantCard
               combatant={selectedCombatant}
@@ -536,8 +621,6 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   );
 }
 
-// TODO : lag quand on déplace la map + zoom la battle map --> peut-être un problème de re-render du composant BattleMap à chaque update des tokens. Il faudrait vérifier si on peut optimiser ça, par exemple en mémorisant les props ou en utilisant React.memo sur BattleMap et MapToken.
-// TODO : rendre les CombatantCards "volantes" pour qu'on puisse les déplacer sur l'écran --> ça pourrait être fait avec un state global pour la position de la carte, et en utilisant un composant Draggable autour du CombatantCard.
 // TODO : permettre de "cacher" certains combatants aux joueurs (par exemple les monstres) --> ça pourrait être fait en ajoutant un champ "visible" sur les combatants, et en filtrant l'affichage côté BattleMap et Timeline.
 // TODO : permettre d'ouvrir en popup des règles issus du grimoire partout dans l'interface (par exemple les règles de combat, les sorts, etc.) --> ça pourrait être fait en ajoutant un composant Modal qui affiche le contenu du grimoire en fonction d'un ID ou d'une référence.
 // TODO : travailler sur l'interface mobile pour que les joueurs puissent voir et gérer leur fiche personnage et les combats --> ça pourrait être fait en adaptant le layout avec des media queries et en utilisant des composants responsive pour la Timeline et la BattleMap.
