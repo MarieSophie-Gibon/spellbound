@@ -10,6 +10,7 @@ import {
   UploadCloud
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { ThemedSelect } from "@/components/ui/ThemedSelect";
 
 interface InitialPeupleData {
   id: string;
@@ -55,6 +56,14 @@ type RangsState = {
   rang3: VoieRang;
   rang4: VoieRang;
   rang5: VoieRang;
+};
+
+const RANG_TYPE_OPTIONS = ["passif", "action", "action_limitee", "sort"];
+const RANG_TYPE_LABELS: Record<string, string> = {
+  passif: "Passif",
+  action: "Action (L)",
+  action_limitee: "Action Lim. (LL)",
+  sort: "Sort",
 };
 
 export function PeupleWizard({
@@ -380,15 +389,14 @@ export function PeupleWizard({
                           placeholder="Nom de la capacité"
                           className="flex-1 bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35"
                         />
-                        <select
-                          value={rangData.type} onChange={(e) => handleRangChange(key, "type", e.target.value)}
-                          className="bg-white/8 border border-white/20 rounded-lg px-2.5 py-1.5 text-white/80 text-[12px] outline-none focus:border-white/40"
-                        >
-                          <option value="passif">Passif</option>
-                          <option value="action">Action (L)</option>
-                          <option value="action_limitee">Action Lim. (LL)</option>
-                          <option value="sort">Sort</option>
-                        </select>
+                        <div className="w-41 shrink-0">
+                          <ThemedSelect
+                            value={rangData.type || "passif"}
+                            onValueChange={(value) => handleRangChange(key, "type", value || "passif")}
+                            options={RANG_TYPE_OPTIONS}
+                            labels={RANG_TYPE_LABELS}
+                          />
+                        </div>
                       </div>
                       <textarea
                         value={rangData.description} onChange={(e) => handleRangChange(key, "description", e.target.value)}
