@@ -50,6 +50,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   // Pour défiler automatiquement vers le nouveau bloc
   const bottomRef = useRef<HTMLDivElement>(null);
+  const editorContentRef = useRef<HTMLDivElement>(null);
 
   // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
@@ -104,6 +105,21 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       return () => clearTimeout(timer);
     }
   }, [blocks, hasChanges, isEditing, handleSave]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+
+    const frame = requestAnimationFrame(() => {
+      const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
+      textareas.forEach((textarea) => {
+        const target = textarea as HTMLTextAreaElement;
+        target.style.height = "auto";
+        target.style.height = `${target.scrollHeight}px`;
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [blocks, isEditing, chapitreId]);
 
   // --- Bascule Lecture / Édition ---
   const toggleMode = (forceEdit?: boolean) => {
@@ -450,7 +466,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
       {/* ZONE PRINCIPALE DU CHAPITRE */}
       <div className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-thin scrollbar-thumb-white/10 relative">
-        <div className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4">
+        <div ref={editorContentRef} className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4">
 
           {/* BOUCLE SUR LES BLOCS */}
           {blocks.length === 0 ? (
@@ -462,22 +478,22 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               {blocks.map((block, index) => (
                 <div
                   key={block.id}
-                  draggable={isEditing}
-                  onClick={() => {
-                    if (!isEditing) toggleMode(true);
-                  }}
-                  onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={(e) => handleDrop(e, index)}
-                  onDragEnd={handleDragEnd}
                   className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
                     isEditing && dragOverIndex === index ? "border-t-2 border-[#E3CCCD] bg-white/5" : ""
-                  } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : "cursor-text"}`}
+                  } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : ""}`}
                 >
                   {/* Actions Rapides (Grip & Delete) - Visibles qu'en édition */}
                   {isEditing && (
                     <div className="opacity-30 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col items-center gap-1 pt-1 w-7 md:w-10 shrink-0 transition-opacity">
-                      <button className="p-1 md:p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded cursor-grab">
+                      <button
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragEnd={handleDragEnd}
+                        className="p-1 md:p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded cursor-grab"
+                        title="Déplacer ce bloc"
+                      >
                         <GripVertical className="w-4 h-4" />
                       </button>
                       <button
