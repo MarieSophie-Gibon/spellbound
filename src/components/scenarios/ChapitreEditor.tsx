@@ -534,7 +534,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                 <Package className="w-4 h-4 text-amber-400/50" /> Trésor / Loot
               </button>
               <button onClick={() => addBlock('investigation')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-300 transition-colors w-full text-left">
-                <Search className="w-4 h-4 text-sky-400/50" /> Enquête
+                <Search className="w-4 h-4 text-sky-400/50" /> Action / Enquête
               </button>
               <div className="h-px bg-white/5 my-0.5 w-full" />
               <button onClick={() => addBlock('npc')} className="flex items-center gap-3 px-3 py-2 hover:bg-violet-500/10 rounded-xl text-[12px] text-violet-300 transition-colors w-full text-left">
