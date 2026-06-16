@@ -535,3 +535,12 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     </div>
   );
 }
+
+// TODO : lag quand on déplace la map + zoom la battle map --> peut-être un problème de re-render du composant BattleMap à chaque update des tokens. Il faudrait vérifier si on peut optimiser ça, par exemple en mémorisant les props ou en utilisant React.memo sur BattleMap et MapToken.
+// TODO : permettre de reproduire le zoom de la battlemap en streaming (pour que les joueurs voient la même chose que le MJ) --> peut-être via un state partagé dans Supabase ou via un WebSocket.
+// TODO : rendre les CombatantCards "volantes" pour qu'on puisse les déplacer sur l'écran --> ça pourrait être fait avec un state global pour la position de la carte, et en utilisant un composant Draggable autour du CombatantCard.
+// TODO : permettre de "cacher" certains combatants aux joueurs (par exemple les monstres) --> ça pourrait être fait en ajoutant un champ "visible" sur les combatants, et en filtrant l'affichage côté BattleMap et Timeline.
+// TODO : permettre d'ouvrir en popup des règles issus du grimoire partout dans l'interface (par exemple les règles de combat, les sorts, etc.) --> ça pourrait être fait en ajoutant un composant Modal qui affiche le contenu du grimoire en fonction d'un ID ou d'une référence.
+// TODO : travailler sur l'interface mobile pour que les joueurs puissent voir et gérer leur fiche personnage et les combats --> ça pourrait être fait en adaptant le layout avec des media queries et en utilisant des composants responsive pour la Timeline et la BattleMap.
+// TODO : filtrer l'interface pc/mobile pour que les joueurs ne voient pas les informations sensibles (par exemple les PV des monstres) --> ça pourrait être fait en ajoutant un rôle "MJ" et en filtrant l'affichage des informations en fonction du rôle de l'utilisateur.
+// TODO : créer un système d'encounter pour que les joueurs puissent avoir accès aux monsters et aux PNJ effectivement rencontrés dans le scénario --> ça pourrait être fait en ajoutant un composant Encounter qui liste les monstres et PNJ rencontrés (dans leur interface mobile, système de "pokedex").

@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { ImagePlus, Loader2, Minus, MonitorPlay, Plus, Trash2, X, ZoomIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Combatant, MapToken } from "./types";
@@ -42,6 +42,65 @@ export interface BattleMapBroadcast {
 
 type ImgRect = { left: number; top: number; width: number; height: number };
 
+interface MapTokenMarkerProps {
+  token: MapToken;
+  combatant: Combatant;
+  isActive: boolean;
+  tokenSize: number;
+  onPointerDown: (e: React.PointerEvent, token: MapToken) => void;
+  onRemove: (id: string) => void;
+  setTokenEl: (id: string) => (el: HTMLDivElement | null) => void;
+}
+
+const MapTokenMarker = memo(function MapTokenMarker({
+  token,
+  combatant,
+  isActive,
+  tokenSize,
+  onPointerDown,
+  onRemove,
+  setTokenEl,
+}: MapTokenMarkerProps) {
+  const activeConditions = CONDITION_OPTIONS.filter((o) => combatant.conditions.includes(o.key));
+
+  return (
+    <div
+      ref={setTokenEl(token.combatantId)}
+      style={{ left: `${token.x}%`, top: `${token.y}%`, transform: "translate(-50%, -50%)", zIndex: 20 }}
+      className="absolute group/token select-none touch-none"
+      onPointerDown={(e) => onPointerDown(e, token)}
+    >
+      {isActive && (
+        <div className="absolute rounded-full border-2 border-amber-400 animate-ping pointer-events-none opacity-75" style={{ inset: -6, width: tokenSize + 12, height: tokenSize + 12 }} />
+      )}
+      <div
+        className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
+        style={{ width: tokenSize, height: tokenSize, cursor: "grab" }}
+      >
+        <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+      </div>
+      {activeConditions.length > 0 && (
+        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
+          {activeConditions.slice(0, 3).map((opt) => (
+            <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
+          ))}
+        </div>
+      )}
+      <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none" style={{ fontSize: Math.max(8, tokenSize * 0.22) }}>
+        <span className="text-white/90 bg-black/75 backdrop-blur px-1.5 py-0.5 rounded block text-center leading-tight">{combatant.name}</span>
+      </div>
+      <button
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onRemove(token.combatantId); }}
+        className="absolute rounded-full bg-black/80 border border-white/30 flex items-center justify-center text-white/70 hover:text-white hover:bg-red-600/90 transition-all opacity-0 group-hover/token:opacity-100 cursor-pointer"
+        style={{ width: 16, height: 16, top: -6, right: -6, zIndex: 31 }}
+      >
+        <X className="w-2 h-2" />
+      </button>
+    </div>
+  );
+});
+
 /** Calcule la zone réellement occupée par l'image dans un conteneur object-contain. */
 function computeContainRect(containerW: number, containerH: number, nw: number, nh: number): ImgRect {
   const scale = Math.min(containerW / nw, containerH / nh);
@@ -49,7 +108,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
+function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -66,6 +125,8 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panRafRef = useRef<number | null>(null);
+  const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
   const panStartRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
   const isPanningRef = useRef(false);
 
@@ -96,6 +157,20 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
   useEffect(() => {
     channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize });
   }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize]);
+
+  useEffect(() => {
+    return () => {
+      if (panRafRef.current !== null) cancelAnimationFrame(panRafRef.current);
+    };
+  }, []);
+
+  const combatantsById = useMemo(() => {
+    const byId = new Map<string, Combatant>();
+    combatants.forEach((c) => byId.set(c.id, c));
+    return byId;
+  }, [combatants]);
+
+  const placedCombatantIds = useMemo(() => new Set(mapTokens.map((t) => t.combatantId)), [mapTokens]);
 
   const openPlayerView = () => { window.open("/battlemap", "_blank", "noopener"); setPlayerTabOpen(true); };
 
@@ -151,10 +226,26 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
 
   const handleBgPointerMove = useCallback((e: React.PointerEvent) => {
     if (!isPanningRef.current || !panStartRef.current) return;
-    setPan({ x: panStartRef.current.px + (e.clientX - panStartRef.current.mx), y: panStartRef.current.py + (e.clientY - panStartRef.current.my) });
+    pendingPanRef.current = {
+      x: panStartRef.current.px + (e.clientX - panStartRef.current.mx),
+      y: panStartRef.current.py + (e.clientY - panStartRef.current.my),
+    };
+
+    if (panRafRef.current !== null) return;
+    panRafRef.current = requestAnimationFrame(() => {
+      panRafRef.current = null;
+      if (pendingPanRef.current) setPan(pendingPanRef.current);
+    });
   }, []);
 
-  const handleBgPointerUp = useCallback(() => { isPanningRef.current = false; panStartRef.current = null; }, []);
+  const handleBgPointerUp = useCallback(() => {
+    isPanningRef.current = false;
+    panStartRef.current = null;
+    if (pendingPanRef.current) {
+      setPan(pendingPanRef.current);
+      pendingPanRef.current = null;
+    }
+  }, []);
   const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   const handleFile = async (file: File) => {
@@ -183,7 +274,9 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
     if (file) void handleFile(file);
   };
 
-  const removeToken = (id: string) => onUpdateTokens(mapTokens.filter(t => t.combatantId !== id));
+  const removeToken = useCallback((id: string) => {
+    onUpdateTokens(mapTokens.filter((t) => t.combatantId !== id));
+  }, [mapTokens, onUpdateTokens]);
   const enterDrag = (e: React.DragEvent) => { e.preventDefault(); dragCountRef.current++; setIsDragOver(true); };
   const leaveDrag = () => { dragCountRef.current--; if (dragCountRef.current <= 0) { dragCountRef.current = 0; setIsDragOver(false); } };
 
@@ -224,7 +317,7 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
     };
   }, [isDraggingToken, commitTokenDrag]);
 
-  const tokenPointerDown = (e: React.PointerEvent, token: MapToken) => {
+  const tokenPointerDown = useCallback((e: React.PointerEvent, token: MapToken) => {
     e.stopPropagation();
     e.preventDefault();
     const pct = screenToMapPct(e.clientX, e.clientY);
@@ -232,11 +325,11 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
     draggingRef.current = { combatantId: token.combatantId, ox: pct.x - token.x, oy: pct.y - token.y };
     livePosRef.current = { x: token.x, y: token.y };
     setIsDraggingToken(true);
-  };
+  }, [screenToMapPct]);
 
-  const setTokenEl = (id: string) => (el: HTMLDivElement | null) => {
+  const setTokenEl = useCallback((id: string) => (el: HTMLDivElement | null) => {
     if (el) tokenElsRef.current.set(id, el); else tokenElsRef.current.delete(id);
-  };
+  }, []);
 
   return (
     <div className="relative w-full h-full">
@@ -283,49 +376,21 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
                   height: imgLocalRect.height,
                 } : { inset: 0 }}
               >
-                {mapTokens.map(token => {
-                  const combatant = combatants.find(c => c.id === token.combatantId);
+                {mapTokens.map((token) => {
+                  const combatant = combatantsById.get(token.combatantId);
                   if (!combatant) return null;
                   const isActive = combatant.id === activeCombatantId;
-                  const sz = tokenSize;
-                  const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
                   return (
-                    <div
+                    <MapTokenMarker
                       key={token.combatantId}
-                      ref={setTokenEl(token.combatantId)}
-                      style={{ left: `${token.x}%`, top: `${token.y}%`, transform: "translate(-50%, -50%)", zIndex: 20 }}
-                      className="absolute group/token select-none touch-none"
-                      onPointerDown={(e) => tokenPointerDown(e, token)}
-                    >
-                      {isActive && (
-                        <div className="absolute rounded-full border-2 border-amber-400 animate-ping pointer-events-none opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
-                      )}
-                      <div
-                        className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
-                        style={{ width: sz, height: sz, cursor: "grab" }}
-                      >
-                        <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
-                      </div>
-                      {/* Bulles de conditions */}
-                      {activeConditions.length > 0 && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
-                          {activeConditions.slice(0, 3).map(opt => (
-                            <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none" style={{ fontSize: Math.max(8, sz * 0.22) }}>
-                        <span className="text-white/90 bg-black/75 backdrop-blur px-1.5 py-0.5 rounded block text-center leading-tight">{combatant.name}</span>
-                      </div>
-                      <button
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => { e.stopPropagation(); removeToken(token.combatantId); }}
-                        className="absolute rounded-full bg-black/80 border border-white/30 flex items-center justify-center text-white/70 hover:text-white hover:bg-red-600/90 transition-all opacity-0 group-hover/token:opacity-100 cursor-pointer"
-                        style={{ width: 16, height: 16, top: -6, right: -6, zIndex: 31 }}
-                      >
-                        <X className="w-2 h-2" />
-                      </button>
-                    </div>
+                      token={token}
+                      combatant={combatant}
+                      isActive={isActive}
+                      tokenSize={tokenSize}
+                      onPointerDown={tokenPointerDown}
+                      onRemove={removeToken}
+                      setTokenEl={setTokenEl}
+                    />
                   );
                 })}
               </div>
@@ -382,8 +447,8 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
         <span className="text-[9px] uppercase tracking-widest text-white/30 font-semibold shrink-0 pr-3 border-r border-white/10">Jetons</span>
         {combatants.length === 0 ? (
           <p className="text-[11px] text-white/25 italic flex-1">Aucun combattant dans l'arène</p>
-        ) : combatants.map(combatant => {
-          const isPlaced = mapTokens.some(t => t.combatantId === combatant.id);
+        ) : combatants.map((combatant) => {
+          const isPlaced = placedCombatantIds.has(combatant.id);
           const isActive = combatant.id === activeCombatantId;
           return (
             <div
@@ -426,3 +491,16 @@ export function BattleMap({ imageUrl, onChange, combatants, mapTokens, onUpdateT
     </div>
   );
 }
+
+function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boolean {
+  return (
+    prev.imageUrl === next.imageUrl &&
+    prev.onChange === next.onChange &&
+    prev.combatants === next.combatants &&
+    prev.mapTokens === next.mapTokens &&
+    prev.onUpdateTokens === next.onUpdateTokens &&
+    prev.activeCombatantId === next.activeCombatantId
+  );
+}
+
+export const BattleMap = memo(BattleMapInner, areBattleMapPropsEqual);
