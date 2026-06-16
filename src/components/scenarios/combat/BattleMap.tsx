@@ -38,6 +38,8 @@ export interface BattleMapBroadcast {
   combatants: Combatant[];
   activeCombatantId: string | null;
   tokenSize: number;
+  zoom: number;
+  pan: { x: number; y: number };
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
@@ -141,11 +143,11 @@ function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTok
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize,
+    type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize };
-  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan };
+  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize, zoom, pan]);
 
   useEffect(() => {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
@@ -155,8 +157,8 @@ function BattleMapInner({ imageUrl, onChange, combatants, mapTokens, onUpdateTok
   }, []);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize });
-  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan });
+  }, [imageUrl, mapTokens, combatants, activeCombatantId, tokenSize, zoom, pan]);
 
   useEffect(() => {
     return () => {

@@ -537,7 +537,6 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 }
 
 // TODO : lag quand on déplace la map + zoom la battle map --> peut-être un problème de re-render du composant BattleMap à chaque update des tokens. Il faudrait vérifier si on peut optimiser ça, par exemple en mémorisant les props ou en utilisant React.memo sur BattleMap et MapToken.
-// TODO : permettre de reproduire le zoom de la battlemap en streaming (pour que les joueurs voient la même chose que le MJ) --> peut-être via un state partagé dans Supabase ou via un WebSocket.
 // TODO : rendre les CombatantCards "volantes" pour qu'on puisse les déplacer sur l'écran --> ça pourrait être fait avec un state global pour la position de la carte, et en utilisant un composant Draggable autour du CombatantCard.
 // TODO : permettre de "cacher" certains combatants aux joueurs (par exemple les monstres) --> ça pourrait être fait en ajoutant un champ "visible" sur les combatants, et en filtrant l'affichage côté BattleMap et Timeline.
 // TODO : permettre d'ouvrir en popup des règles issus du grimoire partout dans l'interface (par exemple les règles de combat, les sorts, etc.) --> ça pourrait être fait en ajoutant un composant Modal qui affiche le contenu du grimoire en fonction d'un ID ou d'une référence.

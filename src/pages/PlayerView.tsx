@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Swords } from "lucide-react";
 import type { Combatant, MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
-import { tokenRingClass, BATTLEMAP_CHANNEL } from "@/components/scenarios/combat/BattleMap";
+import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast } from "@/components/scenarios/combat/BattleMap";
 
 interface LiveState {
   imageUrl: string | null;
@@ -10,6 +10,8 @@ interface LiveState {
   combatants: Combatant[];
   activeCombatantId: string | null;
   tokenSize: number;
+  zoom: number;
+  pan: { x: number; y: number };
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
@@ -24,7 +26,19 @@ export function PlayerView() {
   useEffect(() => {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
     channelRef.current = ch;
-    ch.onmessage = (e) => { if (e.data?.type === "update") setState(e.data as LiveState); };
+    ch.onmessage = (e) => {
+      if (e.data?.type !== "update") return;
+      const incoming = e.data as BattleMapBroadcast;
+      setState({
+        imageUrl: incoming.imageUrl,
+        mapTokens: incoming.mapTokens,
+        combatants: incoming.combatants,
+        activeCombatantId: incoming.activeCombatantId,
+        tokenSize: incoming.tokenSize,
+        zoom: incoming.zoom ?? 1,
+        pan: incoming.pan ?? { x: 0, y: 0 },
+      });
+    };
     ch.postMessage({ type: "request" });
     return () => ch.close();
   }, []);
@@ -69,60 +83,69 @@ export function PlayerView() {
 
       {state?.imageUrl ? (
         <div ref={containerRef} className="relative flex-1 w-full overflow-hidden flex items-center justify-center">
-          <img
-            ref={imgRef}
-            src={state.imageUrl}
-            alt="Carte de combat"
-            className="h-full w-auto max-h-screen object-contain"
-            onLoad={updateImgRect}
-            draggable={false}
-          />
-
-          {/* Conteneur de tokens aligné sur les pixels réels de l'image */}
           <div
-            className="absolute pointer-events-none"
-            style={imgRect ? {
-              left: imgRect.left,
-              top: imgRect.top,
-              width: imgRect.width,
-              height: imgRect.height,
-            } : { inset: 0 }}
+            className="absolute inset-0"
+            style={{
+              transform: `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`,
+              transformOrigin: "center",
+              willChange: "transform",
+            }}
           >
-            {state.mapTokens.map(token => {
-              const combatant = state.combatants.find(c => c.id === token.combatantId);
-              if (!combatant) return null;
-              const isActive = combatant.id === state.activeCombatantId;
-              const sz = state.tokenSize;
-              const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
-              return (
-                <div
-                  key={token.combatantId}
-                  className="absolute z-10"
-                  style={{ left: `${token.x}%`, top: `${token.y}%`, transform: "translate(-50%, -50%)" }}
-                >
-                  {isActive && (
-                    <div className="absolute rounded-full border-2 border-amber-400 animate-ping opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
-                  )}
+            <img
+              ref={imgRef}
+              src={state.imageUrl}
+              alt="Carte de combat"
+              className="h-full w-full object-contain"
+              onLoad={updateImgRect}
+              draggable={false}
+            />
+
+            {/* Conteneur de tokens aligné sur les pixels réels de l'image */}
+            <div
+              className="absolute pointer-events-none"
+              style={imgRect ? {
+                left: imgRect.left,
+                top: imgRect.top,
+                width: imgRect.width,
+                height: imgRect.height,
+              } : { inset: 0 }}
+            >
+              {state.mapTokens.map(token => {
+                const combatant = state.combatants.find(c => c.id === token.combatantId);
+                if (!combatant) return null;
+                const isActive = combatant.id === state.activeCombatantId;
+                const sz = state.tokenSize;
+                const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
+                return (
                   <div
-                    className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
-                    style={{ width: sz, height: sz }}
+                    key={token.combatantId}
+                    className="absolute z-10"
+                    style={{ left: `${token.x}%`, top: `${token.y}%`, transform: "translate(-50%, -50%)" }}
                   >
-                    <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover" draggable={false} />
-                  </div>
-                  {/* Bulles de conditions */}
-                  {activeConditions.length > 0 && (
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
-                      {activeConditions.slice(0, 3).map(opt => (
-                        <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
-                      ))}
+                    {isActive && (
+                      <div className="absolute rounded-full border-2 border-amber-400 animate-ping opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
+                    )}
+                    <div
+                      className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
+                      style={{ width: sz, height: sz }}
+                    >
+                      <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover" draggable={false} />
                     </div>
-                  )}
-                  <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap" style={{ fontSize: Math.max(9, sz * 0.22) }}>
-                    <span className="text-white/90 bg-black/80 backdrop-blur px-1.5 py-0.5 rounded block text-center leading-tight">{combatant.name}</span>
+                    {/* Bulles de conditions */}
+                    {activeConditions.length > 0 && (
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
+                        {activeConditions.slice(0, 3).map(opt => (
+                          <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap" style={{ fontSize: Math.max(9, sz * 0.22) }}>
+                      <span className="text-white/90 bg-black/80 backdrop-blur px-1.5 py-0.5 rounded block text-center leading-tight">{combatant.name}</span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       ) : (
