@@ -15,6 +15,12 @@ interface VoieDetail {
   >;
 }
 
+interface VoieCapacite {
+  nom?: string;
+  type?: string;
+  description?: string;
+}
+
 interface LevelUpOverlayProps {
   pj: any;
   targetLevel: number;
@@ -33,6 +39,24 @@ const isLevelLocked = (rang: number, newLevel: number) => {
   if (rang === 4 && newLevel < 5) return true;
   if (rang === 5 && newLevel < 7) return true;
   return false;
+};
+
+const getCapacitesObject = (voie: VoieDetail): Record<string, VoieCapacite> => {
+  if (typeof voie.capacites === "string") {
+    try {
+      return JSON.parse(voie.capacites) as Record<string, VoieCapacite>;
+    } catch {
+      return {};
+    }
+  }
+  return (voie.capacites as Record<string, VoieCapacite>) || {};
+};
+
+const getRankCapacite = (voie: VoieDetail, rang: number): VoieCapacite | null => {
+  const caps = getCapacitesObject(voie);
+  const cap = caps[`rang${rang}`];
+  if (!cap || (!cap.nom && !cap.description)) return null;
+  return cap;
 };
 
 // Fonction utilitaire pour identifier si une voie est la "Voie de la Magie"
@@ -158,6 +182,7 @@ export default function LevelUpOverlay({
           
           // La restriction s'applique si le joueur a la voie du mage ET que la voie actuelle est une voie de peuple (qui n'est PAS la voie du Mage)
           const isPeuplePathBlockedByMage = hasMagePath && !!voie.peuple_id && !isMageVoie(voie);
+          const nextRankCapacite = getRankCapacite(voie, nextRank);
 
           return (
             <div
@@ -172,6 +197,19 @@ export default function LevelUpOverlay({
                   Coût : {cost} pt{cost > 1 ? "s" : ""}
                 </span>
               </div>
+              {nextRankCapacite && (
+                <div className={`rounded-lg border px-3 py-2 ${isPeuplePathBlockedByMage ? "bg-black/20 border-white/5" : "bg-black/20 border-white/10"}`}>
+                  <p className={`text-xs font-semibold ${isPeuplePathBlockedByMage ? "text-white/35" : "text-[#E3CCCD]/90"}`}>
+                    {nextRankCapacite.nom || `Capacité de rang ${nextRank}`}
+                    {nextRankCapacite.type ? <span className="text-white/40 font-normal"> ({nextRankCapacite.type})</span> : null}
+                  </p>
+                  {nextRankCapacite.description && (
+                    <p className={`text-[11px] leading-relaxed mt-1 ${isPeuplePathBlockedByMage ? "text-white/30" : "text-white/60"}`}>
+                      {nextRankCapacite.description}
+                    </p>
+                  )}
+                </div>
+              )}
               {isPeuplePathBlockedByMage ? (
                  <p className="text-xs text-violet-400/50 italic">
                   Évolution verrouillée (Voie de la Magie active).
@@ -251,6 +289,9 @@ export default function LevelUpOverlay({
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {filteredAvailableVoies.map((v) => (
+                  (() => {
+                    const rank1Capacite = getRankCapacite(v, 1);
+                    return (
                   <button
                     key={v.id}
                     disabled={pointsRemaining < 1}
@@ -263,9 +304,23 @@ export default function LevelUpOverlay({
                     }}
                     className="flex justify-between items-center p-3 bg-white/5 hover:bg-[#E3CCCD]/10 border border-white/10 rounded-xl text-left text-xs text-white transition-all disabled:opacity-30"
                   >
-                    <span>{v.nom} (Rang 1)</span>
+                    <span className="min-w-0 pr-2">
+                      <span className="block">{v.nom} (Rang 1)</span>
+                      {rank1Capacite?.nom && (
+                        <span className="block text-[11px] text-white/50 truncate">
+                          {rank1Capacite.nom}
+                        </span>
+                      )}
+                      {rank1Capacite?.description && (
+                        <span className="block text-[10px] text-white/40 leading-relaxed line-clamp-2 mt-0.5">
+                          {rank1Capacite.description}
+                        </span>
+                      )}
+                    </span>
                     <Plus className="w-3.5 h-3.5 text-[#E3CCCD]" />
                   </button>
+                    );
+                  })()
                 ))}
                 {filteredAvailableVoies.length === 0 && (
                   <p className="text-white/30 text-xs italic">
