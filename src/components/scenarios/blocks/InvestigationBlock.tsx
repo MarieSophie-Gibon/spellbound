@@ -182,11 +182,11 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
                           <SelectItem
                             key={s}
                             value={s}
-                            className="text-[12px] data-highlighted:bg-sky-500/15 data-highlighted:text-sky-100 data-[state=checked]:bg-sky-500/12"
+                            className="text-[12px] text-white data-highlighted:bg-sky-500/15 data-highlighted:text-white! data-highlighted:**:text-white! data-[state=checked]:bg-sky-500/12 data-[state=checked]:text-white! data-[state=checked]:**:text-white! focus:text-white! focus:**:text-white!"
                           >
                             <div className="flex items-center justify-between w-full gap-3">
-                              <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-200/85">{s}</span>
-                              <span className="text-[11px] text-white/55">{STAT_LABELS[s]}</span>
+                              <span className="text-[10px] uppercase tracking-wide font-semibold text-inherit">{s}</span>
+                              <span className="text-[11px] text-inherit opacity-90">{STAT_LABELS[s]}</span>
                             </div>
                           </SelectItem>
                         ))}

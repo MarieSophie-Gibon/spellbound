@@ -303,12 +303,12 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               </label>
             )}
             {block.data.url && (
-              <input
-                type="text"
+              <textarea
                 value={block.data.caption || ""}
                 onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
                 placeholder="Légende de l'image (optionnelle)..."
-                className="w-full bg-transparent text-center text-sm text-white/40 italic outline-none placeholder:text-white/20"
+                rows={3}
+                className="w-full bg-transparent text-center text-sm text-white/50 italic leading-relaxed outline-none placeholder:text-white/20 resize-none min-h-20"
               />
             )}
           </div>
@@ -316,7 +316,11 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           block.data.url && (
             <div className="flex flex-col items-center py-4">
               <img src={block.data.url} alt="Illustration" className="max-h-125 rounded-xl object-contain border border-white/10 shadow-xl" />
-              {block.data.caption && <span className="mt-3 text-sm text-white/50 italic">{block.data.caption}</span>}
+              {block.data.caption && (
+                <p className="mt-3 text-sm text-white/60 italic leading-relaxed whitespace-pre-wrap wrap-break-word text-center max-w-3xl">
+                  {block.data.caption}
+                </p>
+              )}
             </div>
           )
         );
