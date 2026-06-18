@@ -2,6 +2,13 @@
 import { useState, useEffect } from "react";
 import { ArrowUpCircle, X, Plus, Star, Check } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface VoieDetail {
   id: string;
@@ -78,7 +85,7 @@ export default function LevelUpOverlay({
   setIsLevelingUp,
 }: LevelUpOverlayProps) {
   const [unlockType, setUnlockType] = useState<
-    "profile" | "prestige" | "peuple" | ""
+    "profile" | "ownProfile" | "prestige" | "peuple" | ""
   >("");
   const [profiles, setProfiles] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
@@ -104,6 +111,13 @@ export default function LevelUpOverlay({
     ?.map((p: any) => allVoies.find((v: any) => v.id === p.voie_id) || voieDetails.find((vd) => vd.id === p.voie_id))
     ?.find((v: any) => v?.peuple_id && !isMageVoie(v))?.peuple_id;
 
+  const currentProfileId =
+    pj?.stats?.profil_id ||
+    voieDetails.find((v) => v.profil_id)?.profil_id ||
+    allVoies.find((v) =>
+      ((pj.pathways as any[]) || []).some((p: any) => p.voie_id === v.id) && !!v.profil_id,
+    )?.profil_id;
+
   const ownedVoieIds = new Set(
     ((pj.pathways as any[]) || []).map((p) => p.voie_id),
   );
@@ -119,6 +133,7 @@ export default function LevelUpOverlay({
 
     if (unlockType === "peuple") return !!v.peuple_id;
     if (unlockType === "prestige") return v.type === "prestige";
+    if (unlockType === "ownProfile") return !!currentProfileId && v.profil_id === currentProfileId;
     if (unlockType === "profile") return v.profil_id === selectedProfileId;
     return false;
   });
@@ -244,8 +259,9 @@ export default function LevelUpOverlay({
             Voie
           </h3>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
+              { key: "ownProfile", label: "Profil" },
               { key: "profile", label: "Autre Profil" },
               { key: "prestige", label: "Prestige" },
               { key: "peuple", label: "Voie du Peuple" },
@@ -256,6 +272,7 @@ export default function LevelUpOverlay({
                   setUnlockType(b.key as any);
                   setSelectedProfileId("");
                 }}
+                disabled={b.key === "ownProfile" && !currentProfileId}
                 className={`py-2 rounded-xl text-xs font-medium border border-white/10 transition-all ${unlockType === b.key ? "bg-[#E3CCCD]/20 border-[#E3CCCD]/50 text-[#E3CCCD]" : "bg-white/5 text-white/50 hover:bg-white/10"}`}
               >
                 {b.label}
@@ -263,24 +280,44 @@ export default function LevelUpOverlay({
             ))}
           </div>
 
-          {unlockType === "profile" && (
-            <select
-              value={selectedProfileId}
-              onChange={(e) => setSelectedProfileId(e.target.value)}
-              className="w-full bg-black/20 border border-white/15 rounded-lg p-2.5 text-white text-sm outline-none"
-            >
-              <option value="">
-                -- Sélectionner le profil d'hybridation --
-              </option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id} className="bg-[#1E1941]">
-                  {p.nom}
-                </option>
-              ))}
-            </select>
+          {unlockType === "ownProfile" && !currentProfileId && (
+            <p className="text-xs text-white/40 italic">
+              Aucun profil principal détecté pour ce personnage.
+            </p>
           )}
 
-          {((unlockType === "profile" && selectedProfileId) ||
+          {unlockType === "profile" && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60">
+                Sélectionner le profil d'hybridation
+              </p>
+              <Select value={selectedProfileId || "__none__"} onValueChange={(v) => setSelectedProfileId(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="w-full h-11 bg-[#120D2F]/70 border border-[#E3CCCD]/30 rounded-xl text-[#E3CCCD] text-sm shadow-inner shadow-black/30 data-placeholder:text-[#E3CCCD]/45 focus:border-[#E3CCCD]/70 focus:ring-2 focus:ring-[#E3CCCD]/20 transition-all">
+                  <SelectValue placeholder="Choisir un profil..." />
+                </SelectTrigger>
+                <SelectContent className="z-60 bg-[#120D2F]/95 border border-[#E3CCCD]/30 rounded-xl text-white shadow-2xl shadow-black/50">
+                  <SelectItem
+                    value="__none__"
+                    className="text-white/45 data-highlighted:bg-white/10 data-highlighted:text-white"
+                  >
+                    -- Sélectionner le profil d'hybridation --
+                  </SelectItem>
+                  {profiles.map((p) => (
+                    <SelectItem
+                      key={p.id}
+                      value={p.id}
+                      className="data-highlighted:bg-[#E3CCCD]/20 data-highlighted:text-[#E3CCCD] data-[state=checked]:bg-[#E3CCCD]/15"
+                    >
+                      {p.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {((unlockType === "ownProfile" && !!currentProfileId) ||
+            (unlockType === "profile" && selectedProfileId) ||
             unlockType === "prestige" ||
             unlockType === "peuple") && (
             <div className="space-y-2">

@@ -484,8 +484,8 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
       if (error) throw error;
 
       const newPjId = pjInsertData?.[0]?.id;
-      if (newPjId && profilEquipItems.length > 0) {
-        const itemsToInsert = profilEquipItems.map((item) => ({
+      if (newPjId && selectedEquipItems.length > 0) {
+        const itemsToInsert = selectedEquipItems.map((item) => ({
           pj_id: newPjId,
           item_type: item.source,
           item_id: Number(item.id),

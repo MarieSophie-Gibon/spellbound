@@ -71,6 +71,37 @@ interface PersonnageDetailProps {
 
 const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
 
+function getDerivedAttacks(level: number, characteristics: Record<string, number>) {
+  const forStat = Number(characteristics?.FOR ?? 0);
+  const agi = Number(characteristics?.AGI ?? 0);
+  const vol = Number(characteristics?.VOL ?? 0);
+
+  return {
+    contact: level + forStat,
+    distance: level + agi,
+    magie: level + vol,
+  };
+}
+
+function getDieFaces(die: string | number | null | undefined) {
+  const raw = String(die ?? "d6");
+  const match = raw.match(/\d+/);
+  return match ? Number(match[0]) : 6;
+}
+
+function getHpGainPerLevel(stats: any) {
+  const characteristics = stats?.caracteristiques ?? {};
+  const con = Number(characteristics?.CON ?? 0);
+  const drQty = Number(stats?.dr_qty ?? 1) || 1;
+  const drFaces = getDieFaces(stats?.dr_de ?? "d6");
+  return drQty * drFaces + con;
+}
+
+function getDerivedPvMax(level: number, stats: any) {
+  const lvl = Math.max(1, Number(level ?? 1));
+  return lvl * getHpGainPerLevel(stats);
+}
+
 export function PersonnageDetail({
   pj,
   type = "pj",
@@ -177,17 +208,20 @@ export function PersonnageDetail({
     setEditCaract(
       Object.fromEntries(STATS_KEYS.map((k) => [k, c[k] ?? 0])) as any,
     );
+    const levelForDerived = pj.stats?.niveau ?? 1;
+    const derivedPvMax = getDerivedPvMax(levelForDerived, pj.stats);
     setEditPv(pj.stats?.pv ?? 0);
-    setEditPvMax(pj.stats?.pv_max ?? 0);
+    setEditPvMax(type === "pj" ? derivedPvMax : (pj.stats?.pv_max ?? 0));
     setEditDrQty(pj.stats?.dr_qty ?? 0);
     setEditDrDe(pj.stats?.dr_de ?? "d6");
     setEditPc(pj.stats?.pc ?? 0);
     setEditPm(pj.stats?.pm ?? 0);
     setEditInitiative(pj.stats?.initiative ?? 0);
     setEditDefense(pj.stats?.defense ?? 0);
-    setEditAttContact(pj.stats?.att_contact ?? 0);
-    setEditAttDistance(pj.stats?.att_distance ?? 0);
-    setEditAttMagie(pj.stats?.att_magie ?? 0);
+    const derivedFromStats = getDerivedAttacks(levelForDerived, c);
+    setEditAttContact(type === "pj" ? derivedFromStats.contact : (pj.stats?.att_contact ?? 0));
+    setEditAttDistance(type === "pj" ? derivedFromStats.distance : (pj.stats?.att_distance ?? 0));
+    setEditAttMagie(type === "pj" ? derivedFromStats.magie : (pj.stats?.att_magie ?? 0));
     setEditNiveau(pj.stats?.niveau ?? 1);
     
     // Lore dynamique selon PJ ou PNJ
@@ -224,6 +258,15 @@ export function PersonnageDetail({
 
       const table = type === "pnj" ? "pnj" : "pj";
 
+      const derivedAttacksForSave = getDerivedAttacks(editNiveau, editCaract as unknown as Record<string, number>);
+      const baseStatsForSave = {
+        ...(pj.stats ?? {}),
+        caracteristiques: editCaract,
+        dr_qty: editDrQty,
+        dr_de: editDrDe,
+      };
+      const derivedPvMaxForSave = getDerivedPvMax(editNiveau, baseStatsForSave);
+
       const statsToSave = type === "pnj" ? {
         ...pj.stats,
         sexe: editSexe,
@@ -233,16 +276,16 @@ export function PersonnageDetail({
         ...(pj.stats?.is_combatant ? {
           caracteristiques: editCaract,
           pv: editPv,
-          pv_max: editPvMax,
+          pv_max: type === "pj" ? derivedPvMaxForSave : editPvMax,
           dr_qty: editDrQty,
           dr_de: editDrDe,
           pc: editPc,
           pm: editPm,
           initiative: editInitiative,
           defense: editDefense,
-          att_contact: editAttContact,
-          att_distance: editAttDistance,
-          att_magie: editAttMagie,
+          att_contact: type === "pj" ? derivedAttacksForSave.contact : editAttContact,
+          att_distance: type === "pj" ? derivedAttacksForSave.distance : editAttDistance,
+          att_magie: type === "pj" ? derivedAttacksForSave.magie : editAttMagie,
           niveau: editNiveau,
         } : {})
       } : {
@@ -251,16 +294,16 @@ export function PersonnageDetail({
         age: editAge,
         caracteristiques: editCaract,
         pv: editPv,
-        pv_max: editPvMax,
+        pv_max: derivedPvMaxForSave,
         dr_qty: editDrQty,
         dr_de: editDrDe,
         pc: editPc,
         pm: editPm,
         initiative: editInitiative,
         defense: editDefense,
-        att_contact: editAttContact,
-        att_distance: editAttDistance,
-        att_magie: editAttMagie,
+        att_contact: derivedAttacksForSave.contact,
+        att_distance: derivedAttacksForSave.distance,
+        att_magie: derivedAttacksForSave.magie,
         niveau: editNiveau,
         ideal: editIdeal,
         travers: editTravers,
@@ -324,13 +367,37 @@ export function PersonnageDetail({
           });
         }
       });
+
+      const stats = pj.stats ?? {};
+      const caract = stats.caracteristiques ?? {};
+      const con = Number(caract.CON ?? 0);
+      const forStat = Number(caract.FOR ?? 0);
+      const agi = Number(caract.AGI ?? 0);
+      const vol = Number(caract.VOL ?? 0);
+
+      // Passage de niveau automatique: gain de PV + recalcul des bonus d'attaque.
+      const currentDerivedPvMax = getDerivedPvMax(Number(stats.niveau ?? 1), stats);
+      const nextPvMax = getDerivedPvMax(newLevel, stats);
+      const hpGain = nextPvMax - currentDerivedPvMax;
+      const nextPv = Number(stats.pv ?? 0) + hpGain;
+      const nextAttContact = newLevel + forStat;
+      const nextAttDistance = newLevel + agi;
+      const nextAttMagie = newLevel + vol;
       
       const table = type === "pnj" ? "pnj" : "pj";
       await supabase
         .from(table)
         .update({
           pathways: updatedPathways,
-          stats: { ...pj.stats, niveau: newLevel },
+          stats: {
+            ...stats,
+            niveau: newLevel,
+            pv: nextPv,
+            pv_max: nextPvMax,
+            att_contact: nextAttContact,
+            att_distance: nextAttDistance,
+            att_magie: nextAttMagie,
+          },
         })
         .eq("id", pj.id);
         
@@ -362,6 +429,8 @@ export function PersonnageDetail({
   const displayImageUrl = imagePreview ?? pj.image_url;
   const assignedPlayer = players.find((p) => p.id === (pj.user_id ?? ""));
   const currentLevel = pj.stats?.niveau ?? 1;
+  const derivedCurrentAttacks = getDerivedAttacks(currentLevel, caract as Record<string, number>);
+  const derivedCurrentPvMax = type === "pj" ? getDerivedPvMax(currentLevel, pj.stats) : Number(pj.stats?.pv_max ?? 0);
   const targetLevel = currentLevel + 1;
   const pointsSpent = pendingRanks.reduce(
     (acc, curr) => acc + getCost(curr.rang),
@@ -663,7 +732,7 @@ export function PersonnageDetail({
                 <MagicCard
                   imageUrl={displayImageUrl}
                   title={pj.name}
-                  badge={pj.stats?.pv_max ? <PvBadge pvMax={pj.stats.pv_max} /> : undefined}
+                  badge={derivedCurrentPvMax ? <PvBadge pvMax={derivedCurrentPvMax} /> : undefined}
                 />
                 {isEditing && (
                   <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
@@ -784,8 +853,8 @@ export function PersonnageDetail({
                           icon={Sword}
                           label="Contact"
                           value={
-                            pj.stats?.att_contact != null
-                              ? `+${pj.stats.att_contact}`
+                            derivedCurrentAttacks.contact != null
+                              ? `+${derivedCurrentAttacks.contact}`
                               : "—"
                           }
                           color="text-orange-400/70"
@@ -795,8 +864,8 @@ export function PersonnageDetail({
                           icon={Target}
                           label="Distance"
                           value={
-                            pj.stats?.att_distance != null
-                              ? `+${pj.stats.att_distance}`
+                            derivedCurrentAttacks.distance != null
+                              ? `+${derivedCurrentAttacks.distance}`
                               : "—"
                           }
                           color="text-orange-400/70"
@@ -806,8 +875,8 @@ export function PersonnageDetail({
                           icon={Wand2}
                           label="Magie"
                           value={
-                            pj.stats?.att_magie != null
-                              ? `+${pj.stats.att_magie}`
+                            derivedCurrentAttacks.magie != null
+                              ? `+${derivedCurrentAttacks.magie}`
                               : "—"
                           }
                           color="text-violet-400/70"
@@ -893,7 +962,7 @@ export function PersonnageDetail({
                         <CombatStatCard
                           icon={Heart}
                           label="Points de Vie"
-                          value={`${pj.stats?.pv ?? 0} / ${pj.stats?.pv_max ?? 0}`}
+                          value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`}
                           color="text-emerald-400/70"
                           border="border-emerald-400/20"
                         />

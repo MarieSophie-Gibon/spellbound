@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Coins, Package, Shield, Sword, Target, Backpack, Loader2, Plus, Pencil, Trash2, X, Save } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 
 interface InventoryTabProps {
   pjId: string;
@@ -20,6 +21,8 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
   // Modale CRUD
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Nouveaux états pour le Compendium dans la modale
   const [compendiumItems, setCompendiumItems] = useState<any[]>([]);
@@ -133,11 +136,13 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
     fetchEverything();
   };
 
-  const handleDeleteItem = async (id: string) => {
-    if (confirm("Supprimer cet objet de l'inventaire ?")) {
-      await supabase.from("pj_inventaire").delete().eq("id", id);
-      fetchEverything();
-    }
+  const handleDeleteItem = async () => {
+    if (!itemToDelete?.id) return;
+    setIsDeleting(true);
+    await supabase.from("pj_inventaire").delete().eq("id", itemToDelete.id);
+    setIsDeleting(false);
+    setItemToDelete(null);
+    fetchEverything();
   };
 
   const toggleEquip = async (item: any) => {
@@ -203,7 +208,7 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
                 {!item.is_from_profile && (
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => handleOpenModal(item)} className="p-1.5 text-white/30 hover:text-white transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
-                    <button onClick={() => handleDeleteItem(item.id)} className="p-1.5 text-white/30 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => setItemToDelete(item)} className="p-1.5 text-white/30 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 )}
               </div>
@@ -241,7 +246,7 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
                 {!item.is_from_profile && (
                   <div className="flex flex-col gap-1 shrink-0">
                     <button onClick={() => handleOpenModal(item)} className="text-white/20 hover:text-white transition-colors mb-2"><Pencil className="w-3 h-3" /></button>
-                    <button onClick={() => handleDeleteItem(item.id)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
+                    <button onClick={() => setItemToDelete(item)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
                   </div>
                 )}
               </div>
@@ -324,6 +329,19 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
             </div>
           </div>
         </div>
+      )}
+
+      {itemToDelete && (
+        <DeleteConfirmModal
+          name={itemToDelete.nom_custom || "cet objet"}
+          isDeleting={isDeleting}
+          onConfirm={handleDeleteItem}
+          onCancel={() => {
+            if (!isDeleting) setItemToDelete(null);
+          }}
+          title="Supprimer cet équipement ?"
+          description={`L'objet "${itemToDelete.nom_custom || "sans nom"}" sera retiré de l'inventaire du personnage.`}
+        />
       )}
 
     </div>
