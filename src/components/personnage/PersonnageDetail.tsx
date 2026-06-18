@@ -211,7 +211,7 @@ export function PersonnageDetail({
     const levelForDerived = pj.stats?.niveau ?? 1;
     const derivedPvMax = getDerivedPvMax(levelForDerived, pj.stats);
     setEditPv(pj.stats?.pv ?? 0);
-    setEditPvMax(type === "pj" ? derivedPvMax : (pj.stats?.pv_max ?? 0));
+    setEditPvMax(derivedPvMax);
     setEditDrQty(pj.stats?.dr_qty ?? 0);
     setEditDrDe(pj.stats?.dr_de ?? "d6");
     setEditPc(pj.stats?.pc ?? 0);
@@ -219,9 +219,9 @@ export function PersonnageDetail({
     setEditInitiative(pj.stats?.initiative ?? 0);
     setEditDefense(pj.stats?.defense ?? 0);
     const derivedFromStats = getDerivedAttacks(levelForDerived, c);
-    setEditAttContact(type === "pj" ? derivedFromStats.contact : (pj.stats?.att_contact ?? 0));
-    setEditAttDistance(type === "pj" ? derivedFromStats.distance : (pj.stats?.att_distance ?? 0));
-    setEditAttMagie(type === "pj" ? derivedFromStats.magie : (pj.stats?.att_magie ?? 0));
+    setEditAttContact(derivedFromStats.contact);
+    setEditAttDistance(derivedFromStats.distance);
+    setEditAttMagie(derivedFromStats.magie);
     setEditNiveau(pj.stats?.niveau ?? 1);
     
     // Lore dynamique selon PJ ou PNJ
@@ -276,16 +276,16 @@ export function PersonnageDetail({
         ...(pj.stats?.is_combatant ? {
           caracteristiques: editCaract,
           pv: editPv,
-          pv_max: type === "pj" ? derivedPvMaxForSave : editPvMax,
+          pv_max: derivedPvMaxForSave,
           dr_qty: editDrQty,
           dr_de: editDrDe,
           pc: editPc,
           pm: editPm,
           initiative: editInitiative,
           defense: editDefense,
-          att_contact: type === "pj" ? derivedAttacksForSave.contact : editAttContact,
-          att_distance: type === "pj" ? derivedAttacksForSave.distance : editAttDistance,
-          att_magie: type === "pj" ? derivedAttacksForSave.magie : editAttMagie,
+          att_contact: derivedAttacksForSave.contact,
+          att_distance: derivedAttacksForSave.distance,
+          att_magie: derivedAttacksForSave.magie,
           niveau: editNiveau,
         } : {})
       } : {
@@ -430,7 +430,7 @@ export function PersonnageDetail({
   const assignedPlayer = players.find((p) => p.id === (pj.user_id ?? ""));
   const currentLevel = pj.stats?.niveau ?? 1;
   const derivedCurrentAttacks = getDerivedAttacks(currentLevel, caract as Record<string, number>);
-  const derivedCurrentPvMax = type === "pj" ? getDerivedPvMax(currentLevel, pj.stats) : Number(pj.stats?.pv_max ?? 0);
+  const derivedCurrentPvMax = getDerivedPvMax(currentLevel, pj.stats);
   const targetLevel = currentLevel + 1;
   const pointsSpent = pendingRanks.reduce(
     (acc, curr) => acc + getCost(curr.rang),
@@ -496,7 +496,7 @@ export function PersonnageDetail({
                   </span>
                 )}
                 {/* Level Up caché pour les PNJ non combattants */}
-                {!isNonCombatantPNJ && type === "pj" && (
+                {!isNonCombatantPNJ && (
                   <button
                     onClick={() => setIsLevelingUp(true)}
                     className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
