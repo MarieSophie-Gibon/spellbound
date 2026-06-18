@@ -37,9 +37,16 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
     is_equipped: false
   });
 
-  const pa = pjStats?.bourse_pa ?? 0;
-  const po = pjStats?.bourse_po ?? 0;
-  const pc = pjStats?.bourse_pc ?? 0;
+  const [pa, setPa] = useState<number>(pjStats?.bourse_pa ?? 0);
+  const [po, setPo] = useState<number>(pjStats?.bourse_po ?? 0);
+  const [pc, setPc] = useState<number>(pjStats?.bourse_pc ?? 0);
+
+  // Sync depuis la prop quand le PJ change
+  useEffect(() => {
+    setPa(pjStats?.bourse_pa ?? 0);
+    setPo(pjStats?.bourse_po ?? 0);
+    setPc(pjStats?.bourse_pc ?? 0);
+  }, [pjId]);
 
   // --- CHARGEMENT DE L'INVENTAIRE ---
   const fetchEverything = async () => {
@@ -79,8 +86,11 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
     fetchTable();
   }, [formData.item_type, isModalOpen]);
 
-  const handleCurrencyChange = (type: 'pa' | 'po' | 'pc', val: number) => {
-    onUpdateStats({ ...pjStats, [`bourse_${type}`]: val });
+  const handleCurrencyChange = async (type: 'pa' | 'po' | 'pc', val: number) => {
+    if (type === 'pa') setPa(val);
+    if (type === 'po') setPo(val);
+    if (type === 'pc') setPc(val);
+    onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: po, bourse_pc: pc, [`bourse_${type}`]: val });
   };
 
   // On ajoute un paramètre defaultType pour savoir depuis quel bloc on a cliqué
@@ -167,15 +177,15 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
         <div className="flex gap-4">
           <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
             <span className="text-white/40 text-[10px] font-bold">PA</span>
-            <input type="number" value={pa} onChange={(e) => handleCurrencyChange('pa', parseInt(e.target.value) || 0)} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none" />
+            <input type="number" value={pa} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPa(v); onUpdateStats({ ...pjStats, bourse_pa: v, bourse_po: po, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none" />
           </div>
           <div className="flex items-center gap-2 bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
             <span className="text-yellow-500/60 text-[10px] font-bold">PO</span>
-            <input type="number" value={po} onChange={(e) => handleCurrencyChange('po', parseInt(e.target.value) || 0)} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none" />
+            <input type="number" value={po} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPo(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: v, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none" />
           </div>
           <div className="flex items-center gap-2 bg-orange-400/10 px-3 py-1.5 rounded-lg border border-orange-400/20">
             <span className="text-orange-500/60 text-[10px] font-bold">PC</span>
-            <input type="number" value={pc} onChange={(e) => handleCurrencyChange('pc', parseInt(e.target.value) || 0)} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none" />
+            <input type="number" value={pc} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPc(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: po, bourse_pc: v }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none" />
           </div>
         </div>
       </div>

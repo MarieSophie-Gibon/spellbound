@@ -64,6 +64,14 @@ function buildDefaultStats(): StatsMap {
   return { FOR: 0, CON: 0, AGI: 0, PER: 0, CHA: 0, INT: 0, VOL: 0 };
 }
 
+function getPvParNiveau(groupe: string | undefined): number {
+  if (!groupe) return 4;
+  const g = groupe.toLowerCase();
+  if (g.includes("combattant")) return 5;
+  if (g.includes("mage")) return 3;
+  return 4; // Aventuriers et Mystiques
+}
+
 function computeDerived(stats: StatsMap, famille: FamilleRef | null) {
   const pv = famille ? 2 * famille.pv_niveau + stats.CON : stats.CON;
   const drQty = famille?.groupe === "Mystiques" ? 3 + stats.CON : 2 + stats.CON;
@@ -470,6 +478,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
             att_contact: d.attContact,
             att_distance: d.attDistance,
             att_magie: d.attMagie,
+            pv_par_niveau: getPvParNiveau(selectedFamille?.groupe),
             ideal,
             travers,
             historique,

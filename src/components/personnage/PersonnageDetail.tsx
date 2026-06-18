@@ -92,14 +92,13 @@ function getDieFaces(die: string | number | null | undefined) {
 function getHpGainPerLevel(stats: any) {
   const characteristics = stats?.caracteristiques ?? {};
   const con = Number(characteristics?.CON ?? 0);
-  const drQty = Number(stats?.dr_qty ?? 1) || 1;
+  // Si la valeur est stockée à la création, on l'utilise directement
+  if (typeof stats?.pv_par_niveau === "number") {
+    return stats.pv_par_niveau + con;
+  }
+  // Fallback sur le dé de récupération pour compatibilité
   const drFaces = getDieFaces(stats?.dr_de ?? "d6");
-  return drQty * drFaces + con;
-}
-
-function getDerivedPvMax(level: number, stats: any) {
-  const lvl = Math.max(1, Number(level ?? 1));
-  return lvl * getHpGainPerLevel(stats);
+  return Math.max(1, drFaces + con);
 }
 
 export function PersonnageDetail({
@@ -209,9 +208,8 @@ export function PersonnageDetail({
       Object.fromEntries(STATS_KEYS.map((k) => [k, c[k] ?? 0])) as any,
     );
     const levelForDerived = pj.stats?.niveau ?? 1;
-    const derivedPvMax = getDerivedPvMax(levelForDerived, pj.stats);
     setEditPv(pj.stats?.pv ?? 0);
-    setEditPvMax(derivedPvMax);
+    setEditPvMax(Math.max(Number(pj.stats?.pv_max ?? 0), Number(pj.stats?.pv ?? 0)));
     setEditDrQty(pj.stats?.dr_qty ?? 0);
     setEditDrDe(pj.stats?.dr_de ?? "d6");
     setEditPc(pj.stats?.pc ?? 0);
@@ -265,7 +263,7 @@ export function PersonnageDetail({
         dr_qty: editDrQty,
         dr_de: editDrDe,
       };
-      const derivedPvMaxForSave = getDerivedPvMax(editNiveau, baseStatsForSave);
+      const normalizedPvMaxForSave = Math.max(Number(editPvMax ?? 0), Number(editPv ?? 0));
 
       const statsToSave = type === "pnj" ? {
         ...pj.stats,
@@ -276,7 +274,7 @@ export function PersonnageDetail({
         ...(pj.stats?.is_combatant ? {
           caracteristiques: editCaract,
           pv: editPv,
-          pv_max: derivedPvMaxForSave,
+          pv_max: normalizedPvMaxForSave,
           dr_qty: editDrQty,
           dr_de: editDrDe,
           pc: editPc,
@@ -294,7 +292,7 @@ export function PersonnageDetail({
         age: editAge,
         caracteristiques: editCaract,
         pv: editPv,
-        pv_max: derivedPvMaxForSave,
+        pv_max: normalizedPvMaxForSave,
         dr_qty: editDrQty,
         dr_de: editDrDe,
         pc: editPc,
@@ -376,9 +374,9 @@ export function PersonnageDetail({
       const vol = Number(caract.VOL ?? 0);
 
       // Passage de niveau automatique: gain de PV + recalcul des bonus d'attaque.
-      const currentDerivedPvMax = getDerivedPvMax(Number(stats.niveau ?? 1), stats);
-      const nextPvMax = getDerivedPvMax(newLevel, stats);
-      const hpGain = nextPvMax - currentDerivedPvMax;
+      const hpGain = getHpGainPerLevel(stats);
+      const currentPvMax = Math.max(Number(stats.pv_max ?? stats.pv ?? 0), Number(stats.pv ?? 0));
+      const nextPvMax = currentPvMax + hpGain;
       const nextPv = Number(stats.pv ?? 0) + hpGain;
       const nextAttContact = newLevel + forStat;
       const nextAttDistance = newLevel + agi;
@@ -430,7 +428,7 @@ export function PersonnageDetail({
   const assignedPlayer = players.find((p) => p.id === (pj.user_id ?? ""));
   const currentLevel = pj.stats?.niveau ?? 1;
   const derivedCurrentAttacks = getDerivedAttacks(currentLevel, caract as Record<string, number>);
-  const derivedCurrentPvMax = getDerivedPvMax(currentLevel, pj.stats);
+  const derivedCurrentPvMax = Math.max(Number(pj.stats?.pv_max ?? 0), Number(pj.stats?.pv ?? 0));
   const targetLevel = currentLevel + 1;
   const pointsSpent = pendingRanks.reduce(
     (acc, curr) => acc + getCost(curr.rang),
@@ -1047,7 +1045,7 @@ export function PersonnageDetail({
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
               await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);
-              onEditSuccess(); 
+              // Ne pas appeler onEditSuccess() ici : cela rechargerait le pj et resetterait l'onglet actif
             }}
           />
         )}
