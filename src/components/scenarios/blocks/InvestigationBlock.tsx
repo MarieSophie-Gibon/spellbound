@@ -1,5 +1,15 @@
 import { useState } from "react";
 import { Search, Dices, CheckCircle2, XCircle, Plus, Trash2, ChevronDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CheckTest {
   title?: string;
@@ -27,6 +37,15 @@ interface InvestigationBlockProps {
 }
 
 const STATS = ["FOR", "CON", "AGI", "PER", "INT", "CHA", "VOL"];
+const STAT_LABELS: Record<string, string> = {
+  FOR: "Force",
+  CON: "Constitution",
+  AGI: "Agilite",
+  PER: "Perception",
+  INT: "Intelligence",
+  CHA: "Charisme",
+  VOL: "Volonte",
+};
 
 function migrateTests(data: InvestigationBlockData): CheckTest[] {
   if (data.tests && data.tests.length > 0) return data.tests;
@@ -109,7 +128,9 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
 
         {/* TESTS */}
         <div className="flex flex-col gap-5">
-          {tests.map((test, index) => (
+          {tests.map((test, index) => {
+            const currentStat = test.stat || "PER";
+            return (
             <div key={index} className="flex flex-col gap-3 border border-sky-500/15 rounded-xl p-3 bg-black/10">
 
               {/* TEST HEADER: titre + supprimer */}
@@ -135,15 +156,43 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
               {/* MÉCANIQUE (JET ET DD) */}
               <div className="flex flex-wrap items-center gap-3 bg-black/20 border border-sky-500/10 rounded-xl px-3 py-2">
                 <div className="flex items-center gap-3 flex-1 min-w-50">
-                  <select
-                    value={test.stat || "PER"}
-                    onChange={(e) => updateTest(index, { stat: e.target.value })}
-                    className="bg-black/30 border border-sky-500/20 rounded-lg px-3 py-1.5 text-sm text-white outline-none focus:border-sky-400/50 appearance-none cursor-pointer"
+                  <Select
+                    value={currentStat}
+                    onValueChange={(value) => updateTest(index, { stat: value })}
                   >
-                    {STATS.map(s => (
-                      <option key={s} value={s} className="bg-[#1E1941]">{s}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-8 min-w-44 bg-black/30 border border-sky-500/20 rounded-lg px-2.5 py-1.5 text-sm text-white focus:border-sky-400/45 focus:ring-2 focus:ring-sky-400/15">
+                      <SelectValue placeholder="PER">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="px-1.5 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-[10px] uppercase tracking-wide font-semibold text-sky-200">
+                            {currentStat}
+                          </span>
+                          <span className="text-[12px] text-white/70 truncate">
+                            {STAT_LABELS[currentStat] || currentStat}
+                          </span>
+                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="z-60 bg-[#1E1941]/95 border border-sky-500/25 text-white rounded-xl shadow-xl shadow-black/40">
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px] uppercase tracking-widest text-sky-300/55 px-2 py-1">
+                          Caracteristique
+                        </SelectLabel>
+                        <SelectSeparator className="bg-sky-500/15" />
+                        {STATS.map((s) => (
+                          <SelectItem
+                            key={s}
+                            value={s}
+                            className="text-[12px] data-highlighted:bg-sky-500/15 data-highlighted:text-sky-100 data-[state=checked]:bg-sky-500/12"
+                          >
+                            <div className="flex items-center justify-between w-full gap-3">
+                              <span className="text-[10px] uppercase tracking-wide font-semibold text-sky-200/85">{s}</span>
+                              <span className="text-[11px] text-white/55">{STAT_LABELS[s]}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
 
                   <div className="flex items-center gap-2 bg-black/30 border border-sky-500/20 rounded-lg px-3 py-1.5 focus-within:border-sky-400/50 transition-colors">
                     <span className="text-[11px] text-sky-400/60 font-bold">DD</span>
@@ -197,7 +246,8 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
               </div>
 
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* AJOUTER UN TEST */}
