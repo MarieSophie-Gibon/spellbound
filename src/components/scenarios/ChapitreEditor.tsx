@@ -337,9 +337,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
       case 'investigation':
         return (
-          <div className={!isEditing ? "pointer-events-none" : ""}>
-            <InvestigationBlock data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
-          </div>
+          <InvestigationBlock data={block.data} onChange={(newData) => updateBlock(block.id, newData)} isEditing={isEditing} />
         );
 
       case 'npc':
