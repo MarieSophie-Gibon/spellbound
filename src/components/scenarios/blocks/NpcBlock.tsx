@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Users, Search, MessageSquare, Info, X, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -32,6 +32,18 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
   const [showWizard, setShowWizard] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const hasValidCampaignId = isValidUuid(campaignId);
+  const contexteRef = useRef<HTMLTextAreaElement>(null);
+  const informationsRef = useRef<HTMLTextAreaElement>(null);
+
+  // Initialise les hauteurs des textareas au montage et quand le contenu change
+  useEffect(() => {
+    [contexteRef, informationsRef].forEach(ref => {
+      if (ref.current) {
+        ref.current.style.height = "auto";
+        ref.current.style.height = `${ref.current.scrollHeight}px`;
+      }
+    });
+  }, [data.npcId, data.contexte, data.informations]);
 
   // Recherche des PNJs dans la base de données
   useEffect(() => {
@@ -131,7 +143,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
 
   // Si le PNJ est sélectionné, on affiche l'interface du bloc
   return (
-    <div className="flex border border-violet-500/20 bg-violet-500/5 rounded-2xl overflow-hidden shadow-lg relative group/block">
+    <div className="flex items-start border border-violet-500/20 bg-violet-500/5 rounded-2xl overflow-visible shadow-lg relative group/block">
       
       {/* Bouton pour changer de PNJ */}
       <button 
@@ -169,6 +181,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
             <div className="flex-1">
               <h4 className="text-[11px] uppercase tracking-widest text-white/50 mb-1.5">Contexte / Attitude</h4>
               <textarea
+                ref={contexteRef}
                 value={data.contexte || ""}
                 onChange={(e) => onChange({ contexte: e.target.value })}
                 placeholder="Que fait-il quand les joueurs arrivent ? Quelle est son humeur ?"
@@ -192,6 +205,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
             <div className="flex-1">
               <h4 className="text-[11px] uppercase tracking-widest text-violet-300 mb-1.5 font-medium">Informations clés</h4>
               <textarea
+                ref={informationsRef}
                 value={data.informations || ""}
                 onChange={(e) => onChange({ informations: e.target.value })}
                 placeholder="Quels secrets détient-il ? Que peut-il révéler aux joueurs ?"
