@@ -48,6 +48,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
     const [assigningItemKey, setAssigningItemKey] = useState<string | null>(null);
     const [assignedKeys, setAssignedKeys] = useState<Set<string>>(new Set());
     const [assigningPjId, setAssigningPjId] = useState<string | null>(null);
+    const [assignError, setAssignError] = useState<string | null>(null);
     const assignRef = useRef<HTMLDivElement>(null);
 
     const { data: pjs } = usePJs(campaignId);
@@ -137,19 +138,24 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
     const assignToPJ = async (item: LootItem, pjId: string) => {
         const itemType = TABLE_TO_ITEM_TYPE[item.table] ?? "equipement";
         setAssigningPjId(pjId);
-        await supabase.from("pj_inventaire").insert({
+        setAssignError(null);
+        const { error } = await supabase.from("pj_inventaire").insert({
             pj_id: pjId,
             item_type: itemType,
-            item_id: item.id,
+            item_id: null,
             nom_custom: item.nom,
-            description_custom: item.stat ?? "",
+            description_custom: item.description ?? item.stat ?? "",
             qte: item.quantite,
             is_equipped: false,
         });
+        setAssigningPjId(null);
+        if (error) {
+            setAssignError(error.message);
+            return;
+        }
         const key = `${item.id}:${item.table}`;
         setAssignedKeys(prev => new Set(prev).add(key));
         setAssigningItemKey(null);
-        setAssigningPjId(null);
         setTimeout(() => setAssignedKeys(prev => { const s = new Set(prev); s.delete(key); return s; }), 2000);
     };
 
@@ -282,6 +288,9 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                                 <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-white/30 border-b border-white/5">
                                                     Attribuer à…
                                                 </div>
+                                                {assignError && (
+                                                    <div className="px-3 py-2 text-[10px] text-red-400 bg-red-500/10 border-b border-red-500/20">{assignError}</div>
+                                                )}
                                                 {pjs.map(pj => (
                                                     <button
                                                         key={pj.id}
