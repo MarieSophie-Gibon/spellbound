@@ -86,7 +86,7 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
     fetchTable();
   }, [formData.item_type, isModalOpen]);
 
-  const handleCurrencyChange = async (type: 'pa' | 'po' | 'pc', val: number) => {
+  const _handleCurrencyChange = async (type: 'pa' | 'po' | 'pc', val: number) => {
     if (type === 'pa') setPa(val);
     if (type === 'po') setPo(val);
     if (type === 'pc') setPc(val);

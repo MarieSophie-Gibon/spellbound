@@ -257,7 +257,7 @@ export function PersonnageDetail({
       const table = type === "pnj" ? "pnj" : "pj";
 
       const derivedAttacksForSave = getDerivedAttacks(editNiveau, editCaract as unknown as Record<string, number>);
-      const baseStatsForSave = {
+      const _baseStatsForSave = {
         ...(pj.stats ?? {}),
         caracteristiques: editCaract,
         dr_qty: editDrQty,
@@ -368,7 +368,7 @@ export function PersonnageDetail({
 
       const stats = pj.stats ?? {};
       const caract = stats.caracteristiques ?? {};
-      const con = Number(caract.CON ?? 0);
+      const _con = Number(caract.CON ?? 0);
       const forStat = Number(caract.FOR ?? 0);
       const agi = Number(caract.AGI ?? 0);
       const vol = Number(caract.VOL ?? 0);
