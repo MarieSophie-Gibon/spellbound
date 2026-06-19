@@ -230,6 +230,38 @@ export interface CampaignStats {
   profils: number
 }
 
+export interface CampaignProgress {
+  totalChapitres: number
+  completedChapitres: number
+  totalScenarios: number
+}
+
+export function useCampaignProgress(campaignId: string) {
+  return useQuery({
+    queryKey: ['campaignProgress', campaignId],
+    queryFn: async (): Promise<CampaignProgress> => {
+      const { data: scenarios } = await supabase
+        .from('scenarios')
+        .select('id')
+        .eq('campaign_id', campaignId)
+
+      const totalScenarios = scenarios?.length ?? 0
+      if (totalScenarios === 0) return { totalChapitres: 0, completedChapitres: 0, totalScenarios: 0 }
+
+      const scenarioIds = scenarios!.map((s) => s.id)
+      const { data: chapitres } = await supabase
+        .from('chapitres')
+        .select('id, completed')
+        .in('scenario_id', scenarioIds)
+
+      const totalChapitres = chapitres?.length ?? 0
+      const completedChapitres = chapitres?.filter((c) => c.completed).length ?? 0
+
+      return { totalChapitres, completedChapitres, totalScenarios }
+    },
+  })
+}
+
 export function useCampaignStats(campaignId: string) {
   return useQuery({
     queryKey: ['campaignStats', campaignId],
@@ -263,5 +295,37 @@ export function useDuplicateCampaign() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
     },
+  })
+}
+
+export interface RevealedPnj {
+  id: string
+  name: string
+  image_url: string | null
+  description: string | null
+  revealed_at: string
+}
+
+export function useRevealedPnjs(campaignId: string) {
+  return useQuery({
+    queryKey: ['revealedPnjs', campaignId],
+    queryFn: async (): Promise<RevealedPnj[]> => {
+      const { data, error } = await supabase
+        .from('campaign_revealed_pnjs')
+        .select('revealed_at, pnj:pnj_id(id, name, image_url, description)')
+        .eq('campaign_id', campaignId)
+        .order('revealed_at', { ascending: true })
+
+      if (error) throw error
+
+      return (data ?? []).map((row: any) => ({
+        id: row.pnj.id,
+        name: row.pnj.name,
+        image_url: row.pnj.image_url,
+        description: row.pnj.description,
+        revealed_at: row.revealed_at,
+      }))
+    },
+    enabled: !!campaignId,
   })
 }

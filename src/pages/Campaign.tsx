@@ -1,7 +1,7 @@
 import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
-import { useCampaignStats, useCreateCampaignInvitation } from "@/hooks/useCampaigns";
-import { Users, Skull, BookMarked, CalendarDays, Ticket, Copy, Loader2 } from "lucide-react";
+import { useCampaignStats, useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
+import { Users, Skull, BookMarked, CalendarDays, Ticket, Copy, Loader2, UserSearch } from "lucide-react";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useState } from "react";
@@ -15,6 +15,8 @@ export function CampaignHome({ campaign }: CampaignProps) {
     const isMJ = role === "mj";
     const bgImage = campaign.image_url || '/default-bg.jpg';
     const { data: stats } = useCampaignStats(campaign.id);
+    const { data: progress } = useCampaignProgress(campaign.id);
+    const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
     const createInvitation = useCreateCampaignInvitation();
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [inviteError, setInviteError] = useState<string | null>(null);
@@ -79,6 +81,33 @@ export function CampaignHome({ campaign }: CampaignProps) {
                             </div>
                         </>
                     )}
+
+                    {/* Barre de progression de la campagne */}
+                    {(progress?.totalChapitres ?? 0) > 0 && (
+                        <>
+                            <div className="h-px bg-white/10 my-0.5" />
+                            <div className="space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[10px] uppercase tracking-widest text-white/40">Progression</span>
+                                    <span className="text-[11px] font-semibold text-white/60 tabular-nums">
+                                        {progress!.completedChapitres}/{progress!.totalChapitres}
+                                    </span>
+                                </div>
+                                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full rounded-full transition-all duration-500"
+                                        style={{
+                                            width: `${Math.round((progress!.completedChapitres / progress!.totalChapitres) * 100)}%`,
+                                            background: "linear-gradient(90deg, #E3CCCD 0%, #c9a8aa 100%)",
+                                        }}
+                                    />
+                                </div>
+                                <span className="text-[10px] text-white/30">
+                                    {progress!.totalScenarios} scénario{progress!.totalScenarios > 1 ? "s" : ""}
+                                </span>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {isMJ && (
@@ -117,6 +146,40 @@ export function CampaignHome({ campaign }: CampaignProps) {
                     </div>
                 )}
             </div>
+
+            {/* PNJs rencontrés */}
+            {(revealedPnjs?.length ?? 0) > 0 && (
+                <div className="max-w-6xl mx-auto mb-10">
+                    <div className="flex items-center gap-2 mb-4">
+                        <UserSearch className="w-4 h-4 text-violet-400/70" />
+                        <h2 className="text-[11px] uppercase tracking-widest text-violet-300/60 font-semibold">PNJs rencontrés</h2>
+                    </div>
+                    <div className="flex flex-wrap gap-4">
+                        {revealedPnjs!.map((pnj) => (
+                            <div
+                                key={pnj.id}
+                                className="flex flex-col items-center gap-2 w-24 group"
+                            >
+                                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-violet-500/30 bg-white/5 shadow-lg group-hover:border-violet-400/60 transition-colors">
+                                    <img
+                                        src={pnj.image_url || '/default-avatar.png'}
+                                        alt={pnj.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <span className="text-[11px] text-white/70 text-center leading-tight font-medium group-hover:text-white transition-colors">
+                                    {pnj.name}
+                                </span>
+                                {pnj.description && (
+                                    <span className="text-[10px] text-white/30 text-center leading-tight line-clamp-2">
+                                        {pnj.description}
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Liste design des personnages joueurs */}
             <div className="max-w-6xl mx-auto">

@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2 } from "lucide-react";
+import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2, CheckCircle2 } from "lucide-react";
 
 interface Chapitre {
   id: string;
   scenario_id: string;
   title: string;
   ordre: number;
+  completed?: boolean;
 }
 
 interface Scenario {
@@ -29,6 +30,7 @@ interface ScenarioSidebarProps {
   onCreateChapitre: (scenarioId: string) => void;
   onDeleteScenario: (id: string, title: string) => void;
   onDeleteChapitre: (id: string, title: string) => void;
+  onToggleCompleted: (id: string, current: boolean) => void;
   onBack: () => void;
 }
 
@@ -46,6 +48,7 @@ export function ScenarioSidebar({
   onCreateChapitre,
   onDeleteScenario,
   onDeleteChapitre,
+  onToggleCompleted,
   onBack,
 }: ScenarioSidebarProps) {
   return (
@@ -131,19 +134,35 @@ export function ScenarioSidebar({
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
-                            <span className="truncate">{chapitre.title}</span>
+                            <span className={`truncate ${chapitre.completed ? "line-through text-white/30" : ""}`}>{chapitre.title}</span>
                           </div>
                           
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteChapitre(chapitre.id, chapitre.title);
-                            }}
-                            className="p-1 opacity-0 group-hover/item:opacity-100 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all shrink-0"
-                            title="Supprimer le chapitre"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleCompleted(chapitre.id, !!chapitre.completed);
+                              }}
+                              className={`p-1 rounded-md transition-all ${
+                                chapitre.completed
+                                  ? "text-emerald-400 opacity-100"
+                                  : "opacity-0 group-hover/item:opacity-100 text-white/30 hover:text-emerald-400"
+                              }`}
+                              title={chapitre.completed ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteChapitre(chapitre.id, chapitre.title);
+                              }}
+                              className="p-1 opacity-0 group-hover/item:opacity-100 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all shrink-0"
+                              title="Supprimer le chapitre"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}

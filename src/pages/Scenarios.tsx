@@ -93,7 +93,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       if (scIds.length > 0) {
         const { data: chData } = await supabase
           .from("chapitres")
-          .select("id, scenario_id, title, ordre")
+          .select("id, scenario_id, title, ordre, completed")
           .in("scenario_id", scIds)
           .order("ordre", { ascending: true });
           
@@ -115,6 +115,34 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       setSelectedChapitreId(chapitreFromQuery);
     }
   }, [searchParams]);
+
+  const handleToggleCompleted = async (chapitreId: string, current: boolean) => {
+    await supabase.from("chapitres").update({ completed: !current }).eq("id", chapitreId);
+    setChapitres((prev) => prev.map((c) => c.id === chapitreId ? { ...c, completed: !current } : c));
+
+    // Quand on marque un chapitre comme réalisé, on révèle les PNJs de ses blocs NPC
+    if (!current) {
+      const { data: chapData } = await supabase
+        .from("chapitres")
+        .select("content")
+        .eq("id", chapitreId)
+        .single();
+
+      const blocks: any[] = chapData?.content ?? [];
+      const npcIds: string[] = blocks
+        .filter((b) => b.type === "npc" && b.data?.npcId)
+        .map((b) => b.data.npcId);
+
+      if (npcIds.length > 0) {
+        await supabase
+          .from("campaign_revealed_pnjs")
+          .upsert(
+            npcIds.map((pnj_id) => ({ campaign_id: campaignId, pnj_id })),
+            { onConflict: "campaign_id,pnj_id" }
+          );
+      }
+    }
+  };
 
   const handleToggleScenario = (id: string) => {
     setExpandedScenarios((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -162,6 +190,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       onCreateChapitre={(scenarioId) => setChapitreModalConfig({ isOpen: true, scenarioId })}
       onDeleteScenario={(id, title) => setDeleteTarget({ id, type: 'scenario', title })}
       onDeleteChapitre={(id, title) => setDeleteTarget({ id, type: 'chapitre', title })}
+      onToggleCompleted={handleToggleCompleted}
       onBack={onBack}
     />
   );
