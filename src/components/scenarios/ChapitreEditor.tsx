@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
-  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen
+  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import { LocationBlock } from "./blocks/LocationBlock";
@@ -12,6 +12,7 @@ import { LootBlock } from "./blocks/LootBlock";
 import { InvestigationBlock } from "./blocks/InvestigationBlock";
 import { NpcBlock } from "./blocks/NpcBlock";
 import { EnemyBlock } from "./blocks/EnemyBlock";
+import { MJBlock } from "./blocks/MJBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -21,7 +22,7 @@ interface ChapitreEditorProps {
   onOpenCombatDashboard?: (chapitreId: string) => void;
 }
 
-type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy';
+type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note';
 
 interface Block {
   id: string;
@@ -46,6 +47,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   // États pour le Drag & Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Pour défiler automatiquement vers le nouveau bloc
@@ -143,6 +145,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "", failure: "" }
         : type === 'npc' ? { npcId: undefined, nom: undefined, imageUrl: undefined }
         : type === 'enemy' ? { enemyId: undefined, nom: undefined, imageUrl: undefined }
+        : type === 'mj_note' ? { session: "", note: "", anchorBlockId: "", position: "below" }
         : {},
     };
     setBlocks([...blocks, newBlock]);
@@ -182,6 +185,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const handleDragStart = (e: React.DragEvent, index: number) => {
     if (!isEditing) return e.preventDefault();
     setDraggedIndex(index);
+    setDraggedBlockId(blocks[index]?.id ?? null);
     setTimeout(() => {
       if (e.target instanceof HTMLElement) e.target.style.opacity = '0.4';
     }, 0);
@@ -198,6 +202,24 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === targetIndex) return;
 
+    const sourceBlock = blocks[draggedIndex];
+    const targetBlock = blocks[targetIndex];
+
+    // Drag & drop de post-it sur un bloc pour l'attacher
+    if (sourceBlock?.type === 'mj_note' && targetBlock?.type !== 'mj_note') {
+      const nextBlocks = blocks.map((b) =>
+        b.id === sourceBlock.id
+          ? { ...b, data: { ...b.data, anchorBlockId: targetBlock.id, position: b.data?.position || 'below' } }
+          : b
+      );
+      setBlocks(nextBlocks);
+      setHasChanges(true);
+      setDraggedIndex(null);
+      setDraggedBlockId(null);
+      setDragOverIndex(null);
+      return;
+    }
+
     const newBlocks = [...blocks];
     const [movedBlock] = newBlocks.splice(draggedIndex, 1);
     newBlocks.splice(targetIndex, 0, movedBlock);
@@ -205,12 +227,14 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     setBlocks(newBlocks);
     setHasChanges(true);
     setDraggedIndex(null);
+    setDraggedBlockId(null);
     setDragOverIndex(null);
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
     if (e.target instanceof HTMLElement) e.target.style.opacity = '1';
     setDraggedIndex(null);
+    setDraggedBlockId(null);
     setDragOverIndex(null);
   };
 
@@ -369,6 +393,25 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           </div>
         );
 
+      case 'mj_note': {
+        const anchor = blocks.find((b) => b.id === block.data?.anchorBlockId && b.type !== 'mj_note');
+        const attachedToLabel = anchor
+          ? `${anchor.type.toUpperCase()} - ${(anchor.data?.title || anchor.data?.nom || anchor.data?.text || "Bloc").slice(0, 36)}`
+          : null;
+        const pos = block.data?.position ?? "below";
+
+        return (
+          <MJBlock
+            data={block.data}
+            isEditing={isEditing}
+            attachedToLabel={attachedToLabel}
+            fullWidth={!!anchor && pos !== "right"}
+            onDetach={anchor ? () => updateBlock(block.id, { anchorBlockId: "" }) : undefined}
+            onChange={(newData) => updateBlock(block.id, newData)}
+          />
+        );
+      }
+
         default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
@@ -477,46 +520,99 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             </p>
           ) : (
             <div className="space-y-4">
-              {blocks.map((block, index) => (
-                <div
-                  key={block.id}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={(e) => handleDrop(e, index)}
-                  className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
-                    isEditing && dragOverIndex === index ? "border-t-2 border-[#E3CCCD] bg-white/5" : ""
-                  } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : ""}`}
-                >
-                  {/* Actions Rapides (Grip & Delete) - Visibles qu'en édition */}
-                  {isEditing && (
-                    <div className="opacity-30 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col items-center gap-1 pt-1 w-7 md:w-10 shrink-0 transition-opacity">
-                      <button
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnd={handleDragEnd}
-                        className="p-1 md:p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded cursor-grab"
-                        title="Déplacer ce bloc"
-                      >
-                        <GripVertical className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => removeBlock(block.id)}
-                        className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
-                        title="Supprimer ce bloc"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+              {blocks.map((block, index) => {
+                const isMjNote = block.type === 'mj_note';
+                const hasValidAnchor = !!block.data?.anchorBlockId && blocks.some((b) => b.id === block.data.anchorBlockId && b.type !== 'mj_note');
+
+                if (isMjNote && hasValidAnchor) {
+                  return null;
+                }
+
+                const notesAbove = blocks.filter((n) =>
+                  n.type === 'mj_note' && n.data?.anchorBlockId === block.id && (n.data?.position || 'below') === 'above'
+                );
+                const notesRight = blocks.filter((n) =>
+                  n.type === 'mj_note' && n.data?.anchorBlockId === block.id && n.data?.position === 'right'
+                );
+                const notesBelow = blocks.filter((n) =>
+                  n.type === 'mj_note' && n.data?.anchorBlockId === block.id && (n.data?.position || 'below') === 'below'
+                );
+
+                const draggedBlock = blocks.find((b) => b.id === draggedBlockId);
+                const canAttachHere = isEditing && draggedBlock?.type === 'mj_note' && block.type !== 'mj_note' && draggedBlock.id !== block.id;
+
+                return (
+                  <div
+                    key={block.id}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDrop={(e) => handleDrop(e, index)}
+                    className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
+                      isEditing && dragOverIndex === index
+                        ? canAttachHere
+                          ? "ring-1 ring-amber-300/60 bg-amber-300/6"
+                          : "border-t-2 border-[#E3CCCD] bg-white/5"
+                        : ""
+                    } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : ""}`}
+                  >
+                    {/* Actions Rapides (Grip & Delete) - Visibles qu'en édition */}
+                    {isEditing && (
+                      <div className="opacity-30 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col items-center gap-1 pt-1 w-7 md:w-10 shrink-0 transition-opacity">
+                        <button
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragEnd={handleDragEnd}
+                          className="p-1 md:p-1.5 text-white/40 hover:text-white hover:bg-white/10 rounded cursor-grab"
+                          title="Déplacer ce bloc"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => removeBlock(block.id)}
+                          className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
+                          title="Supprimer ce bloc"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Wrapper factice pour compenser la largeur des actions en mode lecture */}
+                    {!isEditing && <div className="w-7 md:w-10 shrink-0 hidden md:block" />}
+
+                    {/* Contenu du bloc + post-its attachés */}
+                    <div className="flex-1 min-w-0 pt-1 pointer-events-auto space-y-2">
+                      {notesAbove.length > 0 && (
+                        <div className="space-y-2">
+                          {notesAbove.map((note) => (
+                            <div key={note.id}>{renderBlock(note)}</div>
+                          ))}
+                        </div>
+                      )}
+
+                      {notesRight.length > 0 ? (
+                        <div className="flex flex-col xl:flex-row gap-3 items-start">
+                          <div className="flex-1 min-w-0">{renderBlock(block)}</div>
+                          <div className="w-full xl:w-80 space-y-2 shrink-0">
+                            {notesRight.map((note) => (
+                              <div key={note.id}>{renderBlock(note)}</div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        renderBlock(block)
+                      )}
+
+                      {notesBelow.length > 0 && (
+                        <div className="space-y-2">
+                          {notesBelow.map((note) => (
+                            <div key={note.id}>{renderBlock(note)}</div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {/* Wrapper factice pour compenser la largeur des actions en mode lecture */}
-                  {!isEditing && <div className="w-7 md:w-10 shrink-0 hidden md:block" />}
-
-                  {/* Contenu du bloc */}
-                  <div className="flex-1 min-w-0 pt-1 pointer-events-auto">
-                    {renderBlock(block)}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -560,6 +656,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               </button>
               <button onClick={() => addBlock('enemy')} className="flex items-center gap-3 px-3 py-2 hover:bg-red-500/10 rounded-xl text-[12px] text-red-300 transition-colors w-full text-left">
                 <Swords className="w-4 h-4 text-red-400/50" /> Ennemi / Combat
+              </button>
+              <button onClick={() => addBlock('mj_note')} className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-200 transition-colors w-full text-left">
+                <StickyNote className="w-4 h-4 text-amber-300/70" /> Note MJ (Post-it)
               </button>
             </div>
           </div>
