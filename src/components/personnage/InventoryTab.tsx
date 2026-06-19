@@ -86,13 +86,6 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
     fetchTable();
   }, [formData.item_type, isModalOpen]);
 
-  const _handleCurrencyChange = async (type: 'pa' | 'po' | 'pc', val: number) => {
-    if (type === 'pa') setPa(val);
-    if (type === 'po') setPo(val);
-    if (type === 'pc') setPc(val);
-    onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: po, bourse_pc: pc, [`bourse_${type}`]: val });
-  };
-
   // On ajoute un paramètre defaultType pour savoir depuis quel bloc on a cliqué
   const handleOpenModal = (item?: any, defaultType: ItemType = "arme_contact") => {
     if (item && !item.is_from_profile) {
