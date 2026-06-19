@@ -106,6 +106,38 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   }, [selectedCombatantId]);
 
   useEffect(() => {
+    if (!selectedCombatantId) return;
+
+    const clampSelectedCard = () => {
+      const cardRect = cardRef.current?.getBoundingClientRect();
+      if (!cardRect) return;
+
+      setCardPositions((prev) => {
+        const current = prev[selectedCombatantId] ?? getDefaultCardPosition();
+
+        const minX = 8;
+        const minY = 8;
+        const maxX = Math.max(minX, window.innerWidth - cardRect.width - 8);
+        const maxY = Math.max(minY, window.innerHeight - cardRect.height - 8);
+
+        const x = Math.max(minX, Math.min(maxX, current.x));
+        const y = Math.max(minY, Math.min(maxY, current.y));
+
+        if (x === current.x && y === current.y) return prev;
+        return { ...prev, [selectedCombatantId]: { x, y } };
+      });
+    };
+
+    const frame = requestAnimationFrame(clampSelectedCard);
+    window.addEventListener("resize", clampSelectedCard);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", clampSelectedCard);
+    };
+  }, [selectedCombatantId, selectedCombatant]);
+
+  useEffect(() => {
     if (!draggingCardId) return;
 
     const onMove = (e: PointerEvent) => {

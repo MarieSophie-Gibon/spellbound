@@ -19,6 +19,8 @@ interface ChapitreEditorProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   campaignId: string;
+  completed?: boolean;
+  onToggleCompleted?: () => void;
   onOpenCombatDashboard?: (chapitreId: string) => void;
 }
 
@@ -30,7 +32,7 @@ interface Block {
   data: any;
 }
 
-export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, onOpenCombatDashboard }: ChapitreEditorProps) {
+export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
   const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -439,7 +441,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         
         {/* Titre et Auto-Save Côte à Côte */}
         <div className="flex items-center gap-4 min-w-0 pr-4">
-          <h1 className="text-xl md:text-2xl font-serif text-white tracking-wide truncate leading-none">
+          <h1 className={`text-xl md:text-2xl font-serif tracking-wide truncate leading-none transition-colors ${completed ? 'text-white/40 line-through' : 'text-white'}`}>
             {chapitre.title}
           </h1>
           
@@ -458,7 +460,23 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
-          
+
+          {/* Bouton Réalisé */}
+          {onToggleCompleted && (
+            <button
+              onClick={onToggleCompleted}
+              title={completed ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all ${
+                completed
+                  ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-400'
+                  : 'border-white/10 bg-white/5 text-white/40 hover:border-emerald-400/30 hover:text-emerald-300'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{completed ? 'Réalisé' : 'Réalisé ?'}</span>
+            </button>
+          )}
+
           {/* SWITCH SEGMENTÉ : LECTURE / ÉDITION */}
           <div className="flex p-1 bg-black/40 rounded-lg border border-white/10">
             <button

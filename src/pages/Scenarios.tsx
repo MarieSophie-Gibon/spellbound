@@ -204,6 +204,11 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(v => !v)}
             campaignId={campaignId}
+            completed={!!chapitres.find(c => c.id === selectedChapitreId)?.completed}
+            onToggleCompleted={() => {
+              const ch = chapitres.find(c => c.id === selectedChapitreId);
+              if (ch) handleToggleCompleted(ch.id, !!ch.completed);
+            }}
             onOpenCombatDashboard={(chapId) => navigate(`/campaign/combat?chapitreId=${chapId}`)}
           />
         ) : selectedScenarioId ? (() => {

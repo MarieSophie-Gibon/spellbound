@@ -297,22 +297,31 @@ export function EnemyBlock({ campaignId, data, onChange, onOpenCombatDashboard }
                             {data.entityType === 'monster' ? "Monstre" : "PNJ Hostile"}
                         </span>
 
-                        <button
-                            onClick={() => {
-                                if (!data.combatEngaged) {
-                                    onChange({ combatEngaged: true });
-                                }
-                                onOpenCombatDashboard?.();
-                            }}
-                            className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all cursor-pointer pointer-events-auto ${data.combatEngaged
-                                ? 'bg-red-500/30 border-red-400/50 text-red-100 hover:bg-red-500/50 hover:border-red-400/80 active:scale-95'
-                                : 'bg-black/30 border-red-500/40 text-red-300 hover:bg-red-500/25 hover:border-red-400/60 hover:text-red-200 active:scale-95'
-                                }`}
-                            title="Ouvrir le dashboard de combat"
-                        >
-                            <Swords className="w-3.5 h-3.5" />
-                            {data.combatEngaged ? 'En combat' : 'Combat'}
-                        </button>
+                        <div className="shrink-0 flex items-center gap-2 pointer-events-auto">
+                            <label className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-red-500/35 bg-black/30 text-[11px] text-red-200/90 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={!!data.combatEngaged}
+                                    onChange={(e) => onChange({ combatEngaged: e.target.checked })}
+                                    className="accent-red-500"
+                                />
+                                Engagé
+                            </label>
+
+                            <button
+                                onClick={() => {
+                                    if (!data.combatEngaged) {
+                                        onChange({ combatEngaged: true });
+                                    }
+                                    onOpenCombatDashboard?.();
+                                }}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-red-500/40 bg-black/30 text-red-300 hover:bg-red-500/25 hover:border-red-400/60 hover:text-red-200 text-[11px] font-medium transition-all active:scale-95"
+                                title="Ouvrir le dashboard de combat"
+                            >
+                                <Swords className="w-3.5 h-3.5" />
+                                Combat
+                            </button>
+                        </div>
                     </div>
                     <h3 className="text-lg font-serif text-white tracking-wide mt-1">{data.nom}</h3>
                 </div>
