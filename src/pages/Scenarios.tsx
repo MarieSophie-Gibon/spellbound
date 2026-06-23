@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { ScenarioSidebar } from "@/components/scenarios/ScenarioSidebar";
 import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioModals";
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";
-import { BookOpen, AlertTriangle } from "lucide-react";
+import { BookOpen, AlertTriangle, Edit3 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 interface ScenariosProps {
@@ -75,6 +75,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
 
   // Gestion des Modales
   const [showScenarioModal, setShowScenarioModal] = useState(false);
+  const [editingScenario, setEditingScenario] = useState<{ id: string; title: string; description: string | null } | null>(null);
   const [chapitreModalConfig, setChapitreModalConfig] = useState<{ isOpen: boolean; scenarioId: string }>({ isOpen: false, scenarioId: "" });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'scenario' | 'chapitre'; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -186,7 +187,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       onSelectChapitre={(id) => { setSelectedChapitreId(id); setSelectedScenarioId(null); }}
       onSelectScenario={(id) => { setSelectedScenarioId(id); setSelectedChapitreId(null); }}
       onToggleScenario={handleToggleScenario}
-      onCreateScenario={() => setShowScenarioModal(true)}
+      onCreateScenario={() => { setEditingScenario(null); setShowScenarioModal(true); }}
       onCreateChapitre={(scenarioId) => setChapitreModalConfig({ isOpen: true, scenarioId })}
       onDeleteScenario={(id, title) => setDeleteTarget({ id, type: 'scenario', title })}
       onDeleteChapitre={(id, title) => setDeleteTarget({ id, type: 'chapitre', title })}
@@ -218,7 +219,21 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
             <div className="flex-1 p-8 md:p-10 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
               <div className="max-w-2xl mx-auto space-y-8">
                 <div className="space-y-3">
-                  <h1 className="font-serif text-3xl text-white tracking-wider">{sc?.title}</h1>
+                  <div className="flex items-center justify-between gap-3">
+                    <h1 className="font-serif text-3xl text-white tracking-wider">{sc?.title}</h1>
+                    {sc && (
+                      <button
+                        onClick={() => {
+                          setEditingScenario({ id: sc.id, title: sc.title, description: sc.description });
+                          setShowScenarioModal(true);
+                        }}
+                        className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/15 bg-white/5 text-white/70 hover:text-white hover:bg-white/10 transition-colors text-[12px]"
+                        title="Modifier le scénario"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" /> Modifier
+                      </button>
+                    )}
+                  </div>
                   {sc?.description ? (
                     <p className="text-[14px] text-white/60 leading-relaxed whitespace-pre-wrap">{sc.description}</p>
                   ) : (
@@ -266,10 +281,15 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       {showScenarioModal && (
         <ScenarioModal
           campaignId={campaignId}
-          onClose={() => setShowScenarioModal(false)}
+          initialData={editingScenario ?? undefined}
+          onClose={() => {
+            setShowScenarioModal(false);
+            setEditingScenario(null);
+          }}
           onSuccess={() => {
             fetchData();
             setShowScenarioModal(false);
+            setEditingScenario(null);
           }}
         />
       )}
