@@ -123,7 +123,7 @@ export function ProfilWizard({
   // Step 3 – Voies
   const [voies, setVoies] = useState<(FamilleVoie & { _rangs: RangsState })[]>(
     initialData?.voies?.length
-      ? initialData.voies.map((v) => ({ ...v, _rangs: v.capacites as RangsState }))
+      ? initialData.voies.map((v) => ({ ...v, type: v.type || "profil", _rangs: v.capacites as RangsState }))
       : [makeEmptyVoie()],
   );
   const [expandedVoie, setExpandedVoie] = useState<number>(0);
@@ -198,19 +198,25 @@ export function ProfilWizard({
         const currentIds = voies.map((v) => v.id).filter(Boolean) as string[];
         const toDelete = existingIds.filter((id) => !currentIds.includes(id));
         if (toDelete.length) await supabase.from("voies").delete().in("id", toDelete);
+        // Use the profil's own campaign_id to keep voies consistent with the profil
+        const profilCampaignId = initialData.campaign_id !== undefined ? initialData.campaign_id : campaignId || null;
+        const profilIsCustom = profilCampaignId !== null;
         for (const v of voies) {
           const capacites = v._rangs;
+          const voieType = v.type?.trim() || "profil";
           if (v.id) {
-            await supabase.from("voies").update({ nom: v.nom.trim(), type: v.type, capacites }).eq("id", v.id);
+            const { error: updErr } = await supabase.from("voies").update({ nom: v.nom.trim(), type: voieType, capacites }).eq("id", v.id);
+            if (updErr) throw updErr;
           } else {
-            await supabase.from("voies").insert({
+            const { error: insErr } = await supabase.from("voies").insert({
               nom: v.nom.trim(),
-              type: v.type,
+              type: voieType,
               profil_id: initialData.id,
-              campaign_id: campaignId || null,
-              is_custom: !!campaignId,
+              campaign_id: profilCampaignId,
+              is_custom: profilIsCustom,
               capacites,
             });
+            if (insErr) throw insErr;
           }
         }
       } else {
@@ -240,9 +246,10 @@ export function ProfilWizard({
         if (profErr) throw profErr;
 
         for (const v of voies) {
+          const voieType = v.type?.trim() || "profil";
           const { error: voieErr } = await supabase.from("voies").insert({
             nom: v.nom.trim(),
-            type: v.type,
+            type: voieType,
             profil_id: newProfil.id,
             campaign_id: publicMode ? null : campaignId || null,
             is_custom: !!(campaignId && isPrivate),
@@ -479,7 +486,7 @@ export function ProfilWizard({
         {step === 3 && (
           <div className="space-y-3 animate-in slide-in-from-right-4 fade-in">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] text-white/50 italic">{voies.length} voie{voies.length > 1 ? "s" : ""} — un profil a généralement 3 voies.</p>
+              <p className="text-[11px] text-white/50 italic">{voies.length} voie{voies.length > 1 ? "s" : ""} — un profil a généralement 5 voies.</p>
               <button onClick={addVoie} className="flex items-center gap-1.5 px-3 py-1.5 border border-white/20 hover:border-[#E3CCCD]/40 text-white/60 hover:text-white text-[12px] rounded-lg transition-all">
                 <Plus className="w-3.5 h-3.5" /> Ajouter une voie
               </button>

@@ -467,6 +467,7 @@ export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumP
             lore: selectedProfil.lore,
             image_url: selectedProfil.image_url,
             data: selectedProfil.data,
+            campaign_id: selectedProfil.campaign_id,
             voies: selectedProfilVoies,
           }}
         />
