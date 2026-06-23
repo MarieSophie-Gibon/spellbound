@@ -2,6 +2,17 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { MapPin, UploadCloud, Trash2, Loader2 } from "lucide-react";
 
+function preserveScroll(fn: () => void) {
+  const sc = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
+  const savedTop = sc?.scrollTop ?? null;
+  const savedWindow = window.scrollY;
+  fn();
+  requestAnimationFrame(() => {
+    if (sc && savedTop !== null) sc.scrollTop = savedTop;
+    if (window.scrollY !== savedWindow) window.scrollTo({ top: savedWindow, behavior: "auto" });
+  });
+}
+
 interface LocationBlockProps {
     data: {
         title?: string;
@@ -76,14 +87,16 @@ export function LocationBlock({ data, onChange }: LocationBlockProps) {
                     <input
                         type="text"
                         value={data.title || ""}
-                        onChange={(e) => onChange({ title: e.target.value })}
+                        onChange={(e) => preserveScroll(() => onChange({ title: e.target.value }))}
+                        onKeyDown={(e) => e.stopPropagation()}
                         placeholder="Nom du lieu..."
                         className="flex-1 bg-transparent font-serif text-2xl outline-none placeholder:text-emerald-400/30 text-emerald-100"
                     />
                 </div>
                 <textarea
                     value={data.description || ""}
-                    onChange={(e) => onChange({ description: e.target.value })}
+                    onChange={(e) => preserveScroll(() => onChange({ description: e.target.value }))}
+                    onKeyDown={(e) => e.stopPropagation()}
                     placeholder="Décrivez l'ambiance, les odeurs, les sons, et ce que les joueurs voient en arrivant..."
                     className="w-full bg-transparent text-emerald-50/70 text-[14px] leading-relaxed outline-none resize-none overflow-hidden min-h-20 placeholder:text-emerald-100/20"
                     onInput={(e) => {

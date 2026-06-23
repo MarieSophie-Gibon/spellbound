@@ -16,6 +16,17 @@ interface MJBlockProps {
   onDetach?: () => void;
 }
 
+function preserveScroll(fn: () => void) {
+  const scrollContainer = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
+  const savedTop = scrollContainer?.scrollTop ?? null;
+  const savedWindow = window.scrollY;
+  fn();
+  requestAnimationFrame(() => {
+    if (scrollContainer && savedTop !== null) scrollContainer.scrollTop = savedTop;
+    if (window.scrollY !== savedWindow) window.scrollTo({ top: savedWindow, behavior: "auto" });
+  });
+}
+
 export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange, onDetach }: MJBlockProps) {
   const widthClass = fullWidth ? "w-full" : "max-w-xl";
   if (isEditing) {
@@ -47,7 +58,8 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
         </div>
         <textarea
           value={data.note || ""}
-          onChange={(e) => onChange({ note: e.target.value })}
+          onChange={(e) => preserveScroll(() => onChange({ note: e.target.value }))}
+          onKeyDown={(e) => e.stopPropagation()}
           placeholder="Notes rapides MJ : decisions des PJ, consequences, idees pour la prochaine session..."
           className="w-full bg-amber-50/60 border border-amber-800/20 rounded-lg px-3 py-2 text-[13px] leading-relaxed text-amber-950 placeholder:text-amber-800/50 outline-none resize-none overflow-hidden min-h-24"
           onInput={(e) => {
