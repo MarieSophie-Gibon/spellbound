@@ -4,7 +4,8 @@ import { supabase } from "@/lib/supabase";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
-  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote
+  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote,
+  Bookmark, BookmarkCheck, Navigation
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import { LocationBlock } from "./blocks/LocationBlock";
@@ -46,6 +47,39 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   // Menu d'ajout volant (Side Tab)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
+  // Repères (bookmarks)
+  const [isReperesOpen, setIsReperesOpen] = useState(false);
+  const blockRefsMap = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const getRepereLabel = (block: Block): string => {
+    switch (block.type) {
+      case 'location': return block.data?.title?.trim() || 'Lieu sans titre';
+      case 'npc': return block.data?.nom?.trim() || 'PNJ sans nom';
+      case 'enemy': return block.data?.nom?.trim() || 'Ennemi sans nom';
+      case 'investigation': return block.data?.title?.trim() || 'Enquête sans titre';
+      case 'loot': return block.data?.text?.trim()?.slice(0, 40) || 'Trésor';
+      case 'text': return (block.data?.text?.trim() || '').slice(0, 40) || 'Texte';
+      case 'quote': return (block.data?.text?.trim() || '').slice(0, 40) || 'Citation';
+      default: return block.type;
+    }
+  };
+
+  const scrollToBlock = (blockId: string) => {
+    const el = blockRefsMap.current[blockId];
+    if (el && scrollContainerRef.current) {
+      const containerTop = scrollContainerRef.current.getBoundingClientRect().top;
+      const elTop = el.getBoundingClientRect().top;
+      scrollContainerRef.current.scrollBy({ top: elTop - containerTop - 80, behavior: 'smooth' });
+    }
+    setIsReperesOpen(false);
+  };
+
+  const toggleRepere = (blockId: string) => {
+    updateBlock(blockId, { isRepere: !blocks.find(b => b.id === blockId)?.data?.isRepere });
+  };
+
+  const reperes = blocks.filter(b => b.data?.isRepere && b.type !== 'mj_note');
 
   // États pour le Drag & Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -456,6 +490,40 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             {chapitre.title}
           </h1>
           
+          {/* Repères — menu de navigation rapide */}
+          {reperes.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setIsReperesOpen(o => !o)}
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all ${
+                  isReperesOpen
+                    ? 'border-amber-400/50 bg-amber-400/10 text-amber-300'
+                    : 'border-white/10 bg-white/5 text-white/50 hover:text-white/80 hover:border-white/20'
+                }`}
+                title="Navigation rapide par repères"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                <span>Repères</span>
+                <span className="ml-0.5 text-[10px] opacity-60">({reperes.length})</span>
+              </button>
+              {isReperesOpen && (
+                <div className="absolute top-full left-0 mt-2 w-64 bg-[#1E1941]/98 border border-amber-400/20 rounded-xl shadow-2xl py-1.5 z-50 backdrop-blur-xl">
+                  <p className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-amber-300/60 border-b border-white/5 mb-1">Aller à…</p>
+                  {reperes.map((b) => (
+                    <button
+                      key={b.id}
+                      onClick={() => scrollToBlock(b.id)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-amber-400/8 transition-colors text-[12px] text-white/80 hover:text-white"
+                    >
+                      <BookmarkCheck className="w-3.5 h-3.5 shrink-0 text-amber-400/70" />
+                      <span className="truncate">{getRepereLabel(b)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Indicateur d'Auto-Save (Pilule avec Icônes) */}
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 border border-white/5 text-[10px] font-mono select-none">
             {isSaving ? (
@@ -598,9 +666,12 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                 return (
                   <div
                     key={block.id}
+                    ref={(el) => { blockRefsMap.current[block.id] = el; }}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDrop={(e) => handleDrop(e, index)}
                     className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
+                      block.data?.isRepere ? 'ring-1 ring-amber-400/20' : ''
+                    } ${
                       isEditing && dragOverIndex === index
                         ? canAttachHere
                           ? "ring-1 ring-amber-300/60 bg-amber-300/6"
@@ -608,7 +679,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                         : ""
                     } ${isEditing ? "hover:bg-white/5 focus-within:bg-white/5" : ""}`}
                   >
-                    {/* Actions Rapides (Grip & Delete) - Visibles qu'en édition */}
+                    {/* Actions Rapides (Grip, Repère & Delete) - Visibles qu'en édition */}
                     {isEditing && (
                       <div className="opacity-30 md:opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col items-center gap-1 pt-1 w-7 md:w-10 shrink-0 transition-opacity">
                         <button
@@ -620,6 +691,19 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                         >
                           <GripVertical className="w-4 h-4" />
                         </button>
+                        {block.type !== 'mj_note' && (
+                          <button
+                            onClick={() => toggleRepere(block.id)}
+                            className={`p-1 md:p-1.5 rounded transition-all ${
+                              block.data?.isRepere
+                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10'
+                                : 'text-white/40 hover:text-amber-400 hover:bg-amber-400/10'
+                            }`}
+                            title={block.data?.isRepere ? 'Retirer le repère' : 'Marquer comme repère'}
+                          >
+                            {block.data?.isRepere ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                          </button>
+                        )}
                         <button
                           onClick={() => removeBlock(block.id)}
                           className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
