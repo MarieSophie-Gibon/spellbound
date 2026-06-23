@@ -35,7 +35,25 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
   const contexteRef = useRef<HTMLTextAreaElement>(null);
   const informationsRef = useRef<HTMLTextAreaElement>(null);
 
-  // Initialise les hauteurs des textareas au montage et quand le contenu change
+  const preserveScrollAndChange = (patch: Partial<NpcBlockProps["data"]>) => {
+    const scrollContainer = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
+    const containerTop = scrollContainer?.scrollTop ?? null;
+    const windowTop = window.scrollY;
+
+    onChange(patch);
+
+    requestAnimationFrame(() => {
+      if (scrollContainer && containerTop !== null) {
+        scrollContainer.scrollTop = containerTop;
+      }
+      if (window.scrollY !== windowTop) {
+        window.scrollTo({ top: windowTop, behavior: "auto" });
+      }
+    });
+  };
+
+  // Initialise les hauteurs des textareas au montage/changement de PNJ.
+  // Evite un recalcul sur chaque frappe qui peut provoquer des sauts de scroll.
   useEffect(() => {
     [contexteRef, informationsRef].forEach(ref => {
       if (ref.current) {
@@ -43,7 +61,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
         ref.current.style.height = `${ref.current.scrollHeight}px`;
       }
     });
-  }, [data.npcId, data.contexte, data.informations]);
+  }, [data.npcId]);
 
   // Recherche des PNJs dans la base de données
   useEffect(() => {
@@ -183,7 +201,8 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
               <textarea
                 ref={contexteRef}
                 value={data.contexte || ""}
-                onChange={(e) => onChange({ contexte: e.target.value })}
+                onChange={(e) => preserveScrollAndChange({ contexte: e.target.value })}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Que fait-il quand les joueurs arrivent ? Quelle est son humeur ?"
                 className="w-full bg-transparent text-white/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 -ml-2 rounded-lg transition-colors"
                 onInput={(e) => {
@@ -207,7 +226,8 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
               <textarea
                 ref={informationsRef}
                 value={data.informations || ""}
-                onChange={(e) => onChange({ informations: e.target.value })}
+                onChange={(e) => preserveScrollAndChange({ informations: e.target.value })}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Quels secrets détient-il ? Que peut-il révéler aux joueurs ?"
                 className="w-full bg-transparent text-violet-100/90 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-15 placeholder:text-violet-200/30 focus:bg-violet-500/10 p-2 -ml-2 rounded-lg transition-colors"
                 onInput={(e) => {

@@ -55,6 +55,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   // Pour défiler automatiquement vers le nouveau bloc
   const bottomRef = useRef<HTMLDivElement>(null);
   const editorContentRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const preInputScrollTopRef = useRef<number | null>(null);
 
   // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
@@ -123,7 +125,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [blocks, isEditing, chapitreId]);
+  }, [isEditing, chapitreId]);
 
   // --- Bascule Lecture / Édition ---
   const toggleMode = (forceEdit?: boolean) => {
@@ -160,7 +162,16 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   };
 
   const updateBlock = (id: string, newData: any) => {
-    setBlocks(blocks.map(b => b.id === id ? { ...b, data: { ...b.data, ...newData } } : b));
+    const previousScrollTop = scrollContainerRef.current?.scrollTop ?? null;
+    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data: { ...b.data, ...newData } } : b)));
+    // Keep the editor viewport stable while textareas auto-resize during typing.
+    if (previousScrollTop !== null) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = previousScrollTop;
+        }
+      });
+    }
     setHasChanges(true);
   };
 
@@ -528,7 +539,32 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       </div>
 
       {/* ZONE PRINCIPALE DU CHAPITRE */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-thin scrollbar-thumb-white/10 relative">
+      <div
+        ref={scrollContainerRef}
+        data-chapitre-scroll="true"
+        className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-thin scrollbar-thumb-white/10 relative"
+        onKeyDownCapture={(e) => {
+          const target = e.target as HTMLElement;
+          const tagName = target.tagName;
+          if (tagName === "TEXTAREA" || tagName === "INPUT" || target.isContentEditable) {
+            preInputScrollTopRef.current = scrollContainerRef.current?.scrollTop ?? null;
+            e.stopPropagation();
+          }
+        }}
+        onInputCapture={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.tagName !== "TEXTAREA") return;
+
+          const expectedTop = preInputScrollTopRef.current;
+          if (expectedTop === null) return;
+
+          requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = expectedTop;
+            }
+          });
+        }}
+      >
         <div ref={editorContentRef} className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4">
 
           {/* BOUCLE SUR LES BLOCS */}
