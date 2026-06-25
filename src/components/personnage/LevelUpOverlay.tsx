@@ -197,11 +197,16 @@ export default function LevelUpOverlay({
           Points disponibles
         </span>
         <span
-          className={`text-3xl font-mono font-bold ${pointsRemaining === 0 ? "text-emerald-400" : "text-[#E3CCCD]"}`}
+          className={`text-3xl font-mono font-bold ${pointsRemaining === 0 ? "text-emerald-400" : pointsRemaining < 0 ? "text-red-400" : "text-[#E3CCCD]"}`}
         >
           {pointsRemaining}
         </span>
       </div>
+      {pointsRemaining < 0 && (
+        <div className="mb-4 rounded-xl border border-amber-400/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+          Attention: vous avez dépassé le nombre de points de compétence disponibles ({Math.abs(pointsRemaining)} point{Math.abs(pointsRemaining) > 1 ? "s" : ""} en trop). La sauvegarde reste autorisée.
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-white/10">
         {/* Liste des Voies possédées */}
@@ -269,14 +274,13 @@ export default function LevelUpOverlay({
                 </p>
               ) : (
                 <button
-                  disabled={pointsRemaining < cost}
                   onClick={() =>
-                    setPendingRanks((prev) => [
-                      ...prev,
+                    setPendingRanks([
+                      ...pendingRanks,
                       { voie_id: pathway.voie_id, rang: nextRank },
                     ])
                   }
-                  className="self-end flex items-center gap-1 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs rounded-lg disabled:opacity-30"
+                  className="self-end flex items-center gap-1 px-3 py-1 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs rounded-lg"
                 >
                   <Plus className="w-3 h-3" /> Acquérir
                 </button>
@@ -373,15 +377,14 @@ export default function LevelUpOverlay({
                     return (
                   <button
                     key={v.id}
-                    disabled={pointsRemaining < unlockCost || isLocked}
+                    disabled={isLocked}
                     onClick={() => {
-                      setPendingRanks((prev) => {
-                        const alreadyPicked = prev.some(
-                          (item: any) => item.voie_id === v.id && item.rang === nextRank,
-                        );
-                        if (alreadyPicked) return prev;
-                        return [...prev, { voie_id: v.id, rang: nextRank }];
-                      });
+                      const alreadyPicked = pendingRanks.some(
+                        (item: any) => item.voie_id === v.id && item.rang === nextRank,
+                      );
+                      if (!alreadyPicked) {
+                        setPendingRanks([...pendingRanks, { voie_id: v.id, rang: nextRank }]);
+                      }
                     }}
                     className="flex justify-between items-center p-3 bg-white/5 hover:bg-[#E3CCCD]/10 border border-white/10 rounded-xl text-left text-xs text-white transition-all disabled:opacity-30"
                   >
@@ -460,9 +463,8 @@ export default function LevelUpOverlay({
 
       <div className="shrink-0 pt-4 border-t border-white/10 flex justify-end">
         <button
-          disabled={pointsRemaining !== 0}
           onClick={handleSaveLevelUp}
-          className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-400 font-bold rounded-xl disabled:opacity-30 flex items-center gap-2"
+          className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-400 font-bold rounded-xl flex items-center gap-2"
         >
           <Check className="w-4 h-4" /> Confirmer le Niveau {targetLevel}
         </button>
