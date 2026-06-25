@@ -76,7 +76,7 @@ export function GrimoirePopupModal() {
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
-      <div className="relative w-full max-w-xl max-h-[75vh] rounded-2xl border border-white/15 bg-[#1a1635]/95 shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-4xl max-h-[75vh] rounded-2xl border border-white/15 bg-[#1a1635]/95 shadow-2xl flex flex-col overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/10 shrink-0">
