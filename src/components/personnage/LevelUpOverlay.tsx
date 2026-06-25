@@ -40,11 +40,25 @@ interface LevelUpOverlayProps {
   setIsLevelingUp: (val: boolean) => void;
 }
 
-const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
+const getBaseCost = (rang: number) => (rang <= 2 ? 1 : 2);
 
-const isLevelLocked = (rang: number, newLevel: number) => {
-  if (rang === 4 && newLevel < 5) return true;
-  if (rang === 5 && newLevel < 7) return true;
+const isPrestigeVoie = (voie?: VoieDetail | null) =>
+  (voie?.type || "").toLowerCase() === "prestige";
+
+const getDisplayedRank = (storedRank: number, voie?: VoieDetail | null) =>
+  isPrestigeVoie(voie) ? storedRank + 3 : storedRank;
+
+const getCostForRank = (storedRank: number, voie?: VoieDetail | null) =>
+  isPrestigeVoie(voie) ? 2 : getBaseCost(storedRank);
+
+const isLevelLocked = (
+  storedRank: number,
+  newLevel: number,
+  voie?: VoieDetail | null,
+) => {
+  if (isPrestigeVoie(voie)) return newLevel <= 5;
+  if (storedRank === 4 && newLevel < 5) return true;
+  if (storedRank === 5 && newLevel < 7) return true;
   return false;
 };
 
@@ -85,7 +99,7 @@ export default function LevelUpOverlay({
   setIsLevelingUp,
 }: LevelUpOverlayProps) {
   const [unlockType, setUnlockType] = useState<
-    "profile" | "ownProfile" | "prestige" | "peuple" | ""
+    "profile" | "ownProfile" | "prestige" | ""
   >("");
   const [profiles, setProfiles] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState("");
@@ -106,11 +120,6 @@ export default function LevelUpOverlay({
     return isMageVoie(v);
   });
 
-  // On récupère le peuple "d'origine" (en excluant le faux peuple Mage) pour gérer les restrictions d'achat
-  const currentPeupleId = pj.pathways
-    ?.map((p: any) => allVoies.find((v: any) => v.id === p.voie_id) || voieDetails.find((vd) => vd.id === p.voie_id))
-    ?.find((v: any) => v?.peuple_id && !isMageVoie(v))?.peuple_id;
-
   const currentProfileId =
     pj?.stats?.profil_id ||
     voieDetails.find((v) => v.profil_id)?.profil_id ||
@@ -118,21 +127,43 @@ export default function LevelUpOverlay({
       ((pj.pathways as any[]) || []).some((p: any) => p.voie_id === v.id) && !!v.profil_id,
     )?.profil_id;
 
-  const ownedVoieIds = new Set(
-    ((pj.pathways as any[]) || []).map((p) => p.voie_id),
-  );
+  const ownedVoieIds = new Set(((pj.pathways as any[]) || []).map((p) => p.voie_id));
   const pendingNewVoieIds = new Set(pendingRanks.map((pr: any) => pr.voie_id));
+  const getNextRankForVoieId = (voieId: string) => {
+    const existingPath = ((pj.pathways as any[]) || []).find((p: any) => p.voie_id === voieId);
+    const baseRanks = existingPath?.rangs_acquis || [];
+    const pendingForThisPath = pendingRanks
+      .filter((pr: any) => pr.voie_id === voieId)
+      .map((pr: any) => pr.rang);
+    const allRanks = [...baseRanks, ...pendingForThisPath];
+    return allRanks.length > 0 ? Math.max(...allRanks) + 1 : 1;
+  };
+  const pathwaysForUpgrade = [
+    ...((pj.pathways as any[]) || []),
+    ...Array.from(pendingNewVoieIds)
+      .filter((voieId) => !ownedVoieIds.has(voieId))
+      .map((voieId) => ({ voie_id: voieId, rangs_acquis: [] })),
+  ].sort((a, b) => {
+    const aPending = pendingNewVoieIds.has(a.voie_id) ? 1 : 0;
+    const bPending = pendingNewVoieIds.has(b.voie_id) ? 1 : 0;
+    return bPending - aPending;
+  });
 
   // Filtrage scindé des nouvelles voies
   const filteredAvailableVoies = allVoies.filter((v: VoieDetail) => {
-    if (ownedVoieIds.has(v.id) || pendingNewVoieIds.has(v.id)) return false;
+    if (ownedVoieIds.has(v.id)) return false;
 
-    // Bloquer si une autre voie de peuple est déjà sélectionnée
-    if (v.peuple_id && currentPeupleId && v.peuple_id !== currentPeupleId)
-      return false;
+    // Une voie de peuple ne peut plus être débloquée via le level up.
+    if (v.peuple_id) return false;
 
-    if (unlockType === "peuple") return !!v.peuple_id;
-    if (unlockType === "prestige") return v.type === "prestige";
+    // Les voies de prestige ne sont proposées que via l'onglet prestige,
+    // et uniquement après avoir atteint le niveau 5.
+    if (isPrestigeVoie(v)) {
+      if (unlockType !== "prestige") return false;
+      if (targetLevel <= 5) return false;
+    }
+
+    if (unlockType === "prestige") return v.type === "prestige" && targetLevel > 5;
     if (unlockType === "ownProfile") return !!currentProfileId && v.profil_id === currentProfileId;
     if (unlockType === "profile") return v.profil_id === selectedProfileId;
     return false;
@@ -174,7 +205,7 @@ export default function LevelUpOverlay({
 
       <div className="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-white/10">
         {/* Liste des Voies possédées */}
-        {(pj.pathways as any[]).map((pathway, i) => {
+        {pathwaysForUpgrade.map((pathway, i) => {
           const voie =
             voieDetails.find((v: any) => v.id === pathway.voie_id) ||
             allVoies.find((v) => v.id === pathway.voie_id);
@@ -192,8 +223,9 @@ export default function LevelUpOverlay({
           
           if (nextRank > 5) return null;
 
-          const cost = getCost(nextRank);
-          const isLocked = isLevelLocked(nextRank, targetLevel);
+          const cost = getCostForRank(nextRank, voie);
+          const isLocked = isLevelLocked(nextRank, targetLevel, voie);
+          const displayedRank = getDisplayedRank(nextRank, voie);
           
           // La restriction s'applique si le joueur a la voie du mage ET que la voie actuelle est une voie de peuple (qui n'est PAS la voie du Mage)
           const isPeuplePathBlockedByMage = hasMagePath && !!voie.peuple_id && !isMageVoie(voie);
@@ -201,12 +233,12 @@ export default function LevelUpOverlay({
 
           return (
             <div
-              key={i}
+              key={`${pathway.voie_id}-${nextRank}-${i}`}
               className={`border rounded-xl p-4 flex flex-col gap-2 ${isPeuplePathBlockedByMage ? "bg-black/20 border-white/5" : "bg-white/5 border-white/10"}`}
             >
               <div className="flex justify-between items-center">
                 <span className={`text-sm font-semibold ${isPeuplePathBlockedByMage ? "text-white/40" : "text-white/90"}`}>
-                  {voie.nom} — Rang {nextRank}
+                  {voie.nom} — Rang {displayedRank}
                 </span>
                 <span className={`text-[10px] border rounded-full px-2 py-0.5 ${isPeuplePathBlockedByMage ? "text-white/20 border-white/10" : "text-[#E3CCCD] border-[#E3CCCD]/30"}`}>
                   Coût : {cost} pt{cost > 1 ? "s" : ""}
@@ -215,7 +247,7 @@ export default function LevelUpOverlay({
               {nextRankCapacite && (
                 <div className={`rounded-lg border px-3 py-2 ${isPeuplePathBlockedByMage ? "bg-black/20 border-white/5" : "bg-black/20 border-white/10"}`}>
                   <p className={`text-xs font-semibold ${isPeuplePathBlockedByMage ? "text-white/35" : "text-[#E3CCCD]/90"}`}>
-                    {nextRankCapacite.nom || `Capacité de rang ${nextRank}`}
+                    {nextRankCapacite.nom || `Capacité de rang ${displayedRank}`}
                     {nextRankCapacite.type ? <span className="text-white/40 font-normal"> ({nextRankCapacite.type})</span> : null}
                   </p>
                   {nextRankCapacite.description && (
@@ -231,15 +263,16 @@ export default function LevelUpOverlay({
                  </p>
               ) : isLocked ? (
                 <p className="text-xs text-red-400/70 italic">
-                  Niveau insuffisant (Rang {nextRank} requiert niv.{" "}
-                  {nextRank === 4 ? 5 : 7}).
+                  {isPrestigeVoie(voie)
+                    ? "Les voies de prestige sont accessibles à partir du niveau 5."
+                    : `Niveau insuffisant (Rang ${displayedRank} requiert niv. ${nextRank === 4 ? 5 : 7}).`}
                 </p>
               ) : (
                 <button
                   disabled={pointsRemaining < cost}
                   onClick={() =>
-                    setPendingRanks([
-                      ...pendingRanks,
+                    setPendingRanks((prev) => [
+                      ...prev,
                       { voie_id: pathway.voie_id, rang: nextRank },
                     ])
                   }
@@ -259,12 +292,11 @@ export default function LevelUpOverlay({
             Voie
           </h3>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
               { key: "ownProfile", label: "Profil" },
               { key: "profile", label: "Autre Profil" },
-              { key: "prestige", label: "Prestige" },
-              { key: "peuple", label: "Voie du Peuple" },
+              ...(targetLevel > 5 ? [{ key: "prestige", label: "Prestige" }] : []),
             ].map((b) => (
               <button
                 key={b.key}
@@ -316,10 +348,15 @@ export default function LevelUpOverlay({
             </div>
           )}
 
+          {unlockType === "prestige" && targetLevel <= 5 && (
+            <p className="text-xs text-red-400/70 italic">
+              Les voies de prestige sont disponibles après avoir atteint le niveau 5.
+            </p>
+          )}
+
           {((unlockType === "ownProfile" && !!currentProfileId) ||
             (unlockType === "profile" && selectedProfileId) ||
-            unlockType === "prestige" ||
-            unlockType === "peuple") && (
+            unlockType === "prestige") && (
             <div className="space-y-2">
               <p className="text-[10px] uppercase tracking-widest text-white/40">
                 Voies disponibles :
@@ -327,30 +364,46 @@ export default function LevelUpOverlay({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {filteredAvailableVoies.map((v) => (
                   (() => {
-                    const rank1Capacite = getRankCapacite(v, 1);
+                    const nextRank = getNextRankForVoieId(v.id);
+                    if (nextRank > 5) return null;
+                    const rankCapacite = getRankCapacite(v, nextRank);
+                    const unlockCost = getCostForRank(nextRank, v);
+                    const displayedRank = getDisplayedRank(nextRank, v);
+                    const isLocked = isLevelLocked(nextRank, targetLevel, v);
                     return (
                   <button
                     key={v.id}
-                    disabled={pointsRemaining < 1}
+                    disabled={pointsRemaining < unlockCost || isLocked}
                     onClick={() => {
-                      setPendingRanks([
-                        ...pendingRanks,
-                        { voie_id: v.id, rang: 1 },
-                      ]);
-                      setUnlockType("");
+                      setPendingRanks((prev) => {
+                        const alreadyPicked = prev.some(
+                          (item: any) => item.voie_id === v.id && item.rang === nextRank,
+                        );
+                        if (alreadyPicked) return prev;
+                        return [...prev, { voie_id: v.id, rang: nextRank }];
+                      });
                     }}
                     className="flex justify-between items-center p-3 bg-white/5 hover:bg-[#E3CCCD]/10 border border-white/10 rounded-xl text-left text-xs text-white transition-all disabled:opacity-30"
                   >
                     <span className="min-w-0 pr-2">
-                      <span className="block">{v.nom} (Rang 1)</span>
-                      {rank1Capacite?.nom && (
+                      <span className="block">
+                        {v.nom} (Rang {displayedRank}) - Coût {unlockCost} pt{unlockCost > 1 ? "s" : ""}
+                      </span>
+                      {rankCapacite?.nom && (
                         <span className="block text-[11px] text-white/50 truncate">
-                          {rank1Capacite.nom}
+                          {rankCapacite.nom}
                         </span>
                       )}
-                      {rank1Capacite?.description && (
+                      {rankCapacite?.description && (
                         <span className="block text-[10px] text-white/40 leading-relaxed line-clamp-2 mt-0.5">
-                          {rank1Capacite.description}
+                          {rankCapacite.description}
+                        </span>
+                      )}
+                      {isLocked && (
+                        <span className="block text-[10px] text-red-400/70 mt-0.5">
+                          {isPrestigeVoie(v)
+                            ? "Débloquée après le niveau 5."
+                            : `Niveau insuffisant pour le rang ${displayedRank}.`}
                         </span>
                       )}
                     </span>
@@ -361,7 +414,7 @@ export default function LevelUpOverlay({
                 ))}
                 {filteredAvailableVoies.length === 0 && (
                   <p className="text-white/30 text-xs italic">
-                    Aucune voie disponible ou restriction de peuple active.
+                    Aucune voie disponible.
                   </p>
                 )}
               </div>
@@ -379,13 +432,14 @@ export default function LevelUpOverlay({
               const v =
                 allVoies.find((x) => x.id === pr.voie_id) ||
                 voieDetails.find((x) => x.id === pr.voie_id);
+              const displayedRank = getDisplayedRank(pr.rang, v);
               return (
                 <div
                   key={idx}
                   className="flex justify-between items-center bg-[#E3CCCD]/10 border border-[#E3CCCD]/30 rounded-lg p-2 text-xs text-white"
                 >
                   <span>
-                    {v?.nom} — Rang {pr.rang}
+                    {v?.nom} — Rang {displayedRank}
                   </span>
                   <button
                     onClick={() =>

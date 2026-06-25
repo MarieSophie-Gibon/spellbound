@@ -70,6 +70,7 @@ interface PersonnageDetailProps {
 }
 
 const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
+const isPrestigeType = (type?: string | null) => (type || "").toLowerCase() === "prestige";
 
 function getDerivedAttacks(level: number, characteristics: Record<string, number>) {
   const forStat = Number(characteristics?.FOR ?? 0);
@@ -423,10 +424,13 @@ export function PersonnageDetail({
   const derivedCurrentAttacks = getDerivedAttacks(currentLevel, caract as Record<string, number>);
   const derivedCurrentPvMax = Math.max(Number(pj.stats?.pv_max ?? 0), Number(pj.stats?.pv ?? 0));
   const targetLevel = currentLevel + 1;
-  const pointsSpent = pendingRanks.reduce(
-    (acc, curr) => acc + getCost(curr.rang),
-    0,
-  );
+  const pointsSpent = pendingRanks.reduce((acc, curr) => {
+    const voie =
+      allVoies.find((v) => v.id === curr.voie_id) ||
+      voieDetails.find((v) => v.id === curr.voie_id);
+    const cost = isPrestigeType(voie?.type) ? 2 : getCost(curr.rang);
+    return acc + cost;
+  }, 0);
   const pointsRemaining = 2 - pointsSpent;
 
   return (
