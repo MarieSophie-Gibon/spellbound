@@ -33,9 +33,9 @@ export interface InitialMonstreData {
 
 // --- Constants ---
 
-const TYPES_CREATURE = ["Mort-Vivant", "Animal","Animal Fantastique", "Humanoïde", "Fiélon", "Céleste", "Élémentaire", "Artificiel", "Aberration"];
+const TYPES_CREATURE = ["Mort-Vivant", "Animal","Animal Fantastique", "Humanoïde", "Artificiel"];
 const TAILLES = ["Infime", "Minuscule", "Petite", "Moyenne", "Grande", "Très Grande", "Gigantesque"];
-const NC_PRESETS = ["0", "1/8", "1/4", "1/2", "1", "2", "3", "4", "5", "6", "8", "10", "12", "15", "20"];
+const NC_PRESETS = ["0","1", "2", "3", "4", "5", "6", "8", "10", "12", "15", "20"];
 const STAT_KEYS = ["for", "agi", "con", "int", "per", "vol", "cha"] as const;
 type StatKey = typeof STAT_KEYS[number];
 const STAT_LABELS: Record<StatKey, string> = { for: "FOR", agi: "AGI", con: "CON", int: "INT", per: "PER", vol: "VOL", cha: "CHA" };
@@ -332,8 +332,8 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
 
               {/* Stats de Combat */}
               <div>
-                <h3 className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-4">Stats de Combat</h3>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                {/* <h3 className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-4">Stats de Combat</h3> */}
+                <div className="grid grid-cols-3 gap-x-8 gap-y-5">
                   {/* PV Max */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Points de Vie Max</label>
@@ -365,17 +365,17 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
                   </div>
 
                   {/* RD */}
-                  <div className="space-y-1.5">
+                  {/* <div className="space-y-1.5">
                     <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Réduction de Dégâts (RD)</label>
                     <div className="flex items-center gap-3">
                       <button onClick={() => setCombat(p => ({ ...p, rd: Math.max(0, p.rd - 1) }))} className="w-7 h-7 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center text-lg leading-none transition-colors">−</button>
                       <span className="text-white text-xl font-semibold w-10 text-center">{combat.rd}</span>
                       <button onClick={() => setCombat(p => ({ ...p, rd: p.rd + 1 }))} className="w-7 h-7 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center text-lg leading-none transition-colors">+</button>
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Attaque Magique */}
-                  <div className="space-y-1.5 col-span-2">
+                  {/* <div className="space-y-1.5 col-span-2">
                     <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Attaque Magique</label>
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-3">
@@ -393,7 +393,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
                       </button>
                     </div>
                     <p className="text-[11px] text-white/40 italic">Bonus aux jets d'attaque magique, si applicable.</p>
-                  </div>
+                  </div> */}
                 </div>
               </div>
             </div>
