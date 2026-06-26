@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
@@ -91,6 +91,15 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const editorContentRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const preInputScrollTopRef = useRef<number | null>(null);
+  const scrollRestoreRef = useRef<number | null>(null);
+
+  // Restaure le scroll AVANT le repaint (useLayoutEffect) pour éviter tout saut visuel
+  useLayoutEffect(() => {
+    if (scrollRestoreRef.current !== null && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollRestoreRef.current;
+      scrollRestoreRef.current = null;
+    }
+  }, [blocks]);
 
   // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
@@ -196,16 +205,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   };
 
   const updateBlock = (id: string, newData: any) => {
-    const previousScrollTop = scrollContainerRef.current?.scrollTop ?? null;
+    scrollRestoreRef.current = scrollContainerRef.current?.scrollTop ?? null;
     setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data: { ...b.data, ...newData } } : b)));
-    // Keep the editor viewport stable while textareas auto-resize during typing.
-    if (previousScrollTop !== null) {
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = previousScrollTop;
-        }
-      });
-    }
     setHasChanges(true);
   };
 
@@ -297,7 +298,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 rounded transition-colors"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
+              const savedTop = scrollContainerRef.current?.scrollTop ?? 0;
               target.style.height = "auto";
+              if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = savedTop;
               target.style.height = `${target.scrollHeight}px`;
             }}
           />
@@ -309,7 +312,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
       case 'quote':
         return isEditing ? (
-          <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-gradient-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
+          <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
             <textarea
               value={block.data.text || ""}
@@ -318,7 +321,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-[#E3CCCD]/30"
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
+                const savedTop = scrollContainerRef.current?.scrollTop ?? 0;
                 target.style.height = "auto";
+                if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = savedTop;
                 target.style.height = `${target.scrollHeight}px`;
               }}
             />
@@ -331,7 +336,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             />
           </div>
         ) : (
-          <div className="relative pl-6 py-3 border-l-4 border-[#E3CCCD]/60 bg-gradient-to-r from-[#E3CCCD]/10 to-transparent rounded-r-xl mb-2">
+          <div className="relative pl-6 py-3 border-l-4 border-[#E3CCCD]/60 bg-linear-to-r from-[#E3CCCD]/10 to-transparent rounded-r-xl mb-2">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/20 -z-10" />
             <div className="text-[#E3CCCD] font-serif text-lg leading-relaxed whitespace-pre-wrap">
               "{block.data.text}"
@@ -765,8 +770,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           onMouseLeave={() => setIsAddMenuOpen(false)}
         >
           {/* Menu déroulant vers la gauche */}
-          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isAddMenuOpen ? 'w-[180px] opacity-100 mr-2' : 'w-0 opacity-0 mr-0'}`}>
-            <div className="flex flex-col bg-[#1E1941]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 gap-1 w-[180px]">
+          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isAddMenuOpen ? 'w-45 opacity-100 mr-2' : 'w-0 opacity-0 mr-0'}`}>
+            <div className="flex flex-col bg-[#1E1941]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 gap-1 w-45">
               <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#E3CCCD]/50 border-b border-white/5 mb-1 font-bold">
                 Ajouter un bloc
               </div>
