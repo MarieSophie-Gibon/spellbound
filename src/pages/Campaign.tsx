@@ -1,7 +1,7 @@
 import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
-import { useCampaignStats, useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
-import { Users, Skull, BookMarked, CalendarDays, Ticket, Copy, Loader2, UserSearch } from "lucide-react";
+import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
+import { CalendarDays, Ticket, Copy, Loader2, UserSearch } from "lucide-react";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useState } from "react";
@@ -14,7 +14,6 @@ export function CampaignHome({ campaign }: CampaignProps) {
     const role = useAuthStore((s) => s.role);
     const isMJ = role === "mj";
     const bgImage = campaign.image_url || '/default-bg.jpg';
-    const { data: stats } = useCampaignStats(campaign.id);
     const { data: progress } = useCampaignProgress(campaign.id);
     const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
     const createInvitation = useCreateCampaignInvitation();
@@ -54,32 +53,13 @@ export function CampaignHome({ campaign }: CampaignProps) {
 
                 {/* Stats block */}
                 <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
-                    {[
-                        { icon: Users,      label: "Personnages joueurs", value: stats?.pj },
-                        { icon: Skull,      label: "Monstres",            value: stats?.monstres },
-                        { icon: BookMarked, label: "Profils",             value: stats?.profils },
-                    ].filter(({ value }) => (value ?? 0) > 0).map(({ icon: Icon, label, value }) => (
-                        <div key={label} className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-white/50">
-                                <Icon className="w-3.5 h-3.5 shrink-0" />
-                                <span className="text-[11px]">{label}</span>
-                            </div>
-                            <span className="text-[12px] font-semibold text-white/80 tabular-nums">
-                                {value}
-                            </span>
-                        </div>
-                    ))}
-
                     {createdAt && (
-                        <>
-                            {[(stats?.pj ?? 0), (stats?.monstres ?? 0), (stats?.profils ?? 0)].some(v => v > 0) && (
-                                <div className="h-px bg-white/10 my-0.5" />
-                            )}
+                        
                             <div className="flex items-center gap-2 text-white/40">
                                 <CalendarDays className="w-3.5 h-3.5 shrink-0" />
                                 <span className="text-[11px]">Créée le {createdAt}</span>
                             </div>
-                        </>
+                        
                     )}
 
                     {/* Barre de progression de la campagne */}
@@ -123,7 +103,7 @@ export function CampaignHome({ campaign }: CampaignProps) {
                                     { campaignId: campaign.id },
                                     {
                                         onSuccess: (inv) => setInviteCode(inv.code),
-                                        onError: (err: any) => setInviteError(err?.message ?? "Impossible de créer le code"),
+                                        onError: (err: Error) => setInviteError(err?.message ?? "Impossible de créer le code"),
                                     }
                                 );
                             }}
