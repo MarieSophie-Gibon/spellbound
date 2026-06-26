@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BookOpen, GripVertical, RefreshCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
