@@ -11,6 +11,20 @@ import type { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
+
+// Extension Image avec support de l'attribut style (pour la taille)
+const ImageWithStyle = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      style: {
+        default: null,
+        renderHTML: (attrs) => attrs.style ? { style: attrs.style } : {},
+        parseHTML: (el) => el.getAttribute("style"),
+      },
+    };
+  },
+});
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -149,6 +163,8 @@ export function PageEditor({
   const [catDeleteTarget, setCatDeleteTarget] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(true);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [showImageSizePicker, setShowImageSizePicker] = useState(false);
+  const [pendingImageSize, setPendingImageSize] = useState<"sm" | "md" | "lg">("md");
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const mainCategories = categories
@@ -162,7 +178,7 @@ export function PageEditor({
     extensions: [
       StarterKit,
       Underline,
-      Image.configure({ inline: true, allowBase64: false }),
+      ImageWithStyle.configure({ inline: true, allowBase64: false }),
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -176,6 +192,12 @@ export function PageEditor({
     },
   });
 
+  const IMAGE_SIZES = {
+    sm: { label: "Petite", style: "max-width:25%;float:left;margin:0.25rem 1.5rem 0.75rem 0" },
+    md: { label: "Moyenne", style: "max-width:45%;float:left;margin:0.25rem 1.5rem 0.75rem 0" },
+    lg: { label: "Grande", style: "max-width:80%;float:left;margin:0.25rem 1.5rem 0.75rem 0" },
+  } as const;
+
   const handleInsertImage = async (file: File) => {
     if (!editor) return;
     setIsUploadingImage(true);
@@ -185,7 +207,7 @@ export function PageEditor({
       const { error } = await supabase.storage.from("wiki-images").upload(path, file);
       if (error) throw error;
       const { data } = supabase.storage.from("wiki-images").getPublicUrl(path);
-      editor.chain().focus('end').setImage({ src: data.publicUrl }).run();
+      editor.chain().focus("end").setImage({ src: data.publicUrl, style: IMAGE_SIZES[pendingImageSize].style } as any).run();
     } catch (err: unknown) {
       alert("Erreur upload image : " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -272,7 +294,38 @@ export function PageEditor({
         <div className="w-px h-5 bg-[#E3CCCD]/20 mx-1" />
         {isUploadingImage
           ? <div className="p-1.5"><Loader2 className="w-4 h-4 animate-spin text-white/40" /></div>
-          : <ToolbarButton onClick={() => imageInputRef.current?.click()} icon={ImagePlus} title="Insérer une image" />
+          : (
+            <div className="relative">
+              <ToolbarButton
+                onClick={() => setShowImageSizePicker((v) => !v)}
+                icon={ImagePlus}
+                title="Insérer une image"
+                isActive={showImageSizePicker}
+              />
+              {showImageSizePicker && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-[#1E1941] border border-[#E3CCCD]/30 rounded-xl shadow-2xl p-2 flex gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+                  {(["sm", "md", "lg"] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => {
+                        setPendingImageSize(s);
+                        setShowImageSizePicker(false);
+                        imageInputRef.current?.click();
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all whitespace-nowrap ${
+                        pendingImageSize === s
+                          ? "border-[#E3CCCD]/60 bg-[#E3CCCD]/15 text-[#E3CCCD]"
+                          : "border-white/20 text-white/60 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      {IMAGE_SIZES[s].label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
         }
       </div>
     );

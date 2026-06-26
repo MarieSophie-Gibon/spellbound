@@ -50,7 +50,7 @@ export function PJList({ campaignId }: PJListProps) {
           
           let profilId = pj.profils_id || pj.stats?.profils_id;
           if (!profilId && Array.isArray(pj.pathways)) {
-            const voieProfil = pj.pathways.find((v: any) => v.type === 'profil' || v.isProfil);
+            const voieProfil = pj.pathways.find((v: { type?: string; isProfil?: boolean; profils_id?: string }) => v.type === 'profil' || v.isProfil);
             if (voieProfil && voieProfil.profils_id) profilId = voieProfil.profils_id;
           }
           const profil = profils.find((pr) => pr.id === profilId);
@@ -59,7 +59,7 @@ export function PJList({ campaignId }: PJListProps) {
             <button 
               key={pj.id} 
               onClick={() => navigate('/campaign/personnages')}
-              className="group relative flex flex-col w-30 h-65 focus:outline-none hover:-translate-y-3 transition-transform duration-500 drop-shadow-2xl bg-gradient-to-b from-[#E3CCCD] via-[#E3CCCD]/50 to-[#E3CCCD] p-[2px]"
+              className="group relative flex flex-col w-30 h-65 focus:outline-none hover:-translate-y-3 transition-transform duration-500 drop-shadow-2xl bg-linear-to-b from-[#E3CCCD] via-[#E3CCCD]/50 to-[#E3CCCD] p-0.5"
               style={{ clipPath: bannerShape, WebkitClipPath: bannerShape }}
             >
               {/* Conteneur principal intérieur */}
@@ -99,7 +99,7 @@ export function PJList({ campaignId }: PJListProps) {
                 </div>
 
                 {/* 3. Dégradé ascendant pour lisibilité du texte */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1E1941] via-[#1E1941]/70 to-transparent opacity-90 group-hover:opacity-80 transition-opacity duration-500 z-10" />
+                <div className="absolute inset-0 bg-linear-to-t from-[#1E1941] via-[#1E1941]/70 to-transparent opacity-90 group-hover:opacity-80 transition-opacity duration-500 z-10" />
 
                 {/* 4. Textes et Infos */}
                 <div className="relative z-30 mt-auto flex flex-col items-center px-2 pb-8">

@@ -131,6 +131,7 @@
 .tiptap-editor th { background-color: rgba(227, 204, 205, 0.1); font-weight: 600; text-align: left; color: white; }
 .tiptap-editor .column-resize-handle { background-color: rgba(227, 204, 205, 0.4); bottom: -2px; pointer-events: none; position: absolute; right: -2px; top: 0; width: 4px; }
 .tiptap-editor img { max-width: 45%; height: auto; border-radius: 8px; float: left; margin: 0.25rem 1.5rem 0.75rem 0; border: 1px solid rgba(227, 204, 205, 0.15); cursor: zoom-in; transition: opacity 0.15s; }
+.tiptap-editor img[style] { max-width: unset; float: unset; margin: unset; }
 .tiptap-editor img:hover { opacity: 0.85; }
 .tiptap-editor img.ProseMirror-selectednode { outline: 2px solid rgba(227, 204, 205, 0.6); outline-offset: 2px; }
 .tiptap-editor p:has(img) { overflow: hidden; }
