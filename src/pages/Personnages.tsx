@@ -148,6 +148,7 @@ export function Personnages({ campaignId, onBack, readOnly = false }: Personnage
         <PersonnageDetail
           pj={selectedCharacter}
           type={selectedType}
+          campaignId={campaignId}
           isFullscreen={isFullscreen}
           readOnly={readOnly}
           onToggleFullscreen={() => setIsFullscreen((v) => !v)}

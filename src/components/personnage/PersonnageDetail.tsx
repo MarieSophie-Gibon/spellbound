@@ -34,6 +34,7 @@ import { EditNumField } from "@/components/ui/EditNumField";
 import InventoryTab from "@/components/personnage/InventoryTab";
 import LoreTab from "@/components/personnage/LoreTab";
 import LevelUpOverlay from "@/components/personnage/LevelUpOverlay";
+import FamilierTab from "@/components/personnage/FamilierTab";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];
@@ -61,6 +62,7 @@ interface PersonnageDetailProps {
     inventory: any;
   } | null;
   type?: "pj" | "pnj";
+  campaignId: string;
   isFullscreen: boolean;
   readOnly?: boolean;
   onToggleFullscreen: () => void;
@@ -105,6 +107,7 @@ function getHpGainPerLevel(stats: any) {
 export function PersonnageDetail({
   pj,
   type = "pj",
+  campaignId,
   isFullscreen,
   readOnly,
   onToggleFullscreen,
@@ -117,7 +120,7 @@ export function PersonnageDetail({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"stats" | "inventory" | "lore">("stats");
+  const [activeTab, setActiveTab] = useState<"stats" | "inventory" | "lore" | "familiers">("stats");
 
   // Level Up States
   const [isLevelingUp, setIsLevelingUp] = useState(false);
@@ -608,6 +611,17 @@ export function PersonnageDetail({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? "Description & Notes" : "Histoire & Lore"}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("familiers")}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                activeTab === "familiers"
+                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              🐾 Familiers
             </button>
           </div>
         )}
@@ -1136,6 +1150,17 @@ export function PersonnageDetail({
               setEditHistorique={setEditHistorique}
             />
           )
+        )}
+
+        {/* ONGLET 4 : FAMILIERS */}
+        {!isNonCombatantPNJ && activeTab === "familiers" && (
+          <FamilierTab
+            pjId={type === "pj" ? pj.id : ""}
+            pnjId={type === "pnj" ? pj.id : undefined}
+            type={type}
+            campaignId={campaignId}
+            readOnly={readOnly}
+          />
         )}
       </div>
     </div>

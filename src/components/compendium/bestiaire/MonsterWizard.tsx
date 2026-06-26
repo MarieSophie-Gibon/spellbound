@@ -13,6 +13,8 @@ interface MonsterWizardProps {
   onSuccess: (monster?: { id: string; nom: string; image_url?: string | null }) => void;
   campaignId?: string;
   initialData?: InitialMonstreData;
+  /** Si fourni, remplace la sauvegarde dans bestiaire. Reçoit le payload et l'URL d'image finale. */
+  onSavePayload?: (payload: Record<string, unknown>, imageUrl: string | undefined) => Promise<void>;
 }
 
 export interface InitialMonstreData {
@@ -55,7 +57,7 @@ function makeEmptyCapacite(): MonstreCapacite {
 
 // --- Composant ---
 
-export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: MonsterWizardProps) {
+export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onSavePayload }: MonsterWizardProps) {
   const isEditing = !!initialData;
   const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
@@ -133,6 +135,13 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
         campaign_id: publicMode ? null : (campaignId || null),
         is_custom: !!(campaignId && isPrivate),
       };
+
+      // Court-circuit : si onSavePayload est fourni, on délègue la persistance
+      if (onSavePayload) {
+        await onSavePayload(payload, uploadedImageUrl);
+        onClose();
+        return;
+      }
 
       if (isEditing && initialData) {
         const { error } = await supabase.from("bestiaire").update(payload).eq("id", initialData.id);
@@ -301,7 +310,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
               {/* Caractéristiques */}
               <div>
                 <h3 className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1">Caractéristiques</h3>
-                <p className="text-[11px] text-white/40 italic mb-4">Le modificateur est appliqué directement aux jets. "SUP" active la supériorité.</p>
+                <p className="text-[11px] text-white/40 italic mb-4">Le modificateur est appliqué directement aux jets. "BONUS" indique qu'un dé bonus est ajouté aux tests.</p>
                 <div className="grid grid-cols-4 gap-3 sm:grid-cols-7">
                   {STAT_KEYS.map((key) => (
                     <div key={key} className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col items-center gap-2">
@@ -323,7 +332,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData }: M
                         onClick={() => updateStat(key, "sup", !stats[key].sup)}
                         className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider transition-all ${stats[key].sup ? "border-amber-400/50 bg-amber-400/15 text-amber-400" : "border-white/15 text-white/25 hover:text-white/50 hover:border-white/30"}`}
                       >
-                        SUP
+                        BONUS
                       </button>
                     </div>
                   ))}
