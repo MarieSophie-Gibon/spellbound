@@ -4,12 +4,13 @@ import { createPortal } from "react-dom";
 import {
   LayoutGrid, Type, BookmarkPlus, Bold, Italic, Underline as UnderlineIcon,
   Heading1, Heading2, List, ListOrdered, Pilcrow, X, Pencil, Trash2,
-  AlertTriangle, Table as TableIcon, Rows, Columns,
+  AlertTriangle, Table as TableIcon, Rows, Columns, ImagePlus, Loader2,
 } from "lucide-react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
+import Image from "@tiptap/extension-image";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -147,6 +148,8 @@ export function PageEditor({
   const [catToRename, setCatToRename] = useState<{ id: string; newName: string } | null>(null);
   const [catDeleteTarget, setCatDeleteTarget] = useState<string | null>(null);
   const [isPrivate, setIsPrivate] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const mainCategories = categories
     .filter((c) => !c.parent_id)
@@ -159,6 +162,7 @@ export function PageEditor({
     extensions: [
       StarterKit,
       Underline,
+      Image.configure({ inline: true, allowBase64: false }),
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -171,6 +175,23 @@ export function PageEditor({
       },
     },
   });
+
+  const handleInsertImage = async (file: File) => {
+    if (!editor) return;
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `grimoire/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage.from("wiki-images").upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from("wiki-images").getPublicUrl(path);
+      editor.chain().focus().moveToEnd().setImage({ src: data.publicUrl }).run();
+    } catch (err: unknown) {
+      alert("Erreur upload image : " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const handleRenameCategory = async () => {
     if (!catToRename || !catToRename.newName.trim()) return;
@@ -248,6 +269,11 @@ export function PageEditor({
         <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={state.isOrderedList} icon={ListOrdered} />
         <div className="w-px h-5 bg-[#E3CCCD]/20 mx-1" />
         <ToolbarButton onClick={() => setShowTablePopup(true)} icon={TableIcon} title="Insérer un tableau" />
+        <div className="w-px h-5 bg-[#E3CCCD]/20 mx-1" />
+        {isUploadingImage
+          ? <div className="p-1.5"><Loader2 className="w-4 h-4 animate-spin text-white/40" /></div>
+          : <ToolbarButton onClick={() => imageInputRef.current?.click()} icon={ImagePlus} title="Insérer une image" />
+        }
       </div>
     );
   };
@@ -329,6 +355,19 @@ export function PageEditor({
           </div>
         </div>
       )}
+
+      {/* Input image caché */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleInsertImage(file);
+          e.target.value = "";
+        }}
+      />
 
       <div className="flex-1 flex flex-col p-3 h-full min-h-0">
         <div className="flex-1 flex flex-col border border-[#E3CCCD]/20 rounded-xl bg-black/10 p-3 gap-2 min-h-0 relative overflow-hidden">
