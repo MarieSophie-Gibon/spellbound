@@ -292,41 +292,41 @@ export function PageEditor({
         <div className="w-px h-5 bg-[#E3CCCD]/20 mx-1" />
         <ToolbarButton onClick={() => setShowTablePopup(true)} icon={TableIcon} title="Insérer un tableau" />
         <div className="w-px h-5 bg-[#E3CCCD]/20 mx-1" />
-        {isUploadingImage
-          ? <div className="p-1.5"><Loader2 className="w-4 h-4 animate-spin text-white/40" /></div>
-          : (
-            <div className="relative">
-              <ToolbarButton
-                onClick={() => setShowImageSizePicker((v) => !v)}
-                icon={ImagePlus}
-                title="Insérer une image"
-                isActive={showImageSizePicker}
-              />
-              {showImageSizePicker && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-[#1E1941] border border-[#E3CCCD]/30 rounded-xl shadow-2xl p-2 flex gap-1.5 animate-in fade-in zoom-in-95 duration-150">
-                  {(["sm", "md", "lg"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => {
-                        setPendingImageSize(s);
-                        setShowImageSizePicker(false);
-                        imageInputRef.current?.click();
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all whitespace-nowrap ${
-                        pendingImageSize === s
-                          ? "border-[#E3CCCD]/60 bg-[#E3CCCD]/15 text-[#E3CCCD]"
-                          : "border-white/20 text-white/60 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      {IMAGE_SIZES[s].label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        }
+        {isUploadingImage ? (
+          <div className="p-1.5"><Loader2 className="w-4 h-4 animate-spin text-white/40" /></div>
+        ) : showImageSizePicker ? (
+          <>
+            <span className="text-[10px] text-white/40 px-1 shrink-0">Taille :</span>
+            {(["sm", "md", "lg"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setPendingImageSize(s);
+                  setShowImageSizePicker(false);
+                  imageInputRef.current?.click();
+                }}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all whitespace-nowrap ${
+                  pendingImageSize === s
+                    ? "border-[#E3CCCD]/60 bg-[#E3CCCD]/15 text-[#E3CCCD]"
+                    : "border-white/20 text-white/50 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                {IMAGE_SIZES[s].label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setShowImageSizePicker(false)}
+              className="p-1 text-white/30 hover:text-white/70 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </>
+        ) : (
+          <ToolbarButton onClick={() => setShowImageSizePicker(true)} icon={ImagePlus} title="Insérer une image" />
+        )}
       </div>
     );
   };
