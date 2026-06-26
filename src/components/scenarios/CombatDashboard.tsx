@@ -58,6 +58,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   const [, setLoadingSearch] = useState(false);
   const [importingCompany, setImportingCompany] = useState(false);
   const [importingEngaged, setImportingEngaged] = useState(false);
+  const [familierResults, setFamilierResults] = useState<Array<{ id: string; name: string; image_url: string | null; pv_max: number; pv: number; owner: string; data: Record<string, unknown> | null }>>([]);
   const [cardPositions, setCardPositions] = useState<Record<string, FloatingCardPosition>>({});
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -446,6 +447,58 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     niveau:       toNumber(pjRow.stats?.niveau, 1),
   });
 
+  // ── Fetch familiers de la campagne ────────────────────────────────────────
+  const fetchFamiliersForMenu = async () => {
+    const { data: pjs } = await supabase.from("pj").select("id, name").eq("campaign_id", campaignId);
+    const { data: pnjs } = await supabase.from("pnj").select("id, name").eq("campaign_id", campaignId);
+    const pjIds = (pjs ?? []).map((p) => (p as { id: string }).id);
+    const pnjIds = (pnjs ?? []).map((p) => (p as { id: string }).id);
+    const pjMap = new Map((pjs ?? []).map((p) => [(p as { id: string; name: string }).id, (p as { id: string; name: string }).name]));
+    const pnjMap = new Map((pnjs ?? []).map((p) => [(p as { id: string; name: string }).id, (p as { id: string; name: string }).name]));
+
+    const results: typeof familierResults = [];
+
+    if (pjIds.length > 0) {
+      const { data: fams } = await supabase.from("pj_familiers").select("*").in("pj_id", pjIds);
+      for (const f of fams ?? []) {
+        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pjMap.get(f.pj_id) ?? "PJ", data: f.data });
+      }
+    }
+    if (pnjIds.length > 0) {
+      const { data: fams } = await supabase.from("pj_familiers").select("*").in("pnj_id", pnjIds);
+      for (const f of fams ?? []) {
+        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pnjMap.get(f.pnj_id) ?? "PNJ", data: f.data });
+      }
+    }
+    setFamilierResults(results);
+  };
+
+  const addFamilierToCombat = (f: typeof familierResults[number]) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = f.data as any;
+    const pvMax = f.pv_max;
+    const newEntry: Combatant = {
+      id: makeCombatantId(),
+      entityId: f.id,
+      type: "familier",
+      name: f.name,
+      imageUrl: f.image_url ?? undefined,
+      initiative: toNumber(d?.combat?.initiative, 0),
+      pv: f.pv,
+      pvMax,
+      defense: toNumber(d?.combat?.defense, 0),
+      conditions: [],
+      details: {
+        stats: d?.stats ?? undefined,
+        combat: d?.combat ?? undefined,
+        attaques: d?.attaques ?? [],
+        capacites: d?.capacites ?? [],
+      },
+    };
+    setCombatants((prev) => [...prev, newEntry]);
+    setIsMenuOpen(false);
+  };
+
   const importCompany = async () => {
     setImportingCompany(true);
     try {
@@ -586,7 +639,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
       {/* Bouton Menu MJ (gauche) */}
       <CombatTabButton
-        onClick={() => setIsMenuOpen(true)}
+        onClick={() => { setIsMenuOpen(true); void fetchFamiliersForMenu(); }}
         label="Menu MJ"
         aria-label="Ouvrir le menu MJ"
         className="absolute top-0 left-4 z-40"
@@ -634,6 +687,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         onSetSearchType={setSearchType}
         onSetSearchTerm={setSearchTerm}
         onAddFromSearch={addEnemyFromSearch}
+        familierResults={familierResults}
+        onAddFamilier={addFamilierToCombat}
       />
 
       {/* Message si arène vide */}

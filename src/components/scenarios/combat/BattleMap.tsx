@@ -26,6 +26,7 @@ async function uploadBattleMap(file: File): Promise<string | null> {
 
 export function tokenRingClass(type: string) {
   if (type === "pj") return "border-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
+  if (type === "familier") return "border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]";
   if (type === "monster") return "border-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]";
   return "border-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.6)]";
 }

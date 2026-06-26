@@ -1,4 +1,4 @@
-export type CombatantType = "pj" | "monster" | "npc";
+export type CombatantType = "pj" | "monster" | "npc" | "familier";
 
 export type ConditionKey =
   | "ko"
@@ -144,6 +144,7 @@ export const FANION_BG = {
   pj: "linear-gradient(to right, rgba(18, 24, 62, 0.9), rgba(87, 105, 214, 0.9))",
   monster: "rgba(185, 75, 84, 0.9)",
   npc: "rgba(185, 75, 84, 0.9)",
+  familier: "rgba(16, 130, 80, 0.9)",
 } satisfies Record<CombatantType, string>;
 
 export function toNumber(value: unknown, fallback = 0): number {
