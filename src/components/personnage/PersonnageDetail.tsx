@@ -731,6 +731,19 @@ export function PersonnageDetail({
           </div>
         )}
 
+        {/* FAMILIERS : PNJ NON COMBATTANT (affiché sous la fiche) */}
+        {isNonCombatantPNJ && !isEditing && (
+          <div className="mt-2">
+            <FamilierTab
+              pjId=""
+              pnjId={pj.id}
+              type="pnj"
+              campaignId={campaignId}
+              readOnly={readOnly}
+            />
+          </div>
+        )}
+
         {/* ========================================================= */}
         {/* VUES À ONGLETS : PJ & PNJ COMBATTANTS                     */}
         {/* ========================================================= */}

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, X, Search, Loader2, PawPrint, Pencil, ChevronDown, Swords } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
@@ -126,7 +126,7 @@ function CapaciteRow({ cap }: { cap: MonstreCapacite }) {
 
 export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }: FamilierTabProps) {
   const [familiers, setFamiliers] = useState<Familier[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // true par défaut : on charge toujours au montage
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loadingDataId, setLoadingDataId] = useState<string | null>(null);
 
@@ -145,51 +145,67 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
 
   const ownerId = type === "pj" ? pjId : (pnjId ?? pjId);
 
-  const fetchFamiliers = async () => {
-    setIsLoading(true);
+  // ── Chargement ─ pattern sans setState synchrone dans l'effect ──────────
+  useEffect(() => {
+    let cancelled = false;
     const col = type === "pj" ? "pj_id" : "pnj_id";
-    const { data } = await supabase.from("pj_familiers").select("*").eq(col, ownerId).order("created_at");
-    setFamiliers((data as Familier[]) ?? []);
-    setIsLoading(false);
+
+    supabase.from("pj_familiers").select("*").eq(col, ownerId).order("created_at")
+      .then(({ data }) => {
+        if (!cancelled) {
+          setFamiliers((data as Familier[]) ?? []);
+          setIsLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [ownerId, type]);
+
+  const fetchFamiliers = () => {
+    const col = type === "pj" ? "pj_id" : "pnj_id";
+    supabase.from("pj_familiers").select("*").eq(col, ownerId).order("created_at")
+      .then(({ data }) => {
+        setFamiliers((data as Familier[]) ?? []);
+      });
   };
 
-  useEffect(() => { void fetchFamiliers(); }, [ownerId]);
+  // Quand on déplie une carte sans données, on les charge depuis le bestiaire.
+  // On utilise une ref pour éviter d'avoir familiers dans les deps (boucle infinie).
+  const familiersByIdRef = useRef<Map<string, Familier>>(new Map());
+  useEffect(() => {
+    familiersByIdRef.current = new Map(familiers.map((f) => [f.id, f]));
+  }, [familiers]);
 
-  // Quand on déplie une carte sans données, on les charge depuis le bestiaire
-  // et on met à jour le row en DB pour les prochaines fois
   useEffect(() => {
     if (!expandedId) return;
-    const f = familiers.find((x) => x.id === expandedId);
+    const f = familiersByIdRef.current.get(expandedId);
     if (!f || f.data || !f.monster_id) return;
 
-    const load = async () => {
-      setLoadingDataId(expandedId);
-      const { data: monster } = await supabase
-        .from("bestiaire")
-        .select("nom, nc, type_creature, taille, description, stats, combat, attaques, capacites")
-        .eq("id", f.monster_id)
-        .single();
-      setLoadingDataId(null);
-      if (!monster) return;
+    let cancelled = false;
+    const monsterId = f.monster_id;
+    const familierPvMax = f.pv_max;
 
-      const pvMax = Number(monster.combat?.pv_max ?? monster.combat?.pv ?? f.pv_max);
-      const snapshotData: FamilierData = {
-        nom: monster.nom, nc: monster.nc ?? "1",
-        type_creature: monster.type_creature ?? "Animal", taille: monster.taille ?? "Moyenne",
-        description: monster.description ?? "",
-        stats: monster.stats ?? DEFAULT_STATS,
-        combat: { pv: pvMax, pv_max: pvMax, defense: Number(monster.combat?.defense ?? 10), initiative: Number(monster.combat?.initiative ?? 10), rd: Number(monster.combat?.rd ?? 0), attaque_magique: monster.combat?.attaque_magique ?? null },
-        attaques: monster.attaques ?? [], capacites: monster.capacites ?? [],
-      };
-
-      // Mise à jour locale immédiate
-      setFamiliers((prev) => prev.map((x) => x.id === f.id ? { ...x, data: snapshotData } : x));
-      // Persistance en DB pour ne plus avoir à re-fetcher
-      void supabase.from("pj_familiers").update({ data: snapshotData }).eq("id", f.id);
-    };
-
-    void load();
-  }, [expandedId, familiers]);
+    // setTimeout(0) pour sortir du corps synchrone de l’effect
+    const t = setTimeout(() => setLoadingDataId(expandedId), 0);
+    supabase.from("bestiaire")
+      .select("nom, nc, type_creature, taille, description, stats, combat, attaques, capacites")
+      .eq("id", monsterId).single()
+      .then(({ data: monster }) => {
+        if (cancelled || !monster) { setLoadingDataId(null); return; }
+        const pvMax = Number(monster.combat?.pv_max ?? monster.combat?.pv ?? familierPvMax);
+        const snapshotData: FamilierData = {
+          nom: monster.nom, nc: monster.nc ?? "1",
+          type_creature: monster.type_creature ?? "Animal", taille: monster.taille ?? "Moyenne",
+          description: monster.description ?? "",
+          stats: monster.stats ?? DEFAULT_STATS,
+          combat: { pv: pvMax, pv_max: pvMax, defense: Number(monster.combat?.defense ?? 10), initiative: Number(monster.combat?.initiative ?? 10), rd: Number(monster.combat?.rd ?? 0), attaque_magique: monster.combat?.attaque_magique ?? null },
+          attaques: monster.attaques ?? [], capacites: monster.capacites ?? [],
+        };
+        setLoadingDataId(null);
+        setFamiliers((prev) => prev.map((x) => x.id === f.id ? { ...x, data: snapshotData } : x));
+        void supabase.from("pj_familiers").update({ data: snapshotData }).eq("id", f.id);
+      });
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [expandedId]);
 
   useEffect(() => {
     if (!isAddOpen) return;
@@ -288,11 +304,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
           <PawPrint className="w-10 h-10 text-white/10" />
           <p className="text-white/30 text-sm italic">Aucun familier associé.</p>
-          {!readOnly && (
-            <button onClick={() => setIsAddOpen(true)} className="mt-1 flex items-center gap-1.5 px-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-widest border border-[#E3CCCD]/30 text-[#E3CCCD]/70 hover:text-[#E3CCCD] hover:bg-[#E3CCCD]/10 transition-all">
-              <Plus className="w-3.5 h-3.5" /> Associer un monstre
-            </button>
-          )}
+          
         </div>
       ) : (
         <div className="space-y-3">
@@ -480,13 +492,15 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
           }}
           onSavePayload={async (payload, imageUrl) => {
             const combat = payload.combat as MonstreCombat;
-            await supabase.from("pj_familiers").update({
-              custom_name: (payload.nom as string) !== editingFamilier.monster_nom ? (payload.nom as string) : null,
+            const newNom = (payload.nom as string).trim();
+            const { error } = await supabase.from("pj_familiers").update({
+              custom_name: newNom !== editingFamilier.monster_nom ? newNom : null,
               pv_max: combat.pv_max,
               pv: Math.min(editingFamilier.pv, combat.pv_max),
               monster_image_url: imageUrl ?? editingFamilier.monster_image_url,
               data: payload,
             }).eq("id", editingFamilier.id);
+            if (error) throw new Error(error.message);
           }}
         />
       )}
@@ -496,9 +510,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
         <DeleteConfirmModal
           name={familierToDelete.custom_name || familierToDelete.monster_nom}
           title="Retirer ce familier ?"
-          description={
-            <><span className="text-white/80 font-medium">{familierToDelete.custom_name || familierToDelete.monster_nom}</span> sera retiré de la liste des familiers.</>
-          }
+          description={`${familierToDelete.custom_name || familierToDelete.monster_nom} sera retiré de la liste des familiers.`}
           isDeleting={isDeleting}
           onConfirm={confirmDelete}
           onCancel={() => setFamilierToDelete(null)}

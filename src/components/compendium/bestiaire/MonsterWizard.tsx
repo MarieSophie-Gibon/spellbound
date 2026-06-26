@@ -139,6 +139,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
       // Court-circuit : si onSavePayload est fourni, on délègue la persistance
       if (onSavePayload) {
         await onSavePayload(payload, uploadedImageUrl);
+        onSuccess({ id: initialData?.id ?? "", nom: payload.nom as string, image_url: uploadedImageUrl ?? null });
         onClose();
         return;
       }
