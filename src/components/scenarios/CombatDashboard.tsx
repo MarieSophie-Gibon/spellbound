@@ -514,7 +514,28 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       details: result.type === "monster" ? { stats: (result.stats as MonsterStatsMap) ?? undefined, combat: result.combat, attaques: result.attaques, capacites: result.capacites } : undefined,
     };
     // On ajoute directement sans dédupliquer sur entityId : plusieurs instances du même monstre sont autorisées
-    setCombatants((prev) => [...prev, newEntry]);
+    // Numérotation automatique quand plusieurs exemplaires de la même espèce sont présents
+    setCombatants((prev) => {
+      const baseName = result.name;
+      const siblings = prev.filter((c) => c.entityId === result.id && c.type === result.type);
+      if (siblings.length === 0) {
+        return [...prev, newEntry];
+      }
+      if (siblings.length === 1) {
+        // Passer le premier exemplaire en #1
+        const updated = prev.map((c) =>
+          c.id === siblings[0].id ? { ...c, name: `${baseName} #1` } : c
+        );
+        return [...updated, { ...newEntry, name: `${baseName} #2` }];
+      }
+      // Trouver le prochain numéro disponible
+      const usedNums = siblings
+        .map((c) => c.name.match(/ #(\d+)$/)?.[1])
+        .filter(Boolean)
+        .map(Number);
+      const next = usedNums.length > 0 ? Math.max(...usedNums) + 1 : siblings.length + 1;
+      return [...prev, { ...newEntry, name: `${baseName} #${next}` }];
+    });
     setIsMenuOpen(false);
     setSearchTerm("");
     setSearchResults([]);
