@@ -35,7 +35,7 @@ export function PJList({ campaignId }: PJListProps) {
   }, []);
 
   if (isLoading) return <div className="text-white/60 mt-10 ml-16 text-sm italic">Chargement des personnages...</div>;
-  if (!pjs?.length) return <div className="text-white/40 text-sm italic mt-10 ml-16">Aucun personnage n'a rejoint la compagnie.</div>;
+  if (!pjs?.length) return <div className="text-white/40 text-sm italic mt-10 ml-16">Aucun personnage n'a rejoint la compagne.</div>;
 
   // Forme de la bannière
   const bannerShape = "polygon(50% 0%, 100% 7%, 100% 93%, 50% 100%, 0% 93%, 0% 7%)";

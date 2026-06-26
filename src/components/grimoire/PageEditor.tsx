@@ -185,7 +185,7 @@ export function PageEditor({
       const { error } = await supabase.storage.from("wiki-images").upload(path, file);
       if (error) throw error;
       const { data } = supabase.storage.from("wiki-images").getPublicUrl(path);
-      editor.chain().focus().moveToEnd().setImage({ src: data.publicUrl }).run();
+      editor.chain().focus('end').setImage({ src: data.publicUrl }).run();
     } catch (err: unknown) {
       alert("Erreur upload image : " + (err instanceof Error ? err.message : String(err)));
     } finally {
