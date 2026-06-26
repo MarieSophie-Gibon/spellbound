@@ -213,7 +213,7 @@ export function CompendiumSidebar({
                     <div key={groupe}>
                       <button
                         onClick={() => toggleGroupe(groupe)}
-                        className="flex items-center justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold uppercase tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
+                        className="flex items-start justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
                       >
                         <span>{groupe}</span>
                         <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
@@ -260,7 +260,7 @@ export function CompendiumSidebar({
                     <div key={type}>
                       <button
                         onClick={() => toggleType(type)}
-                        className="flex items-center justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold uppercase tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
+                        className="flex items-start justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
                       >
                         <span>{type}</span>
                         <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
