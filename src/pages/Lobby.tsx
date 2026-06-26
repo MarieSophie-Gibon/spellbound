@@ -101,33 +101,43 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-center gap-8">
+          <div className="w-full overflow-x-auto
+            scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+            <div className="flex items-stretch gap-5 pt-6 pb-10 px-4 w-max mx-auto">
           {isMJ && (
-            <MagicCard
-              onClick={onCreateCampaign}
-              title={
-                <>
-                  Créer une
-                  <br />
-                  nouvelle
-                  <br />
-                  campagne
-                </>
-              }
-            />
+            <div className="shrink-0">
+              <MagicCard
+                size="compact"
+                onClick={onCreateCampaign}
+                title={
+                  <>
+                    Créer une
+                    <br />
+                    nouvelle
+                    <br />
+                    campagne
+                  </>
+                }
+              />
+            </div>
           )}
 
-          {campaigns?.map((campaign) => (
-            <MagicCard
-              key={campaign.id}
-              onClick={() => onSelectCampaign(campaign)}
-              imageUrl={campaign.image_url}
-              title={campaign.nom}
-              onEdit={isMJ ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
-              onDuplicate={isMJ ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
-              onDelete={isMJ ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
-            />
+          {[...(campaigns ?? [])]
+            .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+            .map((campaign) => (
+            <div key={campaign.id} className="shrink-0">
+              <MagicCard
+                size="compact"
+                onClick={() => onSelectCampaign(campaign)}
+                imageUrl={campaign.image_url}
+                title={campaign.nom}
+                onEdit={isMJ ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
+                onDuplicate={isMJ ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
+                onDelete={isMJ ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
+              />
+            </div>
           ))}
+            </div>
           </div>
         </div>
       </div>
