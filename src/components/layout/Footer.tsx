@@ -29,6 +29,7 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
   const profile = useProfile();
 
   const isMJ = role === "mj" || profile?.role === "mj";
+  const effectiveRole: 'mj' | 'player' = isMJ ? 'mj' : 'player';
   const displayName = session?.user?.email?.split("@")[0] || "Voyageur";
 
   // --- Gestion du Hover + Click pour profil ---
@@ -57,7 +58,7 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
     }, 200);
   };
 
-  const { data: campaigns } = useCampaigns(role);
+  const { data: campaigns } = useCampaigns(effectiveRole);
 
   return (
     <footer

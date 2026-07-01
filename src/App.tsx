@@ -20,15 +20,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Copy, Loader2 } from "lucide-react";
+import { useProfile } from "@/hooks/useProfile";
 
 function App() {
   const location = useLocation();
-  // Route joueur — page autonome sans layout
-  if (location.pathname === "/battlemap") return <PlayerView />;
+  const isBattlemapRoute = location.pathname === "/battlemap";
 
   const { session, isLoading, initializeAuth } = useAuthStore();
   const role = useAuthStore((s) => s.role);
-  const isMJ = role === 'mj';
+  const profile = useProfile();
+  const isGlobalEditor = role === 'mj' || profile?.role === 'mj';
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
@@ -46,6 +47,9 @@ function App() {
     };
   }, [initializeAuth]);
 
+  // Route joueur — page autonome sans layout
+  if (isBattlemapRoute) return <PlayerView />;
+
   // Redirect to login if not authenticated
   if (isLoading) return <div className="min-h-screen bg-slate-950" />;
 
@@ -53,6 +57,7 @@ function App() {
   // Détermine les onglets visibles selon la route
   const isCampaignRoute = location.pathname.startsWith("/campaign");
   const isCombatRoute = location.pathname.startsWith("/campaign/combat");
+  const canManageActiveCampaign = !!activeCampaign && activeCampaign.owner_id === session?.user?.id;
   const getActiveTab = () => {
     if (isCampaignRoute && location.pathname.includes("grimoire")) return "grimoire";
     if (isCampaignRoute && location.pathname.includes("compendium")) return "compendium";
@@ -67,7 +72,7 @@ function App() {
   const getTabs = () => {
     if (isCampaignRoute) {
       const campaignTabs = ["grimoire", "compendium", "personnages"];
-      if (isMJ) campaignTabs.splice(2, 0, "scenarios"); // MJ seulement
+      if (canManageActiveCampaign) campaignTabs.splice(2, 0, "scenarios"); // Owner seulement
       return campaignTabs;
     }
     return ["grimoire", "compendium"];
@@ -162,7 +167,7 @@ function App() {
                 element={
                   <Grimoire
                     isGlobal={true}
-                    readOnly={!isMJ}
+                    readOnly={!isGlobalEditor}
                     onBack={() => navigate("/")}
                   />
                 }
@@ -171,7 +176,7 @@ function App() {
                 path="/compendium"
                 element={
                   <Compendium
-                    readOnly={!isMJ}
+                    readOnly={!isGlobalEditor}
                     onBack={() => navigate("/")}
                   />
                 }
@@ -182,7 +187,7 @@ function App() {
                   <Grimoire
                     isGlobal={false}
                     campaignId={activeCampaign?.id}
-                    readOnly={!isMJ}
+                    readOnly={!canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
                   />
                 }
@@ -192,7 +197,7 @@ function App() {
                 element={
                   <Compendium
                     campaignId={activeCampaign?.id}
-                    readOnly={!isMJ}
+                    readOnly={!canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
                   />
                 }
@@ -203,7 +208,7 @@ function App() {
                 path="/campaign/scenarios"
                 element={
                   !activeCampaign ? <Navigate to="/" /> :
-                  !isMJ ? <Navigate to="/campaign" /> : (
+                  !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
                     <Scenarios
                       campaignId={activeCampaign.id}
                       onBack={() => navigate("/campaign")}
@@ -218,7 +223,7 @@ function App() {
                   activeCampaign ? (
                     <Personnages
                       campaignId={activeCampaign.id}
-                      readOnly={!isMJ}
+                      readOnly={!canManageActiveCampaign}
                       onBack={() => navigate("/campaign")}
                     />
                   ) : (
@@ -226,12 +231,12 @@ function App() {
                   )
                 }
               />
-              {/* COMBAT — MJ uniquement (second écran) */}
+              {/* COMBAT — Owner uniquement (second écran) */}
               <Route
                 path="/campaign/combat"
                 element={
                   !activeCampaign ? <Navigate to="/" /> :
-                  !isMJ ? <Navigate to="/campaign" /> : (
+                  !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
                     <Combat campaignId={activeCampaign.id} />
                   )
                 }
@@ -251,9 +256,9 @@ function App() {
             setActiveCampaign(null);
             navigate("/");
           }}
-          onEditCampaign={activeCampaign ? () => setEditingCampaign(activeCampaign) : undefined}
-          onDeleteCampaign={activeCampaign ? () => setShowDeleteCampaignConfirm(true) : undefined}
-          onDuplicateCampaign={activeCampaign ? () => { setDuplicateName(`Copie de ${activeCampaign.nom}`); setShowDuplicateCampaignModal(true); } : undefined}
+          onEditCampaign={activeCampaign && canManageActiveCampaign ? () => setEditingCampaign(activeCampaign) : undefined}
+          onDeleteCampaign={activeCampaign && canManageActiveCampaign ? () => setShowDeleteCampaignConfirm(true) : undefined}
+          onDuplicateCampaign={activeCampaign && canManageActiveCampaign ? () => { setDuplicateName(`Copie de ${activeCampaign.nom}`); setShowDuplicateCampaignModal(true); } : undefined}
           onSwitchCampaign={(campaign) => { setActiveCampaign(campaign); navigate("/campaign"); }}
         />
       </div>

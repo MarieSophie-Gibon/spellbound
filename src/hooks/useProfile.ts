@@ -2,6 +2,21 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/useAuthStore";
 
+function normalizeProfileRole(value: unknown): "joueur" | "mj" {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_-]+/g, "");
+
+  if (raw === "mj" || raw === "gm" || raw === "dm" || raw === "admin" || raw === "maitredujeu") {
+    return "mj";
+  }
+
+  return "joueur";
+}
+
 export function useProfile() {
   const { session } = useAuthStore();
   const [profile, setProfile] = useState<{
@@ -15,15 +30,25 @@ export function useProfile() {
 
     async function getProfile() {
       // On interroge notre nouvelle table "utilisateurs"
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("utilisateurs")
         .select("pseudo, role")
         .eq("id", session?.user.id)
-        .single();
+        .maybeSingle();
 
-      if (data) {
-        setProfile(data);
+      // Profil absent/inaccessible (RLS): on garde un fallback local sans bruit console.
+      if (error || !data) {
+        setProfile({
+          pseudo: session?.user?.user_metadata?.pseudo ?? session?.user?.email?.split("@")[0] ?? "Voyageur",
+          role: useAuthStore.getState().role === "mj" ? "mj" : "joueur",
+        });
+        return;
       }
+
+      setProfile({
+        ...data,
+        role: normalizeProfileRole(data.role),
+      });
     }
 
     getProfile();

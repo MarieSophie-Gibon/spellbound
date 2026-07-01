@@ -18,9 +18,9 @@ interface LobbyProps {
 }
 
 export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
-  const role = useAuthStore((s) => s.role);
-  const isMJ = role === 'mj';
-  const { data: campaigns, isLoading } = useCampaigns(role);
+  const session = useAuthStore((s) => s.session);
+  const currentUserId = session?.user?.id;
+  const { data: campaigns, isLoading } = useCampaigns();
   const joinByCode = useJoinCampaignByCode();
   const deleteCampaign = useDeleteCampaign();
   const duplicateCampaign = useDuplicateCampaign();
@@ -61,19 +61,19 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         `}
       </style>
       <div className="flex-1 flex items-center justify-center w-full h-full p-8 md:pr-24">
-        <div className="w-full max-w-6xl flex flex-col items-center gap-6">
-          {!isMJ && (
-            <div className="w-full max-w-xl rounded-2xl border border-white/15 bg-black/20 backdrop-blur-md px-4 py-4">
-              <div className="flex items-center gap-2 mb-2 text-white/85">
-                <Ticket className="w-4 h-4 text-amber-300" />
-                <p className="text-xs uppercase tracking-widest">Rejoindre une campagne</p>
+        <div className="w-full max-w-6xl relative flex flex-col items-center gap-6">
+          {
+            <div className="fixed top-3 right-3 md:top-4 md:right-4 w-[min(22rem,calc(100vw-1.5rem))] md:w-80 rounded-xl border border-white/12 bg-black/25 backdrop-blur-md px-3 py-3 z-40">
+              <div className="flex items-center gap-2 mb-2 text-white/80">
+                <Ticket className="w-3.5 h-3.5 text-amber-300" />
+                <p className="text-[10px] uppercase tracking-[0.18em]">Rejoindre une campagne</p>
               </div>
               <div className="flex gap-2">
                 <Input
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
                   placeholder="Code invitation (ex: A7K2M9QX)"
-                  className="bg-white/5 border-white/15 text-white placeholder:text-white/35"
+                  className="h-8 text-xs bg-white/5 border-white/15 text-white placeholder:text-white/35"
                 />
                 <Button
                   disabled={!inviteCode.trim() || joinByCode.isPending}
@@ -92,19 +92,19 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
                       }
                     );
                   }}
-                  className="bg-amber-600 hover:bg-amber-500 text-white"
+                  className="h-8 px-2.5 text-xs bg-amber-600 hover:bg-amber-500 text-white"
                 >
                   {joinByCode.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rejoindre"}
                 </Button>
               </div>
-              {joinError && <p className="text-xs text-red-300 mt-2">{joinError}</p>}
+              {joinError && <p className="text-[11px] text-red-300 mt-2">{joinError}</p>}
             </div>
-          )}
+          }
 
           <div className="w-full overflow-x-auto
             scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
             <div className="flex items-stretch gap-5 pt-6 pb-10 px-4 w-max mx-auto">
-          {isMJ && (
+          {
             <div className="shrink-0">
               <MagicCard
                 size="compact"
@@ -120,21 +120,26 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
                 }
               />
             </div>
-          )}
+          }
 
           {[...(campaigns ?? [])]
             .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
             .map((campaign) => (
             <div key={campaign.id} className="shrink-0">
+              {(() => {
+                const isOwner = !!currentUserId && campaign.owner_id === currentUserId;
+                return (
               <MagicCard
                 size="compact"
                 onClick={() => onSelectCampaign(campaign)}
                 imageUrl={campaign.image_url}
                 title={campaign.nom}
-                onEdit={isMJ ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
-                onDuplicate={isMJ ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
-                onDelete={isMJ ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
+                onEdit={isOwner ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
+                onDuplicate={isOwner ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
+                onDelete={isOwner ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
               />
+                );
+              })()}
             </div>
           ))}
             </div>
