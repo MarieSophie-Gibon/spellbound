@@ -56,11 +56,11 @@ export function BookLayout({
               className={`shrink-0 flex flex-col bg-black/10 overflow-hidden transition-all duration-500 ease-in-out ${
                 hideSidebar
                   ? "w-0 opacity-0 border-r-0"
-                  : "w-50 opacity-100 border-r border-[#E3CCCD]/20"
+                  : "w-60 opacity-100 border-r border-[#E3CCCD]/20"
               }`}
             >
               {/* Conteneur interne fixe pour éviter l'écrasement du texte pendant l'animation */}
-              <div className="w-50 h-full flex flex-col">
+              <div className="w-full h-full flex flex-col">
                 {sidebar}
               </div>
             </div>

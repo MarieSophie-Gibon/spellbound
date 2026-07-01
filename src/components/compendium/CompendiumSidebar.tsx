@@ -156,7 +156,7 @@ export function CompendiumSidebar({
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedPeupleId === peuple.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                   >
                     <div className={`w-1 h-1 shrink-0 rounded-full ${selectedPeupleId === peuple.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                    <span className="truncate">{peuple.nom}</span>
+                    <span className="break-words min-w-0">{peuple.nom}</span>
                   </button>
                 ))
               )}
@@ -185,7 +185,7 @@ export function CompendiumSidebar({
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedFamilleArchetypeId === fa.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                   >
                     <div className={`w-1 h-1 shrink-0 rounded-full ${selectedFamilleArchetypeId === fa.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                    <span className="truncate">{fa.nom}</span>
+                    <span className="break-words min-w-0">{fa.nom}</span>
                   </button>
                 ))
               )}
@@ -227,7 +227,7 @@ export function CompendiumSidebar({
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedProfilId === profil.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedProfilId === profil.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="truncate">{profil.nom}</span>
+                              <span className="break-words min-w-0">{profil.nom}</span>
                             </button>
                           ))}
                         </div>
@@ -274,7 +274,7 @@ export function CompendiumSidebar({
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedMonstreId === monstre.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedMonstreId === monstre.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="truncate flex-1">{monstre.nom}</span>
+                              <span className="break-words min-w-0 flex-1">{monstre.nom}</span>
                               <span className="text-[10px] text-white/30 font-mono shrink-0">NC {monstre.nc}</span>
                             </button>
                           ))}
@@ -308,7 +308,7 @@ export function CompendiumSidebar({
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedEquipementTable === t.key ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                   >
                     <t.icon className={`w-3.5 h-3.5 shrink-0 ${selectedEquipementTable === t.key ? "text-[#E3CCCD]" : "text-[#E3CCCD]/30"}`} />
-                    <span className="truncate flex-1">{t.label}</span>
+                    <span className="break-words min-w-0 flex-1">{t.label}</span>
                     <span className="text-[10px] text-white/30 shrink-0">{count}</span>
                   </button>
                 );
@@ -351,7 +351,7 @@ export function CompendiumSidebar({
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedVoiePrestigeId === voie.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedVoiePrestigeId === voie.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="truncate">{voie.nom}</span>
+                              <span className="break-words min-w-0">{voie.nom}</span>
                             </button>
                           ))}
                         </div>

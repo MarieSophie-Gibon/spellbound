@@ -65,7 +65,7 @@ export function GrimoireSidebar({
                   ${selectedPageId === page.id ? "bg-[#29206A]/60 text-white" : "text-white/60 hover:text-white hover:bg-white/5"}`}
               >
                 <div className={`w-1 h-1 shrink-0 rounded-full ${selectedPageId === page.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                <span className="truncate">{page.title}</span>
+                <span className="break-words min-w-0">{page.title}</span>
               </button>
               <GripVertical className="w-3.5 h-3.5 text-white/20 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-1" />
             </div>

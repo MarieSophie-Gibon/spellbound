@@ -110,7 +110,7 @@ export function PersonnageSidebar({
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className={`text-[13px] font-medium truncate ${
+                                    <p className={`text-[13px] font-medium break-words min-w-0 ${
                                         selectedId === perso.id 
                                             ? activeTab === "pj" ? "text-[#E3CCCD]" : "text-sky-400"
                                             : "text-white/70"
@@ -123,7 +123,7 @@ export function PersonnageSidebar({
                                     )}
                                 </div>
                                 {(perso.stats?.sexe || perso.stats?.age) && (
-                                    <p className="text-[11px] text-white/35 truncate mt-0.5">
+                                    <p className="text-[11px] text-white/35 break-words min-w-0 mt-0.5">
                                         {[perso.stats.sexe, perso.stats.age].filter(Boolean).join(" · ")}
                                     </p>
                                 )}
