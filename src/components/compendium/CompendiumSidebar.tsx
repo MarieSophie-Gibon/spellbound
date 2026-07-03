@@ -15,6 +15,8 @@ function SectionPanel({ open, children }: { open: boolean; children: React.React
 
 interface CompendiumSidebarProps {
   activeSection: Section | null;
+  sections?: Section[];
+  actionsMode?: 'all' | 'compendium' | 'bestiaire';
   peuples: Peuple[];
   selectedPeupleId: string | null;
   famillesArchetypes: FamilleArchetype[];
@@ -46,6 +48,8 @@ interface CompendiumSidebarProps {
 
 export function CompendiumSidebar({
   activeSection,
+  sections = ['peuples', 'familles', 'profils', 'bestiaire', 'objets', 'voies_prestige'],
+  actionsMode = 'compendium',
   peuples,
   selectedPeupleId,
   famillesArchetypes,
@@ -74,6 +78,8 @@ export function CompendiumSidebar({
   onBack,
   readOnly,
 }: CompendiumSidebarProps) {
+  const showSection = (section: Section) => sections.includes(section);
+  const isBestiaireOnlyView = actionsMode === 'bestiaire';
   const [expandedGroupes, setExpandedGroupes] = useState<Set<string>>(new Set());
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set());
 
@@ -135,7 +141,7 @@ export function CompendiumSidebar({
       <div className="flex-1 overflow-y-auto py-2 px-3 scrollbar-thin scrollbar-thumb-white/5">
 
         {/* SECTION PEUPLES */}
-        <div className="w-full">
+        {showSection('peuples') && <div className="w-full">
           <button
             onClick={() => onSectionChange(activeSection === 'peuples' ? null : 'peuples')}
             className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'peuples' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
@@ -156,16 +162,16 @@ export function CompendiumSidebar({
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedPeupleId === peuple.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                   >
                     <div className={`w-1 h-1 shrink-0 rounded-full ${selectedPeupleId === peuple.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                    <span className="break-words min-w-0">{peuple.nom}</span>
+                    <span className="wrap-break-word min-w-0">{peuple.nom}</span>
                   </button>
                 ))
               )}
             </div>
           </SectionPanel>
-        </div>
+        </div>}
 
         {/* SECTION FAMILLES (Archétypes) */}
-        <div className="w-full">
+        {showSection('familles') && <div className="w-full">
           <button
             onClick={() => onSectionChange(activeSection === 'familles' ? null : 'familles')}
             className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'familles' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
@@ -185,16 +191,16 @@ export function CompendiumSidebar({
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedFamilleArchetypeId === fa.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                   >
                     <div className={`w-1 h-1 shrink-0 rounded-full ${selectedFamilleArchetypeId === fa.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                    <span className="break-words min-w-0">{fa.nom}</span>
+                    <span className="wrap-break-word min-w-0">{fa.nom}</span>
                   </button>
                 ))
               )}
             </div>
           </SectionPanel>
-        </div>
+        </div>}
 
         {/* SECTION PROFILS */}
-        <div className="w-full">
+        {showSection('profils') && <div className="w-full">
           <button
             onClick={() => onSectionChange(activeSection === 'profils' ? null : 'profils')}
             className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'profils' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
@@ -227,7 +233,7 @@ export function CompendiumSidebar({
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedProfilId === profil.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedProfilId === profil.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="break-words min-w-0">{profil.nom}</span>
+                              <span className="wrap-break-word min-w-0">{profil.nom}</span>
                             </button>
                           ))}
                         </div>
@@ -238,19 +244,12 @@ export function CompendiumSidebar({
               )}
             </div>
           </SectionPanel>
-        </div>
+        </div>}
 
         {/* SECTION BESTIAIRE */}
-        <div className="w-full">
-          <button
-            onClick={() => onSectionChange(activeSection === 'bestiaire' ? null : 'bestiaire')}
-            className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'bestiaire' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
-          >
-            <span>Bestiaire</span>
-            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === 'bestiaire' ? 'rotate-180' : ''}`} />
-          </button>
-          <SectionPanel open={activeSection === 'bestiaire'}>
-            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+        {showSection('bestiaire') && (
+          isBestiaireOnlyView ? (
+            <div className="w-full mt-1 space-y-0.5">
               {monstres.length === 0 ? (
                 <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
               ) : (
@@ -274,7 +273,7 @@ export function CompendiumSidebar({
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedMonstreId === monstre.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedMonstreId === monstre.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="break-words min-w-0 flex-1">{monstre.nom}</span>
+                              <span className="wrap-break-word min-w-0 flex-1">{monstre.nom}</span>
                               <span className="text-[10px] text-white/30 font-mono shrink-0">NC {monstre.nc}</span>
                             </button>
                           ))}
@@ -285,11 +284,58 @@ export function CompendiumSidebar({
                 })
               )}
             </div>
-          </SectionPanel>
-        </div>
+          ) : (
+            <div className="w-full">
+              <button
+                onClick={() => onSectionChange(activeSection === 'bestiaire' ? null : 'bestiaire')}
+                className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'bestiaire' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
+              >
+                <span>Bestiaire</span>
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === 'bestiaire' ? 'rotate-180' : ''}`} />
+              </button>
+              <SectionPanel open={activeSection === 'bestiaire'}>
+                <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+                  {monstres.length === 0 ? (
+                    <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
+                  ) : (
+                    typesOrdonnes.map(type => {
+                      const isOpen = expandedTypes.has(type);
+                      return (
+                        <div key={type}>
+                          <button
+                            onClick={() => toggleType(type)}
+                            className="flex items-start justify-between w-full px-2 py-1 rounded-md transition-all text-[11px] font-semibold tracking-widest text-white/40 hover:text-white/70 hover:bg-white/5"
+                          >
+                            <span>{type}</span>
+                            <ChevronDown className={`w-3 h-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          <SectionPanel open={isOpen}>
+                            <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
+                              {monstresParType[type].map(monstre => (
+                                <button
+                                  key={monstre.id}
+                                  onClick={() => onSelectMonstre(monstre.id)}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedMonstreId === monstre.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                                >
+                                  <div className={`w-1 h-1 shrink-0 rounded-full ${selectedMonstreId === monstre.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                                  <span className="wrap-break-word min-w-0 flex-1">{monstre.nom}</span>
+                                  <span className="text-[10px] text-white/30 font-mono shrink-0">NC {monstre.nc}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </SectionPanel>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </SectionPanel>
+            </div>
+          )
+        )}
 
         {/* SECTION OBJETS */}
-        <div className="w-full">
+        {showSection('objets') && <div className="w-full">
           <button
             onClick={() => onSectionChange(activeSection === 'objets' ? null : 'objets')}
             className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'objets' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
@@ -308,17 +354,17 @@ export function CompendiumSidebar({
                     className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedEquipementTable === t.key ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                   >
                     <t.icon className={`w-3.5 h-3.5 shrink-0 ${selectedEquipementTable === t.key ? "text-[#E3CCCD]" : "text-[#E3CCCD]/30"}`} />
-                    <span className="break-words min-w-0 flex-1">{t.label}</span>
+                    <span className="wrap-break-word min-w-0 flex-1">{t.label}</span>
                     <span className="text-[10px] text-white/30 shrink-0">{count}</span>
                   </button>
                 );
               })}
             </div>
           </SectionPanel>
-        </div>
+        </div>}
 
         {/* SECTION VOIES DE PRESTIGE */}
-        <div className="w-full">
+        {showSection('voies_prestige') && <div className="w-full">
           <button
             onClick={() => onSectionChange(activeSection === 'voies_prestige' ? null : 'voies_prestige')}
             className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === 'voies_prestige' ? 'text-[#E3CCCD] bg-[#29206A]/40' : 'text-white/50 hover:text-white/80 hover:bg-white/5'}`}
@@ -351,7 +397,7 @@ export function CompendiumSidebar({
                               className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedVoiePrestigeId === voie.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedVoiePrestigeId === voie.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                              <span className="break-words min-w-0">{voie.nom}</span>
+                              <span className="wrap-break-word min-w-0">{voie.nom}</span>
                             </button>
                           ))}
                         </div>
@@ -362,11 +408,11 @@ export function CompendiumSidebar({
               )}
             </div>
           </SectionPanel>
-        </div>
+        </div>}
       </div>
 
       {/* ACTIONS */}
-      <SidebarActions onCreatePeuple={onCreatePeuple} onCreateFamille={onCreateFamille} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} readOnly={readOnly} />
+      <SidebarActions mode={actionsMode} onCreatePeuple={onCreatePeuple} onCreateFamille={onCreateFamille} onCreateProfil={onCreateProfil} onCreateMonstre={onCreateMonstre} onCreateObjet={onCreateObjet} onCreateVoiePrestige={onCreateVoiePrestige} onBack={onBack} readOnly={readOnly} />
     </>
   );
 }
@@ -385,70 +431,86 @@ const OBJET_TYPES = [
   { key: "equipement" as EquipementType, label: "Autre Équipement", icon: Package },
 ];
 
-function SidebarActions({ onCreatePeuple, onCreateFamille, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack, readOnly }: { onCreatePeuple: () => void; onCreateFamille: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void; readOnly?: boolean }) {
+function SidebarActions({ mode, onCreatePeuple, onCreateFamille, onCreateProfil, onCreateMonstre, onCreateObjet, onCreateVoiePrestige, onBack, readOnly }: { mode: 'all' | 'compendium' | 'bestiaire'; onCreatePeuple: () => void; onCreateFamille: () => void; onCreateProfil: () => void; onCreateMonstre: () => void; onCreateObjet: (type: EquipementType) => void; onCreateVoiePrestige: () => void; onBack: () => void; readOnly?: boolean }) {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showObjetTypes, setShowObjetTypes] = React.useState(false);
 
   return (
     <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5 relative">
-      {!readOnly && showMenu && (
+      {!readOnly && mode !== 'bestiaire' && showMenu && (
         <div className="absolute bottom-27.5 left-4 right-4 bg-[#1E1941]/95 border border-[#E3CCCD]/30 rounded-xl shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 z-50">
-          <button
-            onClick={() => { onCreatePeuple(); setShowMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
-          >
-            <Users className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Peuple
-          </button>
-          <button
-            onClick={() => { onCreateFamille(); setShowMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
-          >
-            <Shield className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Famille
-          </button>
-          <button
-            onClick={() => { onCreateProfil(); setShowMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
-          >
-            <BookOpenIcon className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Profil
-          </button>
-          <button
-            onClick={() => { onCreateMonstre(); setShowMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
-          >
-            <Swords className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Créature
-          </button>
-          <button
-            onClick={() => { onCreateVoiePrestige(); setShowMenu(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
-          >
-            <Award className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Voie (Prestige)
-          </button>
-          <div className="relative">
+          {mode !== 'compendium' && (
             <button
-              onClick={() => setShowObjetTypes(o => !o)}
-              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors"
+              onClick={() => { onCreateMonstre(); setShowMenu(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors ${mode === 'all' ? 'border-b border-white/5' : ''}`}
             >
-              <span className="flex items-center gap-3"><Wand2 className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Objet</span>
-              <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform ${showObjetTypes ? 'rotate-180' : ''}`} />
+              <Swords className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Créature
             </button>
-            {showObjetTypes && (
-              <div className="border-t border-white/5 bg-white/5">
-                {OBJET_TYPES.map(t => (
-                  <button
-                    key={t.key}
-                    onClick={() => { onCreateObjet(t.key); setShowObjetTypes(false); setShowMenu(false); }}
-                    className="w-full flex items-center gap-3 px-6 py-2.5 text-[12px] text-white/70 hover:bg-white/10 hover:text-white transition-colors"
-                  >
-                    <t.icon className="w-3.5 h-3.5 text-[#E3CCCD]/60" /> {t.label}
-                  </button>
-                ))}
+          )}
+          {mode === 'all' && (
+            <>
+              <button
+                onClick={() => { onCreatePeuple(); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+              >
+                <Users className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Peuple
+              </button>
+              <button
+                onClick={() => { onCreateFamille(); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+              >
+                <Shield className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Famille
+              </button>
+              <button
+                onClick={() => { onCreateProfil(); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+              >
+                <BookOpenIcon className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Profil
+              </button>
+              <button
+                onClick={() => { onCreateVoiePrestige(); setShowMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
+              >
+                <Award className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Voie (Prestige)
+              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowObjetTypes(o => !o)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors"
+                >
+                  <span className="flex items-center gap-3"><Wand2 className="w-4 h-4 text-[#E3CCCD]" /> Ajouter un Objet</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-white/40 transition-transform ${showObjetTypes ? 'rotate-180' : ''}`} />
+                </button>
+                {showObjetTypes && (
+                  <div className="border-t border-white/5 bg-white/5">
+                    {OBJET_TYPES.map(t => (
+                      <button
+                        key={t.key}
+                        onClick={() => { onCreateObjet(t.key); setShowObjetTypes(false); setShowMenu(false); }}
+                        className="w-full flex items-center gap-3 px-6 py-2.5 text-[12px] text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                      >
+                        <t.icon className="w-3.5 h-3.5 text-[#E3CCCD]/60" /> {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
       )}
 
-      {!readOnly && (
+      {!readOnly && mode === 'bestiaire' && (
+        <button
+          onClick={onCreateMonstre}
+          className="w-full flex items-center justify-start gap-3 px-4 py-2.5 rounded-xl border border-[#E3CCCD]/30 bg-[#29206A]/40 text-white hover:bg-white/10 text-[13px] transition-all shadow-lg"
+        >
+          <Swords className="w-4 h-4 text-[#E3CCCD]" />
+          Ajouter une Créature
+        </button>
+      )}
+
+      {!readOnly && mode !== 'bestiaire' && (
         <button
           onClick={() => setShowMenu(m => !m)}
           className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border ${showMenu ? 'border-[#E3CCCD] bg-[#29206A]/60' : 'border-[#E3CCCD]/30 bg-[#29206A]/40'} text-white hover:bg-white/10 text-[13px] transition-all shadow-lg`}

@@ -60,10 +60,12 @@ function App() {
   const canManageActiveCampaign = !!activeCampaign && activeCampaign.owner_id === session?.user?.id;
   const getActiveTab = () => {
     if (isCampaignRoute && location.pathname.includes("grimoire")) return "grimoire";
+    if (isCampaignRoute && location.pathname.includes("bestiaire")) return "bestiaire";
     if (isCampaignRoute && location.pathname.includes("compendium")) return "compendium";
     if (isCampaignRoute && location.pathname.includes("scenarios")) return "scenarios";
     if (isCampaignRoute && location.pathname.includes("personnages")) return "personnages";
     if (!isCampaignRoute && location.pathname === "/grimoire") return "grimoire";
+    if (!isCampaignRoute && location.pathname === "/bestiaire") return "bestiaire";
     if (!isCampaignRoute && location.pathname === "/compendium") return "compendium";
     return "none";
   };
@@ -71,11 +73,11 @@ function App() {
   // Onglets visibles selon le contexte et le rôle
   const getTabs = () => {
     if (isCampaignRoute) {
-      const campaignTabs = ["grimoire", "compendium", "personnages"];
-      if (canManageActiveCampaign) campaignTabs.splice(2, 0, "scenarios"); // Owner seulement
+      const campaignTabs = ["grimoire", "compendium", "bestiaire", "personnages"];
+      if (canManageActiveCampaign) campaignTabs.splice(3, 0, "scenarios"); // Owner seulement
       return campaignTabs;
     }
-    return ["grimoire", "compendium"];
+    return ["grimoire", "compendium", "bestiaire"];
   };
 
   // Navigation handler pour SideNav (global ou campagne)
@@ -83,12 +85,14 @@ function App() {
     if (isCampaignRoute) {
       if (tab === "grimoire") navigate("/campaign/grimoire");
       else if (tab === "compendium") navigate("/campaign/compendium");
+      else if (tab === "bestiaire") navigate("/campaign/bestiaire");
       else if (tab === "scenarios") navigate("/campaign/scenarios");
       else if (tab === "personnages") navigate("/campaign/personnages");
       else navigate("/campaign");
     } else {
       if (tab === "grimoire") navigate("/grimoire");
       else if (tab === "compendium") navigate("/compendium");
+      else if (tab === "bestiaire") navigate("/bestiaire");
       else navigate("/");
     }
   };
@@ -112,7 +116,7 @@ function App() {
       {/* ZONE CENTRALE */}
       <div className="relative z-10 flex flex-1 overflow-hidden">
         {/* Affiche la SideNav sur / (lobby), /grimoire, /compendium, /campaign et ses sous-routes */}
-        {(location.pathname === "/" || location.pathname === "/grimoire" || location.pathname === "/compendium" || isCampaignRoute) && (
+        {(location.pathname === "/" || location.pathname === "/grimoire" || location.pathname === "/compendium" || location.pathname === "/bestiaire" || isCampaignRoute) && (
           <SideNav
             activeTab={getActiveTab()}
             onTabChange={handleTabChange}
@@ -182,6 +186,16 @@ function App() {
                 }
               />
               <Route
+                path="/bestiaire"
+                element={
+                  <Compendium
+                    readOnly={!isGlobalEditor}
+                    mode="bestiaire"
+                    onBack={() => navigate("/")}
+                  />
+                }
+              />
+              <Route
                 path="/campaign/grimoire"
                 element={
                   <Grimoire
@@ -198,6 +212,17 @@ function App() {
                   <Compendium
                     campaignId={activeCampaign?.id}
                     readOnly={!canManageActiveCampaign}
+                    onBack={() => navigate("/campaign")}
+                  />
+                }
+              />
+              <Route
+                path="/campaign/bestiaire"
+                element={
+                  <Compendium
+                    campaignId={activeCampaign?.id}
+                    readOnly={!canManageActiveCampaign}
+                    mode="bestiaire"
                     onBack={() => navigate("/campaign")}
                   />
                 }

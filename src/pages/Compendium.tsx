@@ -24,10 +24,12 @@ interface CompendiumProps {
   onBack: () => void;
   campaignId?: string;
   readOnly?: boolean;
+  mode?: 'full' | 'bestiaire';
 }
 
-export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumProps) {
-  const [activeSection, setActiveSection] = useState<Section | null>('peuples');
+export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full' }: CompendiumProps) {
+  const isBestiaireOnly = mode === 'bestiaire';
+  const [activeSection, setActiveSection] = useState<Section | null>(isBestiaireOnly ? 'bestiaire' : 'peuples');
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [selectedPeupleId, setSelectedPeupleId] = useState<string | null>(null);
   const [selectedVoie, setSelectedVoie] = useState<Voie | null>(null);
@@ -186,6 +188,7 @@ export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumP
   }, [selectedProfilId]);
 
   const handleSectionChange = (section: Section | null) => {
+    if (isBestiaireOnly && section && section !== 'bestiaire') return;
     setActiveSection(section);
     setSelectedPeupleId(null);
     setSelectedFamilleArchetypeId(null);
@@ -293,6 +296,8 @@ export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumP
   const sidebar = (
     <CompendiumSidebar
       activeSection={activeSection}
+      sections={isBestiaireOnly ? ['bestiaire'] : ['peuples', 'familles', 'profils', 'objets', 'voies_prestige']}
+      actionsMode={isBestiaireOnly ? 'bestiaire' : 'compendium'}
       peuples={peuples}
       selectedPeupleId={selectedPeupleId}
       famillesArchetypes={famillesArchetypes}
@@ -325,7 +330,7 @@ export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumP
 
   return (
     <>
-      <BookLayout spineTitle="Compendium" sidebar={sidebar} hideSidebar={isFullscreen}>
+      <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen}>
         {activeSection === 'peuples' && selectedPeuple ? (
           <PeupleDetail
             peuple={selectedPeuple}
@@ -387,9 +392,11 @@ export function Compendium({ onBack, campaignId, readOnly = false }: CompendiumP
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
             <BookOpenIcon className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />
-            <h2 className="font-serif text-2xl text-white tracking-widest uppercase mb-3 leading-none">Compendium</h2>
+            <h2 className="font-serif text-2xl text-white tracking-widest uppercase mb-3 leading-none">{isBestiaireOnly ? 'Bestiaire' : 'Compendium'}</h2>
             <p className="text-[13px] text-white/50 font-light max-w-sm">
-              Sélectionnez une catégorie dans le menu de gauche pour consulter ou créer des éléments du lore.
+              {isBestiaireOnly
+                ? 'Sélectionnez une créature dans le menu de gauche pour consulter ou éditer sa fiche.'
+                : 'Sélectionnez une catégorie dans le menu de gauche pour consulter ou créer des éléments du lore.'}
             </p>
           </div>
         )}

@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { theme } from "@/lib/theme";
-import { BookMarked, Telescope, ScrollText, Users } from "lucide-react";
+import { BookMarked, Telescope, ScrollText, Skull, Users } from "lucide-react";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 interface SideNavProps {
-  activeTab: 'grimoire' | 'compendium' | 'scenarios' | 'personnages' | 'none';
-  onTabChange: (tab: 'grimoire' | 'compendium' | 'scenarios' | 'personnages' | 'none') => void;
+  activeTab: 'grimoire' | 'compendium' | 'bestiaire' | 'scenarios' | 'personnages' | 'none';
+  onTabChange: (tab: 'grimoire' | 'compendium' | 'bestiaire' | 'scenarios' | 'personnages' | 'none') => void;
   tabs?: string[];
   forceCollapsed?: boolean;
 }
@@ -48,7 +48,7 @@ const NavItem = ({ label, icon: Icon, active, onClick, isCollapsed }: any) => {
   );
 };
 
-export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendium", "scenarios", "personnages"], forceCollapsed = false }: SideNavProps) {
+export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendium", "bestiaire", "scenarios", "personnages"], forceCollapsed = false }: SideNavProps) {
   const { session } = useAuthStore();
   
   // LOGIQUE DE RÉTRACTION : Rétracté si un onglet est actif !
@@ -83,6 +83,15 @@ export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendiu
               label="Compendium"
               active={activeTab === 'compendium'}
               onClick={() => onTabChange('compendium')}
+              isCollapsed={isCollapsed}
+            />
+          )}
+          {tabs.includes("bestiaire") && (
+            <NavItem
+              icon={Skull}
+              label="Bestiaire"
+              active={activeTab === 'bestiaire'}
+              onClick={() => onTabChange('bestiaire')}
               isCollapsed={isCollapsed}
             />
           )}
