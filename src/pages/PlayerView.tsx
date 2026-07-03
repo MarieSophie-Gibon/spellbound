@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { BookMarked, Map, Swords, Users } from "lucide-react";
 import type { Combatant, EncounterEntry, MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
-import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast } from "@/components/scenarios/combat/BattleMap";
+import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 interface LiveState {
@@ -14,6 +14,8 @@ interface LiveState {
   tokenSize: number;
   zoom: number;
   pan: { x: number; y: number };
+  fogEnabled: boolean;
+  fogReveals: FogRevealStamp[];
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
@@ -26,6 +28,7 @@ export function PlayerView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgRect, setImgRect] = useState<ImgRect | null>(null);
+  const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const role = useAuthStore((s) => s.role);
   const isMJ = role === "mj";
 
@@ -44,6 +47,8 @@ export function PlayerView() {
         tokenSize: incoming.tokenSize,
         zoom: incoming.zoom ?? 1,
         pan: incoming.pan ?? { x: 0, y: 0 },
+        fogEnabled: incoming.fogEnabled ?? false,
+        fogReveals: incoming.fogReveals ?? [],
       });
     };
     ch.postMessage({ type: "request" });
@@ -69,6 +74,35 @@ export function PlayerView() {
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, [updateImgRect, state?.imageUrl]);
+
+  useEffect(() => {
+    const canvas = fogCanvasRef.current;
+    const rect = imgRect;
+    if (!canvas || !rect) return;
+    const width = Math.max(1, Math.round(rect.width));
+    const height = Math.max(1, Math.round(rect.height));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, width, height);
+    if (!state?.fogEnabled) return;
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "destination-out";
+
+    for (const stamp of state.fogReveals) {
+      ctx.beginPath();
+      ctx.arc((stamp.x / 100) * width, (stamp.y / 100) * height, (stamp.r / 100) * Math.min(width, height), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+  }, [imgRect, state?.fogEnabled, state?.fogReveals]);
 
   const activeCombatant = state?.combatants.find(c => c.id === state.activeCombatantId);
   const visibleCombatants = (state?.combatants ?? []).filter((c) => !c.hidden);
@@ -217,6 +251,12 @@ export function PlayerView() {
                   </div>
                 );
               })}
+
+              <canvas
+                ref={fogCanvasRef}
+                className="absolute inset-0"
+                style={{ opacity: 1 }}
+              />
             </div>
           </div>
             </div>

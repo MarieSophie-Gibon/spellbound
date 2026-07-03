@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { ImagePlus, Loader2, Minus, MonitorPlay, Plus, Trash2, X, ZoomIn } from "lucide-react";
+import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Combatant, EncounterEntry, MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
@@ -33,6 +33,13 @@ export function tokenRingClass(type: string) {
 
 export const BATTLEMAP_CHANNEL = "spellbound-battlemap";
 
+export interface FogRevealStamp {
+  x: number;
+  y: number;
+  r: number;
+  strokeId?: number;
+}
+
 export interface BattleMapBroadcast {
   type: "update";
   imageUrl: string | null;
@@ -43,6 +50,8 @@ export interface BattleMapBroadcast {
   tokenSize: number;
   zoom: number;
   pan: { x: number; y: number };
+  fogEnabled: boolean;
+  fogReveals: FogRevealStamp[];
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
@@ -136,6 +145,17 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   const isPanningRef = useRef(false);
 
   const [tokenSize, setTokenSize] = useState(40);
+  const [fogEnabled, setFogEnabled] = useState(false);
+  const [fogBrushSize, setFogBrushSize] = useState(6);
+  const [fogReveals, setFogReveals] = useState<FogRevealStamp[]>([]);
+  const [isFogEditMode, setIsFogEditMode] = useState(false);
+  const fogCanvasRef = useRef<HTMLCanvasElement>(null);
+  const isFogPaintingRef = useRef(false);
+  const fogRevealsRef = useRef<FogRevealStamp[]>([]);
+  const fogStrokeSeqRef = useRef(0);
+  const currentFogStrokeIdRef = useRef<number | null>(null);
+  const [fogActionNotice, setFogActionNotice] = useState<string | null>(null);
+  const fogNoticeTimerRef = useRef<number | null>(null);
 
   // Rect en coordonnées locales de innerRef (avant transform)
   const [imgLocalRect, setImgLocalRect] = useState<ImgRect | null>(null);
@@ -146,11 +166,24 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan,
+    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan, fogEnabled, fogReveals,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan };
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, zoom, pan]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan, fogEnabled, fogReveals };
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, zoom, pan, fogEnabled, fogReveals]);
+
+  useEffect(() => {
+    fogRevealsRef.current = fogReveals;
+  }, [fogReveals]);
+
+  const showFogNotice = useCallback((message: string) => {
+    setFogActionNotice(message);
+    if (fogNoticeTimerRef.current !== null) window.clearTimeout(fogNoticeTimerRef.current);
+    fogNoticeTimerRef.current = window.setTimeout(() => {
+      setFogActionNotice(null);
+      fogNoticeTimerRef.current = null;
+    }, 1200);
+  }, []);
 
   useEffect(() => {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
@@ -160,12 +193,13 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   }, []);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan });
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, zoom, pan]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, zoom, pan, fogEnabled, fogReveals });
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, zoom, pan, fogEnabled, fogReveals]);
 
   useEffect(() => {
     return () => {
       if (panRafRef.current !== null) cancelAnimationFrame(panRafRef.current);
+      if (fogNoticeTimerRef.current !== null) window.clearTimeout(fogNoticeTimerRef.current);
     };
   }, []);
 
@@ -336,6 +370,117 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
     if (el) tokenElsRef.current.set(id, el); else tokenElsRef.current.delete(id);
   }, []);
 
+  const drawFog = useCallback(() => {
+    const canvas = fogCanvasRef.current;
+    const host = imgContainerRef.current;
+    if (!canvas || !host) return;
+
+    const width = Math.max(1, Math.round(host.clientWidth));
+    const height = Math.max(1, Math.round(host.clientHeight));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, width, height);
+    if (!fogEnabled) return;
+
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = "destination-out";
+
+    for (const stamp of fogReveals) {
+      ctx.beginPath();
+      ctx.arc((stamp.x / 100) * width, (stamp.y / 100) * height, (stamp.r / 100) * Math.min(width, height), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = "source-over";
+  }, [fogEnabled, fogReveals]);
+
+  useEffect(() => {
+    drawFog();
+  }, [drawFog, imgLocalRect, zoom, pan]);
+
+  const addFogRevealAt = useCallback((clientX: number, clientY: number) => {
+    const strokeId = currentFogStrokeIdRef.current;
+    if (strokeId === null) return;
+    const host = imgContainerRef.current;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+    if (x < 0 || x > 100 || y < 0 || y > 100) return;
+    setFogReveals((prev) => {
+      const next = [...prev, { x, y, r: fogBrushSize, strokeId }];
+      return next.length > 2500 ? next.slice(next.length - 2500) : next;
+    });
+  }, [fogBrushSize]);
+
+  const undoLastFogStroke = useCallback(() => {
+    const current = fogRevealsRef.current;
+    if (current.length === 0) return false;
+    const lastStrokeId = current[current.length - 1].strokeId ?? 0;
+    const next = current.filter((stamp) => (stamp.strokeId ?? 0) !== lastStrokeId);
+    if (next.length === current.length) return false;
+    setFogReveals(next);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z";
+      if (!isUndo) return;
+
+      const target = e.target as HTMLElement | null;
+      const isTypingTarget = !!target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      );
+      if (isTypingTarget) return;
+
+      e.preventDefault();
+      const undone = undoLastFogStroke();
+      showFogNotice(undone ? "Trait annulé" : "Rien à annuler");
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [undoLastFogStroke, showFogNotice]);
+
+  const onFogPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isFogEditMode || !fogEnabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    fogStrokeSeqRef.current += 1;
+    currentFogStrokeIdRef.current = fogStrokeSeqRef.current;
+    isFogPaintingRef.current = true;
+    addFogRevealAt(e.clientX, e.clientY);
+    (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
+  }, [isFogEditMode, fogEnabled, addFogRevealAt]);
+
+  const onFogPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isFogPaintingRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    addFogRevealAt(e.clientX, e.clientY);
+  }, [addFogRevealAt]);
+
+  const onFogPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isFogPaintingRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    isFogPaintingRef.current = false;
+    currentFogStrokeIdRef.current = null;
+    if ((e.currentTarget as HTMLCanvasElement).hasPointerCapture(e.pointerId)) {
+      (e.currentTarget as HTMLCanvasElement).releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
   return (
     <div className="relative w-full h-full">
       <div
@@ -381,6 +526,15 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
                   height: imgLocalRect.height,
                 } : { inset: 0 }}
               >
+                <canvas
+                  ref={fogCanvasRef}
+                  className="absolute inset-0 z-25"
+                  style={{ pointerEvents: isFogEditMode && fogEnabled ? "auto" : "none", opacity: 0.5 }}
+                  onPointerDown={onFogPointerDown}
+                  onPointerMove={onFogPointerMove}
+                  onPointerUp={onFogPointerUp}
+                  onPointerCancel={onFogPointerUp}
+                />
                 {mapTokens.map((token) => {
                   const combatant = combatantsById.get(token.combatantId);
                   if (!combatant) return null;
@@ -410,6 +564,56 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
             )}
 
             <div className="absolute top-3 right-3 flex gap-1.5 z-30 pointer-events-auto">
+              {fogActionNotice && (
+                <div className="absolute -top-10 right-0 px-2 py-1 rounded-md bg-black/80 border border-white/20 text-[10px] uppercase tracking-wide text-white/80 whitespace-nowrap">
+                  {fogActionNotice}
+                </div>
+              )}
+              <div className="flex items-center gap-1 rounded-xl bg-black/60 backdrop-blur border border-white/15 p-1">
+                <button
+                  onClick={() => {
+                    setFogEnabled((v) => {
+                      const next = !v;
+                      if (!next) setIsFogEditMode(false);
+                      return next;
+                    });
+                  }}
+                  className={`p-1.5 rounded-lg border transition-colors ${fogEnabled ? "bg-amber-500/25 border-amber-300/40 text-amber-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
+                  title="Activer/Désactiver le brouillard"
+                >
+                  <Cloud className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsFogEditMode((v) => !v)}
+                  disabled={!fogEnabled}
+                  className={`p-1.5 rounded-lg border transition-colors ${isFogEditMode ? "bg-cyan-500/25 border-cyan-300/40 text-cyan-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"} ${!fogEnabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                  title="Mode pinceau"
+                >
+                  <Brush className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    const undone = undoLastFogStroke();
+                    showFogNotice(undone ? "Trait annulé" : "Rien à annuler");
+                  }}
+                  disabled={!fogEnabled}
+                  className={`p-1.5 rounded-lg border transition-colors ${!fogEnabled ? "opacity-40 cursor-not-allowed" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
+                  title="Annuler le dernier trait (Ctrl+Z)"
+                >
+                  <Undo2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    setFogReveals([]);
+                    showFogNotice("Brouillard réinitialisé");
+                  }}
+                  disabled={!fogEnabled}
+                  className={`p-1.5 rounded-lg border transition-colors ${!fogEnabled ? "opacity-40 cursor-not-allowed" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
+                  title="Réinitialiser le brouillard"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </div>
               <button
                 onClick={openPlayerView}
                 className={`p-1.5 rounded-lg backdrop-blur border transition-colors ${playerTabOpen ? "bg-emerald-500/30 border-emerald-400/50 text-emerald-300 hover:bg-emerald-500/40" : "bg-black/60 border-white/20 text-white/70 hover:text-white"}`}
@@ -487,6 +691,21 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
               <ZoomIn className="w-3.5 h-3.5 text-white/30 shrink-0" />
               <input type="range" min={24} max={72} step={4} value={tokenSize} onChange={(e) => setTokenSize(Number(e.target.value))} className="w-20 accent-white/60 cursor-pointer" title="Taille des jetons" />
               <span className="text-[9px] text-white/30 w-6 text-right">{tokenSize}</span>
+            </div>
+            <div className="shrink-0 flex items-center gap-2 pl-2">
+              <span className="text-[9px] uppercase tracking-widest text-white/30 font-semibold">Fog</span>
+              <input
+                type="range"
+                min={2}
+                max={16}
+                step={1}
+                value={fogBrushSize}
+                onChange={(e) => setFogBrushSize(Number(e.target.value))}
+                className="w-20 accent-amber-300/80 cursor-pointer"
+                title="Taille du pinceau de brouillard"
+                disabled={!fogEnabled}
+              />
+              <span className="text-[9px] text-white/30 w-6 text-right">{fogBrushSize}</span>
             </div>
           </>
         )}
