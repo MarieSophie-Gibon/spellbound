@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, BookOpen, GripVertical, RefreshCcw } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   type Combatant,
@@ -9,6 +9,7 @@ import {
   type MapToken,
   type MonsterStatsMap,
   type PersistedCombatState,
+  type RoundTriggerEvent,
   type SearchResult,
   type VoieEntry,
   makeCombatantId,
@@ -19,6 +20,10 @@ import { CombatantRow } from "./combat/CombatantRow";
 import { CombatantCard } from "./combat/CombatantCard";
 import { CombatMenu } from "./combat/CombatMenu";
 import { BattleMap } from "./combat/BattleMap";
+import { CombatTopActions } from "./combat/CombatTopActions";
+import { RoundTriggerPanel } from "./combat/RoundTriggerPanel";
+import { CombatTriggerNotification } from "./combat/CombatTriggerNotification";
+import { CombatStickyNote } from "./combat/CombatStickyNote";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 
 interface CombatDashboardProps {
@@ -65,6 +70,19 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   const cardRef = useRef<HTMLDivElement>(null);
   const cardDragRef = useRef<{ combatantId: string; offsetX: number; offsetY: number } | null>(null);
 
+  const [combatNote, setCombatNote] = useState("");
+  const [isNoteVisible, setIsNoteVisible] = useState(true);
+  const [notePosition, setNotePosition] = useState<FloatingCardPosition>({ x: 32, y: 110 });
+  const [isDraggingNote, setIsDraggingNote] = useState(false);
+  const noteRef = useRef<HTMLDivElement>(null);
+  const noteDragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
+
+  const [isTriggerPanelOpen, setIsTriggerPanelOpen] = useState(false);
+  const [roundTriggers, setRoundTriggers] = useState<RoundTriggerEvent[]>([]);
+  const [newTriggerRounds, setNewTriggerRounds] = useState("1");
+  const [newTriggerText, setNewTriggerText] = useState("");
+  const [firedTriggerMessage, setFiredTriggerMessage] = useState<string | null>(null);
+
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
 
@@ -96,6 +114,14 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     return {
       x: Math.max(16, window.innerWidth - 460),
       y: Math.max(80, Math.round(window.innerHeight * 0.12)),
+    };
+  };
+
+  const getDefaultNotePosition = (): FloatingCardPosition => {
+    if (typeof window === "undefined") return { x: 24, y: 110 };
+    return {
+      x: Math.max(16, Math.round(window.innerWidth * 0.08)),
+      y: 110,
     };
   };
 
@@ -174,6 +200,73 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     };
   }, [draggingCardId]);
 
+  useEffect(() => {
+    if (!isDraggingNote) return;
+
+    const onMove = (e: PointerEvent) => {
+      const drag = noteDragRef.current;
+      const noteRect = noteRef.current?.getBoundingClientRect();
+      if (!drag || !noteRect) return;
+
+      const minX = 8;
+      const minY = 8;
+      const maxX = Math.max(minX, window.innerWidth - noteRect.width - 8);
+      const maxY = Math.max(minY, window.innerHeight - noteRect.height - 8);
+
+      const x = Math.max(minX, Math.min(maxX, e.clientX - drag.offsetX));
+      const y = Math.max(minY, Math.min(maxY, e.clientY - drag.offsetY));
+
+      setNotePosition({ x, y });
+    };
+
+    const stopDrag = () => {
+      setIsDraggingNote(false);
+      noteDragRef.current = null;
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", stopDrag);
+    window.addEventListener("pointercancel", stopDrag);
+
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", stopDrag);
+      window.removeEventListener("pointercancel", stopDrag);
+    };
+  }, [isDraggingNote]);
+
+  useEffect(() => {
+    const clampNote = () => {
+      const noteRect = noteRef.current?.getBoundingClientRect();
+      if (!noteRect) return;
+
+      setNotePosition((prev) => {
+        const minX = 8;
+        const minY = 8;
+        const maxX = Math.max(minX, window.innerWidth - noteRect.width - 8);
+        const maxY = Math.max(minY, window.innerHeight - noteRect.height - 8);
+
+        const x = Math.max(minX, Math.min(maxX, prev.x));
+        const y = Math.max(minY, Math.min(maxY, prev.y));
+        if (x === prev.x && y === prev.y) return prev;
+        return { x, y };
+      });
+    };
+
+    const frame = requestAnimationFrame(clampNote);
+    window.addEventListener("resize", clampNote);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", clampNote);
+    };
+  }, [isNoteVisible]);
+
+  useEffect(() => {
+    if (!firedTriggerMessage) return;
+    const timer = setTimeout(() => setFiredTriggerMessage(null), 6000);
+    return () => clearTimeout(timer);
+  }, [firedTriggerMessage]);
+
   const startCardDrag = (e: React.PointerEvent, combatantId: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -197,13 +290,16 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         .single();
 
       const dbState = (chapterData?.combat_state ?? null) as PersistedCombatState | null;
-      if (dbState && Array.isArray(dbState.combatants)) {
-        setCombatants(dbState.combatants);
+      if (dbState && typeof dbState === "object") {
+        setCombatants(Array.isArray(dbState.combatants) ? dbState.combatants : []);
         setActiveCombatantId(dbState.activeCombatantId ?? null);
         setRound(toNumber(dbState.round, 1));
         setBattlemapUrl(dbState.battlemapUrl ?? null);
         setMapTokens(dbState.mapTokens ?? []);
         setEncounters(dbState.encounters ?? []);
+        setCombatNote(dbState.combatNote ?? "");
+        setNotePosition(dbState.combatNotePosition ?? getDefaultNotePosition());
+        setRoundTriggers(dbState.roundTriggers ?? []);
         setIsHydrated(true);
         return;
       }
@@ -213,13 +309,16 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
       try {
         const parsed = JSON.parse(raw) as PersistedCombatState;
-        if (!parsed || !Array.isArray(parsed.combatants)) { setIsHydrated(true); return; }
-        setCombatants(parsed.combatants);
+        if (!parsed || typeof parsed !== "object") { setIsHydrated(true); return; }
+        setCombatants(Array.isArray(parsed.combatants) ? parsed.combatants : []);
         setActiveCombatantId(parsed.activeCombatantId ?? null);
         setRound(toNumber(parsed.round, 1));
         setBattlemapUrl(parsed.battlemapUrl ?? null);
         setMapTokens(parsed.mapTokens ?? []);
         setEncounters(parsed.encounters ?? []);
+        setCombatNote(parsed.combatNote ?? "");
+        setNotePosition(parsed.combatNotePosition ?? getDefaultNotePosition());
+        setRoundTriggers(parsed.roundTriggers ?? []);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
@@ -228,13 +327,23 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   // --- Persist ---
   useEffect(() => {
     if (!isHydrated) return;
-    const payload: PersistedCombatState = { combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters };
+    const payload: PersistedCombatState = {
+      combatants,
+      activeCombatantId,
+      round,
+      battlemapUrl,
+      mapTokens,
+      encounters,
+      combatNote,
+      combatNotePosition: notePosition,
+      roundTriggers,
+    };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     const timer = setTimeout(() => {
       void supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated]);
+  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated, combatNote, notePosition, roundTriggers]);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -475,7 +584,6 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   };
 
   const addFamilierToCombat = (f: typeof familierResults[number]) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const d = f.data as any;
     const pvMax = f.pv_max;
     const newEntry: Combatant = {
@@ -611,9 +719,55 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     if (next >= orderedCombatants.length) {
       setActiveCombatantId(orderedCombatants[0].id);
       setRound((r) => r + 1);
+      setRoundTriggers((prev) => {
+        const fired: RoundTriggerEvent[] = [];
+        const pending: RoundTriggerEvent[] = [];
+        for (const event of prev) {
+          const updatedRounds = event.roundsLeft - 1;
+          if (updatedRounds <= 0) fired.push(event);
+          else pending.push({ ...event, roundsLeft: updatedRounds });
+        }
+
+        if (fired.length > 0) {
+          const text = fired.map((event) => `• ${event.label}`).join("\n");
+          setFiredTriggerMessage(text);
+        }
+
+        return pending;
+      });
     } else {
       setActiveCombatantId(orderedCombatants[next].id);
     }
+  };
+
+  const addRoundTrigger = () => {
+    const label = newTriggerText.trim();
+    if (!label) return;
+
+    const rounds = Math.max(1, toNumber(newTriggerRounds, 1));
+    setRoundTriggers((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        label,
+        roundsLeft: rounds,
+        createdAt: Date.now(),
+      },
+    ]);
+    setNewTriggerText("");
+    setNewTriggerRounds("1");
+  };
+
+  const startNoteDrag = (e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = noteRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    noteDragRef.current = {
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+    };
+    setIsDraggingNote(true);
   };
 
   // ---------------------------------------------------------------- ORDER
@@ -647,32 +801,31 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       />
 
       {/* Boutons droite */}
-      <div className="absolute top-0 right-4 z-40 flex items-center gap-1.5">
-        <CombatTabButton
-          onClick={() => openPopup()}
-          icon={<BookOpen className="w-3 h-3 text-indigo-200" />}
-          label="Grimoire"
-          aria-label="Ouvrir le grimoire"
-          className="px-3.5"
-        />
-        {onBackToScenario && (
-          <CombatTabButton
-            onClick={onBackToScenario}
-            icon={<ArrowLeft className="w-3 h-3 text-indigo-200" />}
-            label="Retour"
-            aria-label="Retour au scénario"
-            className="px-3.5"
-          />
-        )}
-        {orderedCombatants.length > 0 && (
-          <CombatTabButton
-            onClick={nextTurn}
-            icon={<RefreshCcw className="w-3 h-3 text-indigo-200 group-hover:rotate-180 transition-transform duration-300" />}
-            label="Fin du Tour"
-            className="px-4"
-          />
-        )}
-      </div>
+      <CombatTopActions
+        onOpenGrimoire={openPopup}
+        onToggleNote={() => setIsNoteVisible((prev) => !prev)}
+        onToggleEvents={() => setIsTriggerPanelOpen((prev) => !prev)}
+        onBackToScenario={onBackToScenario}
+        onNextTurn={nextTurn}
+        hasCombatants={orderedCombatants.length > 0}
+      />
+
+      <RoundTriggerPanel
+        isOpen={isTriggerPanelOpen}
+        newTriggerRounds={newTriggerRounds}
+        newTriggerText={newTriggerText}
+        roundTriggers={roundTriggers}
+        onClose={() => setIsTriggerPanelOpen(false)}
+        onAddTrigger={addRoundTrigger}
+        onChangeRounds={setNewTriggerRounds}
+        onChangeText={setNewTriggerText}
+        onRemoveTrigger={(id) => setRoundTriggers((prev) => prev.filter((t) => t.id !== id))}
+      />
+
+      <CombatTriggerNotification
+        message={firedTriggerMessage}
+        onClose={() => setFiredTriggerMessage(null)}
+      />
 
       {/* Menu MJ flottant */}
       <CombatMenu
@@ -769,6 +922,16 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
           </div>
         </div>
       )}
+
+      <CombatStickyNote
+        isVisible={isNoteVisible}
+        isDragging={isDraggingNote}
+        note={combatNote}
+        position={notePosition}
+        noteRef={noteRef}
+        onPointerDown={startNoteDrag}
+        onChangeNote={setCombatNote}
+      />
 
     </div>
   );

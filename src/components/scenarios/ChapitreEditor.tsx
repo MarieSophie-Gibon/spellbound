@@ -8,6 +8,7 @@ import {
   Bookmark, BookmarkCheck, Navigation
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
+import type { PersistedCombatState } from "./combat/types";
 import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
 import { InvestigationBlock } from "./blocks/InvestigationBlock";
@@ -33,6 +34,18 @@ interface Block {
   data: any;
 }
 
+const DEFAULT_COMBAT_STATE: PersistedCombatState = {
+  combatants: [],
+  activeCombatantId: null,
+  round: 1,
+  battlemapUrl: null,
+  mapTokens: [],
+  encounters: [],
+  combatNote: "",
+  combatNotePosition: { x: 32, y: 110 },
+  roundTriggers: [],
+};
+
 export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
   const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
@@ -44,6 +57,10 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [combatStateDraft, setCombatStateDraft] = useState<PersistedCombatState>(DEFAULT_COMBAT_STATE);
+  const combatStateDraftRef = useRef<PersistedCombatState>(DEFAULT_COMBAT_STATE);
 
   // Menu d'ajout volant (Side Tab)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -114,6 +131,22 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       setChapitre(data);
       const loadedBlocks = data.content || [];
       setBlocks(loadedBlocks);
+      const persistedCombat = (data.combat_state ?? {}) as Partial<PersistedCombatState>;
+      const nextCombatDraft: PersistedCombatState = {
+        ...DEFAULT_COMBAT_STATE,
+        ...persistedCombat,
+        combatants: persistedCombat.combatants ?? [],
+        activeCombatantId: persistedCombat.activeCombatantId ?? null,
+        round: Number.isFinite(Number(persistedCombat.round)) ? Number(persistedCombat.round) : 1,
+        battlemapUrl: persistedCombat.battlemapUrl ?? null,
+        mapTokens: persistedCombat.mapTokens ?? [],
+        encounters: persistedCombat.encounters ?? [],
+        combatNote: persistedCombat.combatNote ?? "",
+        combatNotePosition: persistedCombat.combatNotePosition ?? { x: 32, y: 110 },
+        roundTriggers: persistedCombat.roundTriggers ?? [],
+      };
+      setCombatStateDraft(nextCombatDraft);
+      combatStateDraftRef.current = nextCombatDraft;
       setHasChanges(false);
       // Si le chapitre est vide, on passe direct en édition
       setIsEditing(loadedBlocks.length === 0);
@@ -126,20 +159,24 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   }, [fetchChapitre]);
 
   // --- Sauvegarde Automatique (Auto-save) ---
-  const handleSave = useCallback(async (currentBlocks: Block[]) => {
+  const handleSave = useCallback(async (currentBlocks: Block[], combatStateOverride?: PersistedCombatState) => {
     if (!chapitreId) return;
     setIsSaving(true);
+    setSaveError(null);
+    const combatStateToSave = combatStateOverride ?? combatStateDraftRef.current;
     try {
       const { error } = await supabase
         .from("chapitres")
-        .update({ content: currentBlocks })
+        .update({ content: currentBlocks, combat_state: combatStateToSave })
         .eq("id", chapitreId);
 
       if (error) throw error;
       setHasChanges(false);
       setLastSaved(new Date());
     } catch (err: any) {
-      console.error("Erreur auto-save :", err.message);
+      const message = err?.message ?? "Erreur inconnue";
+      console.error("Erreur auto-save :", message, err);
+      setSaveError(message);
     } finally {
       setIsSaving(false);
     }
@@ -153,7 +190,25 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [blocks, hasChanges, isEditing, handleSave]);
+  }, [blocks, combatStateDraft, hasChanges, isEditing, handleSave]);
+
+  // Sauvegarde dédiée du module préparation combat, même si le contenu des blocs ne change pas.
+  useEffect(() => {
+    if (!chapitreId || !isEditing || isLoading) return;
+    const timer = setTimeout(async () => {
+      const { error } = await supabase
+        .from("chapitres")
+        .update({ combat_state: combatStateDraftRef.current })
+        .eq("id", chapitreId);
+
+      if (error) {
+        console.error("Erreur sauvegarde combat_state :", error.message, error);
+        setSaveError(error.message);
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [chapitreId, combatStateDraft, isEditing, isLoading]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -212,6 +267,17 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   const removeBlock = (id: string) => {
     setBlocks(blocks.filter(b => b.id !== id));
+    setHasChanges(true);
+  };
+
+  const updateCombatState = (
+    patch: Partial<PersistedCombatState> | ((prev: PersistedCombatState) => PersistedCombatState)
+  ) => {
+    setCombatStateDraft((prev) => {
+      const next = typeof patch === "function" ? patch(prev) : { ...prev, ...patch };
+      combatStateDraftRef.current = next;
+      return next;
+    });
     setHasChanges(true);
   };
 
@@ -434,12 +500,47 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               campaignId={campaignId}
               data={block.data}
               onChange={(newData) => updateBlock(block.id, newData)}
+              combatState={combatStateDraft}
+              onChangeCombatState={updateCombatState}
+              isEditing={isEditing}
               onOpenCombatDashboard={() => {
                 const nextBlocks = blocks.map((b) => b.id === block.id ? { ...b, data: { ...b.data, combatEngaged: true } } : b);
                 setBlocks(nextBlocks);
-                setHasChanges(false);
-                void handleSave(nextBlocks);
-                onOpenCombatDashboard?.(chapitreId);
+                void (async () => {
+                  const expectedTriggersCount = combatStateDraftRef.current.roundTriggers?.length ?? 0;
+                  await handleSave(nextBlocks, combatStateDraftRef.current);
+
+                  const { data: persistedChapter, error: verifyError } = await supabase
+                    .from("chapitres")
+                    .select("combat_state")
+                    .eq("id", chapitreId)
+                    .single();
+
+                  if (verifyError) {
+                    const message = `Vérification sauvegarde impossible: ${verifyError.message}`;
+                    console.warn(message, verifyError);
+                    setSaveError(message);
+                    alert("Impossible de verifier la sauvegarde des évènements combat. Regarde la console pour les détails.");
+                    return;
+                  }
+
+                  const persistedCombat = (persistedChapter?.combat_state ?? {}) as Partial<PersistedCombatState>;
+                  const persistedTriggersCount = persistedCombat.roundTriggers?.length ?? 0;
+
+                  if (expectedTriggersCount > 0 && persistedTriggersCount === 0) {
+                    const message = "Les évènements de préparation combat ne semblent pas enregistrés en base.";
+                    console.warn(message, {
+                      expectedTriggersCount,
+                      persistedTriggersCount,
+                      chapitreId,
+                    });
+                    setSaveError(message);
+                    alert("Attention: les évènements combat n'ont pas été enregistrés. Ouvre la console pour le détail.");
+                    return;
+                  }
+
+                  onOpenCombatDashboard?.(chapitreId);
+                })();
               }}
             />
           </div>
@@ -531,7 +632,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
           {/* Indicateur d'Auto-Save (Pilule avec Icônes) */}
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 border border-white/5 text-[10px] font-mono select-none">
-            {isSaving ? (
+            {saveError ? (
+              <><PenTool className="w-3 h-3 text-red-400" /> <span className="text-red-300/90">Erreur sauvegarde</span></>
+            ) : isSaving ? (
               <><CloudUpload className="w-3.5 h-3.5 text-sky-400 animate-pulse" /> <span className="text-white/60">Sauvegarde...</span></>
             ) : hasChanges ? (
               <><PenTool className="w-3 h-3 text-amber-400" /> <span className="text-white/60">Modifié</span></>

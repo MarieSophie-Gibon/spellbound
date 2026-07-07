@@ -118,6 +118,13 @@ export interface EncounterEntry {
   firstSeenAt: number;
 }
 
+export interface RoundTriggerEvent {
+  id: string;
+  label: string;
+  roundsLeft: number;
+  createdAt: number;
+}
+
 export interface PersistedCombatState {
   combatants: Combatant[];
   activeCombatantId: string | null;
@@ -125,6 +132,9 @@ export interface PersistedCombatState {
   battlemapUrl?: string | null;
   mapTokens?: MapToken[];
   encounters?: EncounterEntry[];
+  combatNote?: string;
+  combatNotePosition?: { x: number; y: number };
+  roundTriggers?: RoundTriggerEvent[];
 }
 
 export const CONDITION_OPTIONS: Array<{ key: ConditionKey; label: string; bg: string; icon: string }> = [
