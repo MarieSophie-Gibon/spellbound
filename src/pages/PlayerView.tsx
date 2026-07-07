@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { BookMarked, Map, Swords, Users } from "lucide-react";
 import type { Combatant, EncounterEntry, MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
-import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
+import { tokenRingClass, BATTLEMAP_CHANNEL, getTokenNameTagMetrics, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 interface LiveState {
@@ -12,10 +12,13 @@ interface LiveState {
   encounters: EncounterEntry[];
   activeCombatantId: string | null;
   tokenSize: number;
+  tokenSizePct?: number;
   zoom: number;
   pan: { x: number; y: number };
   fogEnabled: boolean;
   fogReveals: FogRevealStamp[];
+  showNameTags?: boolean;
+  dragPreviewToken?: { combatantId: string; x: number; y: number } | null;
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
@@ -29,6 +32,8 @@ export function PlayerView() {
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgRect, setImgRect] = useState<ImgRect | null>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [smoothedTokenPositions, setSmoothedTokenPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const smoothRafRef = useRef<number | null>(null);
   const role = useAuthStore((s) => s.role);
   const isMJ = role === "mj";
 
@@ -45,10 +50,13 @@ export function PlayerView() {
         encounters: incoming.encounters ?? [],
         activeCombatantId: incoming.activeCombatantId,
         tokenSize: incoming.tokenSize,
+        tokenSizePct: incoming.tokenSizePct,
         zoom: incoming.zoom ?? 1,
         pan: incoming.pan ?? { x: 0, y: 0 },
         fogEnabled: incoming.fogEnabled ?? false,
         fogReveals: incoming.fogReveals ?? [],
+        showNameTags: incoming.showNameTags ?? true,
+        dragPreviewToken: incoming.dragPreviewToken ?? null,
       });
     };
     ch.postMessage({ type: "request" });
@@ -106,6 +114,75 @@ export function PlayerView() {
 
   const activeCombatant = state?.combatants.find(c => c.id === state.activeCombatantId);
   const visibleCombatants = (state?.combatants ?? []).filter((c) => !c.hidden);
+  const targetTokenPositions = useMemo(() => {
+    const targets: Record<string, { x: number; y: number }> = {};
+    if (!state) return targets;
+
+    for (const token of state.mapTokens) {
+      const preview = state.dragPreviewToken?.combatantId === token.combatantId ? state.dragPreviewToken : null;
+      targets[token.combatantId] = {
+        x: preview?.x ?? token.x,
+        y: preview?.y ?? token.y,
+      };
+    }
+
+    return targets;
+  }, [state]);
+
+  useEffect(() => {
+    if (!state) return;
+
+    const animate = () => {
+      let shouldContinue = false;
+
+      setSmoothedTokenPositions((prev) => {
+        const next: Record<string, { x: number; y: number }> = {};
+
+        for (const [combatantId, target] of Object.entries(targetTokenPositions)) {
+          const current = prev[combatantId] ?? target;
+          const dx = target.x - current.x;
+          const dy = target.y - current.y;
+          const nx = Math.abs(dx) < 0.02 ? target.x : current.x + dx * 0.35;
+          const ny = Math.abs(dy) < 0.02 ? target.y : current.y + dy * 0.35;
+          if (Math.abs(target.x - nx) >= 0.02 || Math.abs(target.y - ny) >= 0.02) {
+            shouldContinue = true;
+          }
+          next[combatantId] = { x: nx, y: ny };
+        }
+
+        return next;
+      });
+
+      if (shouldContinue) {
+        smoothRafRef.current = requestAnimationFrame(animate);
+      } else {
+        smoothRafRef.current = null;
+      }
+    };
+
+    if (smoothRafRef.current !== null) {
+      cancelAnimationFrame(smoothRafRef.current);
+    }
+    smoothRafRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (smoothRafRef.current !== null) {
+        cancelAnimationFrame(smoothRafRef.current);
+        smoothRafRef.current = null;
+      }
+    };
+  }, [state, targetTokenPositions]);
+
+  const mapTokenSize = useMemo(() => {
+    if (!state) return 40;
+    if (imgRect && state.tokenSizePct !== undefined) {
+      const base = Math.min(imgRect.width, imgRect.height);
+      if (Number.isFinite(base) && base > 0) {
+        return Math.max(8, Math.round((state.tokenSizePct / 100) * base));
+      }
+    }
+    return state.tokenSize;
+  }, [state, imgRect]);
 
   const renderCombatantsTab = () => {
     if (visibleCombatants.length === 0) {
@@ -196,7 +273,6 @@ export function PlayerView() {
             style={{
               transform: `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`,
               transformOrigin: "center",
-              willChange: "transform",
             }}
           >
             <img
@@ -221,13 +297,16 @@ export function PlayerView() {
                 const combatant = state.combatants.find(c => c.id === token.combatantId);
                 if (!combatant || combatant.hidden) return null;
                 const isActive = combatant.id === state.activeCombatantId;
-                const sz = state.tokenSize;
+                const target = targetTokenPositions[token.combatantId] ?? { x: token.x, y: token.y };
+                const smoothed = smoothedTokenPositions[token.combatantId] ?? target;
+                const sz = mapTokenSize;
+                const tag = getTokenNameTagMetrics(sz);
                 const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
                 return (
                   <div
                     key={token.combatantId}
                     className="absolute z-10"
-                    style={{ left: `${token.x}%`, top: `${token.y}%`, transform: "translate(-50%, -50%)" }}
+                    style={{ left: `${smoothed.x}%`, top: `${smoothed.y}%`, transform: "translate(-50%, -50%)" }}
                   >
                     {isActive && (
                       <div className="absolute rounded-full border-2 border-amber-400 animate-ping opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
@@ -245,9 +324,11 @@ export function PlayerView() {
                         ))}
                       </div>
                     )}
-                    <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap" style={{ fontSize: Math.max(9, sz * 0.22) }}>
-                      <span className="text-white/90 bg-black/80 backdrop-blur px-1.5 py-0.5 rounded block text-center leading-tight">{combatant.name}</span>
-                    </div>
+                    {state.showNameTags !== false && (
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 whitespace-nowrap" style={{ marginTop: tag.offset, fontSize: tag.fontSize }}>
+                        <span className="text-white/90 bg-black/80 backdrop-blur rounded block text-center leading-tight" style={{ padding: `${tag.padY}px ${tag.padX}px` }}>{combatant.name}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
