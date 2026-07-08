@@ -1,10 +1,14 @@
 import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
+import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/useProfile";
 import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw, Copy } from "lucide-react";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,7 +34,16 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
 
   const isMJ = role === "mj" || profile?.role === "mj";
   const effectiveRole: 'mj' | 'player' = isMJ ? 'mj' : 'player';
-  const displayName = session?.user?.email?.split("@")[0] || "Voyageur";
+  const displayName = profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "Voyageur";
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [profilePseudoDraft, setProfilePseudoDraft] = useState("");
+  const [profileEmailDraft, setProfileEmailDraft] = useState("");
+  const [profileRoleDraft, setProfileRoleDraft] = useState<"joueur" | "mj">("joueur");
+  const [newPasswordDraft, setNewPasswordDraft] = useState("");
+  const [confirmPasswordDraft, setConfirmPasswordDraft] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileFormError, setProfileFormError] = useState<string | null>(null);
+  const [profileFormInfo, setProfileFormInfo] = useState<string | null>(null);
 
   // --- Gestion du Hover + Click pour profil ---
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -59,6 +72,84 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
   };
 
   const { data: campaigns } = useCampaigns(effectiveRole);
+
+  const openEditProfile = () => {
+    setProfilePseudoDraft(profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "");
+    setProfileEmailDraft(session?.user?.email ?? "");
+    setProfileRoleDraft(profile?.role === "mj" ? "mj" : "joueur");
+    setNewPasswordDraft("");
+    setConfirmPasswordDraft("");
+    setProfileFormError(null);
+    setProfileFormInfo(null);
+    setIsEditProfileOpen(true);
+  };
+
+  const saveProfile = async () => {
+    if (!session?.user?.id) return;
+    const pseudo = profilePseudoDraft.trim();
+    const email = profileEmailDraft.trim().toLowerCase();
+    const nextPassword = newPasswordDraft;
+
+    setProfileFormError(null);
+    setProfileFormInfo(null);
+
+    if (!pseudo) {
+      setProfileFormError("Le pseudo est requis.");
+      return;
+    }
+    if (!email) {
+      setProfileFormError("L'email est requis.");
+      return;
+    }
+    if (nextPassword && nextPassword.length < 8) {
+      setProfileFormError("Le mot de passe doit contenir au moins 8 caractères.");
+      return;
+    }
+    if (nextPassword && nextPassword !== confirmPasswordDraft) {
+      setProfileFormError("La confirmation du mot de passe ne correspond pas.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("utilisateurs")
+        .upsert(
+          {
+            id: session.user.id,
+            pseudo,
+            role: profileRoleDraft,
+          },
+          { onConflict: "id" }
+        );
+
+      if (error) throw error;
+
+      const authPatch: { email?: string; password?: string } = {};
+      const emailChanged = email !== (session.user.email ?? "").toLowerCase();
+      if (emailChanged) authPatch.email = email;
+      if (nextPassword) authPatch.password = nextPassword;
+
+      if (Object.keys(authPatch).length > 0) {
+        const { error: authError } = await supabase.auth.updateUser(authPatch);
+        if (authError) throw authError;
+      }
+
+      window.dispatchEvent(new CustomEvent("spellbound:profile-updated"));
+
+      if (emailChanged) {
+        setProfileFormInfo("Un email de confirmation a ete envoye pour valider le changement d'adresse.");
+      } else {
+        setIsEditProfileOpen(false);
+        setIsProfileOpen(false);
+      }
+    } catch (err) {
+      console.error("Erreur mise a jour profil:", err);
+      setProfileFormError("Impossible de mettre a jour le profil.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   return (
     <footer
@@ -204,7 +295,7 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
               onMouseLeave={handleProfileMouseLeave}
               className="w-48 bg-[#1E1941]/95 backdrop-blur-xl border-[#E3CCCD]/20 text-slate-200 mb-2 rounded-xl"
             >
-              <DropdownMenuItem className="cursor-pointer hover:bg-white/10 hover:text-white text-xs focus:bg-white/10 flex items-center gap-2">
+              <DropdownMenuItem onClick={openEditProfile} className="cursor-pointer hover:bg-white/10 hover:text-white text-xs focus:bg-white/10 flex items-center gap-2">
                 <Pencil className="w-3.5 h-3.5 text-white/50" />
                 Éditer le profil
               </DropdownMenuItem>
@@ -220,6 +311,102 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
           </DropdownMenu>
         </div>
       )}
+
+      <Dialog open={isEditProfileOpen} onOpenChange={setIsEditProfileOpen}>
+        <DialogContent className="max-w-md border-white/10 text-white overflow-hidden p-0 bg-transparent">
+          <div className="relative rounded-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.4)] overflow-hidden" style={{ background: "linear-gradient(160deg, rgba(80,95,200,0.38) 0%, rgba(55,48,130,0.42) 50%, rgba(70,80,175,0.38) 100%)" }}>
+            <div className="absolute inset-0 backdrop-blur-3xl -z-10" />
+            <div className="absolute inset-0 bg-white/3 -z-10" />
+            <div className="absolute inset-px rounded-2xl border border-white/10 pointer-events-none z-0" />
+
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/10 bg-black/10">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/55 mb-1">Compte</p>
+            <DialogTitle className="font-serif text-2xl tracking-wide">Modifier le profil</DialogTitle>
+          </DialogHeader>
+
+          <div className="px-6 py-5 space-y-4">
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1.5 block">Pseudo</label>
+              <Input
+                value={profilePseudoDraft}
+                onChange={(e) => setProfilePseudoDraft(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                placeholder="Votre pseudo"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1.5 block">Email</label>
+              <Input
+                value={profileEmailDraft}
+                onChange={(e) => setProfileEmailDraft(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                placeholder="vous@domaine.fr"
+                type="email"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1.5 block">Rôle</label>
+              <select
+                value={profileRoleDraft}
+                onChange={(e) => setProfileRoleDraft(e.target.value === "mj" ? "mj" : "joueur")}
+                className="w-full h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none"
+              >
+                <option value="joueur" className="bg-[#1E1941] text-white">Joueur</option>
+                <option value="mj" className="bg-[#1E1941] text-white">MJ</option>
+              </select>
+            </div>
+
+            <div className="h-px bg-white/10" />
+
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1.5 block">Nouveau mot de passe</label>
+              <Input
+                value={newPasswordDraft}
+                onChange={(e) => setNewPasswordDraft(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                placeholder="Laisser vide pour ne pas changer"
+                type="password"
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1.5 block">Confirmer le mot de passe</label>
+              <Input
+                value={confirmPasswordDraft}
+                onChange={(e) => setConfirmPasswordDraft(e.target.value)}
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
+                placeholder="Confirmez le nouveau mot de passe"
+                type="password"
+                disabled={!newPasswordDraft}
+              />
+            </div>
+
+            {profileFormError && (
+              <p className="text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded-lg px-3 py-2">{profileFormError}</p>
+            )}
+            {profileFormInfo && (
+              <p className="text-xs text-emerald-200 bg-emerald-500/10 border border-emerald-400/20 rounded-lg px-3 py-2">{profileFormInfo}</p>
+            )}
+          </div>
+
+          <DialogFooter className="px-6 pb-6 pt-0">
+            <Button variant="ghost" onClick={() => setIsEditProfileOpen(false)} className="text-white/60 hover:text-white hover:bg-white/10">
+              Annuler
+            </Button>
+            <Button
+              onClick={() => { void saveProfile(); }}
+              disabled={isSavingProfile || !profilePseudoDraft.trim() || !profileEmailDraft.trim()}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white"
+            >
+              {isSavingProfile ? "Sauvegarde..." : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </footer>
   );
 }

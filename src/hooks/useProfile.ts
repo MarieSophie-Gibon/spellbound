@@ -19,10 +19,17 @@ function normalizeProfileRole(value: unknown): "joueur" | "mj" {
 
 export function useProfile() {
   const { session } = useAuthStore();
+  const [refreshTick, setRefreshTick] = useState(0);
   const [profile, setProfile] = useState<{
     pseudo: string;
     role: "joueur" | "mj";
   } | null>(null);
+
+  useEffect(() => {
+    const onProfileUpdated = () => setRefreshTick((v) => v + 1);
+    window.addEventListener("spellbound:profile-updated", onProfileUpdated);
+    return () => window.removeEventListener("spellbound:profile-updated", onProfileUpdated);
+  }, []);
 
   useEffect(() => {
     // Si l'utilisateur n'est pas connecté, on ne fait rien
@@ -52,7 +59,7 @@ export function useProfile() {
     }
 
     getProfile();
-  }, [session]);
+  }, [session, refreshTick]);
 
   return profile;
 }
