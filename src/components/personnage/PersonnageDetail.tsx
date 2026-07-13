@@ -136,6 +136,9 @@ export function PersonnageDetail({
   const [editCaract, setEditCaract] = useState<Record<StatKey, number>>(
     () => Object.fromEntries(STATS_KEYS.map((k) => [k, 0])) as any,
   );
+  const [editBonusCaract, setEditBonusCaract] = useState<Record<StatKey, boolean>>(
+    () => Object.fromEntries(STATS_KEYS.map((k) => [k, false])) as any,
+  );
   const [editPv, setEditPv] = useState(0);
   const [editPvMax, setEditPvMax] = useState(0);
   const [editDrQty, setEditDrQty] = useState(0);
@@ -211,6 +214,10 @@ export function PersonnageDetail({
     setEditCaract(
       Object.fromEntries(STATS_KEYS.map((k) => [k, c[k] ?? 0])) as any,
     );
+    const bc = pj.stats?.bonus_caracteristiques ?? {};
+    setEditBonusCaract(
+      Object.fromEntries(STATS_KEYS.map((k) => [k, bc[k] ?? false])) as any,
+    );
     const levelForDerived = pj.stats?.niveau ?? 1;
     setEditPv(pj.stats?.pv ?? 0);
     setEditPvMax(Math.max(Number(pj.stats?.pv_max ?? 0), Number(pj.stats?.pv ?? 0)));
@@ -271,6 +278,7 @@ export function PersonnageDetail({
         notes: editNotes,
         ...(pj.stats?.is_combatant ? {
           caracteristiques: editCaract,
+          bonus_caracteristiques: editBonusCaract,
           pv: editPv,
           pv_max: normalizedPvMaxForSave,
           dr_qty: editDrQty,
@@ -289,6 +297,7 @@ export function PersonnageDetail({
         sexe: editSexe,
         age: editAge,
         caracteristiques: editCaract,
+        bonus_caracteristiques: editBonusCaract,
         pv: editPv,
         pv_max: normalizedPvMaxForSave,
         dr_qty: editDrQty,
@@ -788,7 +797,10 @@ export function PersonnageDetail({
                 }}
               >
                 {STATS_KEYS.map((stat) => {
-                  const v = isEditing ? editCaract[stat] : (caract[stat] ?? 0);
+                  const v = caract[stat] ?? 0;
+                  const ev = editCaract[stat] ?? 0;
+                  const hasBonus = isEditing && ev !== v;
+                  const sup = pj.stats?.bonus_caracteristiques?.[stat] ?? false;
                   return (
                     <div
                       key={stat}
@@ -797,24 +809,11 @@ export function PersonnageDetail({
                       <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">
                         {stat}
                       </span>
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={v}
-                          onChange={(e) =>
-                            setEditCaract((prev) => ({
-                              ...prev,
-                              [stat]: parseInt(e.target.value) || 0,
-                            }))
-                          }
-                          className="w-10 text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-0.5 outline-none focus:border-[#E3CCCD]/50"
-                        />
-                      ) : (
-                        <span
-                          className={`font-mono text-sm font-bold leading-none ${v > 0 ? "text-white" : v < 0 ? "text-red-400/70" : "text-white/25"}`}
-                        >
-                          {v > 0 ? `+${v}` : `${v}`}
-                        </span>
+                      <span className={`font-mono text-sm font-bold leading-none ${(isEditing ? ev : v) > 0 ? (hasBonus ? "text-[#E3CCCD]" : "text-white") : (isEditing ? ev : v) < 0 ? "text-red-400/70" : "text-white/25"}`}>
+                        {(isEditing ? ev : v) > 0 ? `+${isEditing ? ev : v}` : `${isEditing ? ev : v}`}{hasBonus && <span className="text-[#E3CCCD]/60 text-[9px]">*</span>}
+                      </span>
+                      {sup && !isEditing && (
+                        <span className="text-[8px] font-bold text-amber-400 border border-amber-400/40 rounded px-0.5 leading-tight">◈</span>
                       )}
                     </div>
                   );
@@ -1020,6 +1019,44 @@ export function PersonnageDetail({
               </div>
             </div>
 
+            {/* Grille d'édition des caractéristiques – visible uniquement en mode édition */}
+            {isEditing && (
+              <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-3">Caractéristiques</p>
+                <div className="grid grid-cols-7 gap-2">
+                  {STATS_KEYS.map((stat) => {
+                    const v = editCaract[stat];
+                    const sup = editBonusCaract[stat];
+                    return (
+                      <div key={stat} className="flex flex-col items-center gap-1 p-2 rounded-lg border border-white/10 bg-white/4">
+                        <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">{stat}</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditCaract((prev) => ({ ...prev, [stat]: prev[stat] + 1 }))}
+                          className="w-7 h-5 rounded text-[12px] border border-white/15 text-white/40 hover:border-[#E3CCCD]/50 hover:text-[#E3CCCD] transition-all leading-none flex items-center justify-center"
+                        >+</button>
+                        <span className={`font-mono text-sm font-bold tabular-nums ${v > 0 ? "text-[#E3CCCD]" : v < 0 ? "text-red-400/70" : "text-white/30"}`}>
+                          {v > 0 ? `+${v}` : `${v}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditCaract((prev) => ({ ...prev, [stat]: prev[stat] - 1 }))}
+                          className="w-7 h-5 rounded text-[12px] border border-white/15 text-white/40 hover:border-red-400/40 hover:text-red-400/70 transition-all leading-none flex items-center justify-center"
+                        >−</button>
+                        <button
+                          type="button"
+                          onClick={() => setEditBonusCaract((prev) => ({ ...prev, [stat]: !prev[stat] }))}
+                          className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider transition-all ${sup ? "border-amber-400/50 bg-amber-400/15 text-amber-400" : "border-white/15 text-white/25 hover:text-white/50 hover:border-white/30"}`}
+                        >
+                          BONUS
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Voies actives */}
             {pj.pathways?.length > 0 && (
               <div className="space-y-2 mt-2">
@@ -1063,7 +1100,8 @@ export function PersonnageDetail({
         {/* ONGLET 2 : INVENTAIRE */}
         {!isNonCombatantPNJ && activeTab === "inventory" && (
           <InventoryTab 
-            pjId={pj.id}
+            pjId={type === "pj" ? pj.id : ""}
+            pnjId={type === "pnj" ? pj.id : null}
             profilId={pj.stats?.profil_id || voieDetails.find(v => v.profil_id)?.profil_id} 
             pjStats={pj.stats}
             onUpdateStats={async (newStats) => {

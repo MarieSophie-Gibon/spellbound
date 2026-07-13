@@ -7,6 +7,7 @@ import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 
 interface InventoryTabProps {
   pjId: string;
+  pnjId?: string | null;
   profilId?: string | null;
   pjStats: any;
   onUpdateStats: (newStats: any) => void;
@@ -14,7 +15,9 @@ interface InventoryTabProps {
 
 type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
 
-export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }: InventoryTabProps) {
+export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats }: InventoryTabProps) {
+  const isPnj = !!pnjId;
+  const ownerId = pnjId || pjId;
   const [isLoading, setIsLoading] = useState(true);
   const [unifiedItems, setUnifiedItems] = useState<any[]>([]);
 
@@ -41,25 +44,30 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
   const [po, setPo] = useState<number>(pjStats?.bourse_po ?? 0);
   const [pc, setPc] = useState<number>(pjStats?.bourse_pc ?? 0);
 
-  // Sync depuis la prop quand le PJ change
+  // Sync depuis la prop quand le PJ/PNJ change
   useEffect(() => {
     setPa(pjStats?.bourse_pa ?? 0);
     setPo(pjStats?.bourse_po ?? 0);
     setPc(pjStats?.bourse_pc ?? 0);
-  }, [pjId]);
+  }, [ownerId]);
 
   // --- CHARGEMENT DE L'INVENTAIRE ---
   const fetchEverything = async () => {
     setIsLoading(true);
-    // On ne charge plus les équipements du profil, seulement ceux du PJ
-    const { data: customInv } = await supabase.from("pj_inventaire").select("*").eq("pj_id", pjId);
-    setUnifiedItems(customInv || []);
+    if (isPnj) {
+      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
+      const items = data?.inventory?.items ?? [];
+      setUnifiedItems(items);
+    } else {
+      const { data: customInv } = await supabase.from("pj_inventaire").select("*").eq("pj_id", pjId);
+      setUnifiedItems(customInv || []);
+    }
     setIsLoading(false);
   };
 
   useEffect(() => {
-    if (pjId) fetchEverything();
-  }, [pjId, profilId]);
+    if (ownerId) fetchEverything();
+  }, [ownerId, profilId]);
 
   // --- CHARGEMENT DU COMPENDIUM POUR LA MODALE ---
   useEffect(() => {
@@ -130,10 +138,22 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
 
   const handleSaveItem = async () => {
     if (!formData.nom_custom.trim()) return;
-    if (editingItemId) {
-      await supabase.from("pj_inventaire").update(formData).eq("id", editingItemId);
+    if (isPnj) {
+      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
+      const current: any[] = data?.inventory?.items ?? [];
+      let updated: any[];
+      if (editingItemId) {
+        updated = current.map((it: any) => it.id === editingItemId ? { ...it, ...formData } : it);
+      } else {
+        updated = [...current, { ...formData, id: crypto.randomUUID() }];
+      }
+      await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
     } else {
-      await supabase.from("pj_inventaire").insert({ ...formData, pj_id: pjId });
+      if (editingItemId) {
+        await supabase.from("pj_inventaire").update(formData).eq("id", editingItemId);
+      } else {
+        await supabase.from("pj_inventaire").insert({ ...formData, pj_id: pjId });
+      }
     }
     setIsModalOpen(false);
     fetchEverything();
@@ -142,7 +162,14 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
   const handleDeleteItem = async () => {
     if (!itemToDelete?.id) return;
     setIsDeleting(true);
-    await supabase.from("pj_inventaire").delete().eq("id", itemToDelete.id);
+    if (isPnj) {
+      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
+      const current: any[] = data?.inventory?.items ?? [];
+      const updated = current.filter((it: any) => it.id !== itemToDelete.id);
+      await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
+    } else {
+      await supabase.from("pj_inventaire").delete().eq("id", itemToDelete.id);
+    }
     setIsDeleting(false);
     setItemToDelete(null);
     fetchEverything();
@@ -150,7 +177,14 @@ export default function InventoryTab({ pjId, profilId, pjStats, onUpdateStats }:
 
   const toggleEquip = async (item: any) => {
     if (item.is_from_profile) return;
-    await supabase.from("pj_inventaire").update({ is_equipped: !item.is_equipped }).eq("id", item.id);
+    if (isPnj) {
+      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
+      const current: any[] = data?.inventory?.items ?? [];
+      const updated = current.map((it: any) => it.id === item.id ? { ...it, is_equipped: !it.is_equipped } : it);
+      await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
+    } else {
+      await supabase.from("pj_inventaire").update({ is_equipped: !item.is_equipped }).eq("id", item.id);
+    }
     fetchEverything();
   };
 

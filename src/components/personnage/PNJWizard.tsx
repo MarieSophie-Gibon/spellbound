@@ -425,9 +425,9 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
 
       if (error) throw error;
 
-      if (isCombatant && pnjInsertData?.[0]?.id && profilEquipItems.length > 0) {
-        const itemsToInsert = profilEquipItems.map((item) => ({
-          pj_id: pnjInsertData[0].id, 
+      if (isCombatant && pnjInsertData?.[0]?.id && selectedEquipItems.length > 0) {
+        const itemsToInsert = selectedEquipItems.map((item) => ({
+          pnj_id: pnjInsertData[0].id,
           item_type: item.source,
           item_id: Number(item.id),
           nom_custom: item.nom,
@@ -789,7 +789,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
                       <button type="button" onClick={() => setBonusPeuple((prev) => ({ ...prev, [stat]: prev[stat] + 1 }))} className="w-5 h-5 rounded flex items-center justify-center text-[12px] border border-white/12 text-white/35 hover:border-[#E3CCCD]/40 hover:text-[#E3CCCD] transition-all leading-none">+</button>
                     </div>
                     <div className={`font-mono text-sm w-10 text-right font-bold shrink-0 ${total > 0 ? "text-[#E3CCCD]/80" : total < 0 ? "text-red-400/70" : "text-white/20"}`}>
-                      {total > 0 ? `+${total}` : total}
+                      {total > 0 ? `+${total}` : total}{bp !== 0 && <span className="text-[#E3CCCD]/60 text-[10px] ml-0.5">*</span>}
                     </div>
                     {isAssigned ? <button type="button" onClick={() => unassignStat(stat)} className="w-5 h-5 shrink-0 rounded flex items-center justify-center text-[10px] border border-red-400/20 text-red-400/40 hover:text-red-400 hover:border-red-400/40 transition-all">✕</button> : <div className="w-5 shrink-0" />}
                   </div>
