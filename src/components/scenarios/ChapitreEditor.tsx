@@ -415,10 +415,11 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               <button
                 type="button"
                 onClick={() => applyBoldToTextBlock(block.id)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/12 bg-white/6 text-white/70 hover:text-white hover:bg-white/12 transition-colors"
+                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-sky-400/35 bg-sky-500/12 text-sky-100 hover:bg-sky-500/20 transition-colors"
                 title="Mettre en gras (Ctrl/Cmd+B)"
               >
                 <Bold className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-semibold uppercase tracking-wide">Gras</span>
               </button>
               <span className="text-[10px] text-white/35">Gras: sélectionnez du texte puis Ctrl/Cmd+B</span>
             </div>
@@ -454,10 +455,11 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               <button
                 type="button"
                 onClick={() => applyBoldToTextBlock(block.id)}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/12 bg-white/6 text-white/70 hover:text-white hover:bg-white/12 transition-colors"
+                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-[#E3CCCD]/35 bg-[#E3CCCD]/15 text-[#F2E8E9] hover:bg-[#E3CCCD]/25 transition-colors"
                 title="Mettre en gras (Ctrl/Cmd+B)"
               >
                 <Bold className="w-3.5 h-3.5" />
+                <span className="text-[11px] font-semibold uppercase tracking-wide">Gras</span>
               </button>
               <span className="text-[10px] text-white/35">Gras: sélectionnez du texte puis Ctrl/Cmd+B</span>
             </div>
