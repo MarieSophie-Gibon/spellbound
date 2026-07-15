@@ -34,18 +34,6 @@ interface Block {
   data: any;
 }
 
-const DEFAULT_COMBAT_STATE: PersistedCombatState = {
-  combatants: [],
-  activeCombatantId: null,
-  round: 1,
-  battlemapUrl: null,
-  mapTokens: [],
-  encounters: [],
-  combatNote: "",
-  combatNotePosition: { x: 32, y: 110 },
-  roundTriggers: [],
-};
-
 export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
   const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
@@ -449,6 +437,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         return (
           <div className={!isEditing ? "pointer-events-none" : ""}>
             <EnemyBlock
+              blockId={block.id}
               campaignId={campaignId}
               data={block.data}
               onChange={(newData) => updateBlock(block.id, newData)}
@@ -457,52 +446,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                 const nextBlocks = blocks.map((b) => b.id === block.id ? { ...b, data: { ...b.data, combatEngaged: true } } : b);
                 setBlocks(nextBlocks);
                 void (async () => {
-                  const blockCombat = (block.data?.combatPrep ?? {}) as Partial<PersistedCombatState>;
-                  const combatStateToLaunch: PersistedCombatState = {
-                    ...DEFAULT_COMBAT_STATE,
-                    ...blockCombat,
-                    combatants: blockCombat.combatants ?? [],
-                    activeCombatantId: blockCombat.activeCombatantId ?? null,
-                    round: Number.isFinite(Number(blockCombat.round)) ? Number(blockCombat.round) : 1,
-                    battlemapUrl: blockCombat.battlemapUrl ?? null,
-                    mapTokens: blockCombat.mapTokens ?? [],
-                    encounters: blockCombat.encounters ?? [],
-                    combatNote: blockCombat.combatNote ?? "",
-                    combatNotePosition: blockCombat.combatNotePosition ?? { x: 32, y: 110 },
-                    roundTriggers: blockCombat.roundTriggers ?? [],
-                  };
-
-                  const expectedTriggersCount = combatStateToLaunch.roundTriggers?.length ?? 0;
-                  await handleSave(nextBlocks, combatStateToLaunch);
-
-                  const { data: persistedChapter, error: verifyError } = await supabase
-                    .from("chapitres")
-                    .select("combat_state")
-                    .eq("id", chapitreId)
-                    .single();
-
-                  if (verifyError) {
-                    const message = `Vérification sauvegarde impossible: ${verifyError.message}`;
-                    console.warn(message, verifyError);
-                    setSaveError(message);
-                    alert("Impossible de verifier la sauvegarde des évènements combat. Regarde la console pour les détails.");
-                    return;
-                  }
-
-                  const persistedCombat = (persistedChapter?.combat_state ?? {}) as Partial<PersistedCombatState>;
-                  const persistedTriggersCount = persistedCombat.roundTriggers?.length ?? 0;
-
-                  if (expectedTriggersCount > 0 && persistedTriggersCount === 0) {
-                    const message = "Les évènements de préparation combat ne semblent pas enregistrés en base.";
-                    console.warn(message, {
-                      expectedTriggersCount,
-                      persistedTriggersCount,
-                      chapitreId,
-                    });
-                    setSaveError(message);
-                    alert("Attention: les évènements combat n'ont pas été enregistrés. Ouvre la console pour le détail.");
-                    return;
-                  }
+                  await handleSave(nextBlocks);
 
                   onOpenCombatDashboard?.(chapitreId, block.id);
                 })();

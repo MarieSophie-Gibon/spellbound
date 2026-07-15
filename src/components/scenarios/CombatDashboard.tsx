@@ -315,7 +315,9 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         ? ((enemyBlock.data as Record<string, unknown>).combatPrep as Partial<PersistedCombatState> | undefined)
         : undefined;
       const dbStateRaw = (chapterData?.combat_state ?? null) as Partial<PersistedCombatState> | null;
-      const stateToHydrate = blockState && typeof blockState === "object" ? blockState : dbStateRaw;
+      const stateToHydrate = enemyBlockId
+        ? (blockState && typeof blockState === "object" ? blockState : null)
+        : dbStateRaw;
 
       if (stateToHydrate && typeof stateToHydrate === "object") {
         const normalized = normalizeCombatState(stateToHydrate, getDefaultNotePosition());
@@ -382,7 +384,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
           .single();
 
         if (chapterError) {
-          await supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
+          console.error("Impossible de charger le contenu du chapitre pour persister combatPrep du bloc", chapterError);
           return;
         }
 
@@ -401,7 +403,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
 
         await supabase
           .from("chapitres")
-          .update({ combat_state: payload, content: updatedBlocks })
+          .update({ content: updatedBlocks })
           .eq("id", chapitreId);
       })();
     }, 400);

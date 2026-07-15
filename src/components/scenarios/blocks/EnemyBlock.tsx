@@ -6,19 +6,22 @@ import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import type { PersistedCombatState, RoundTriggerEvent } from "../combat/types";
 
-const EMPTY_COMBAT_PREP: PersistedCombatState = {
-    combatants: [],
-    activeCombatantId: null,
-    round: 1,
-    battlemapUrl: null,
-    mapTokens: [],
-    encounters: [],
-    combatNote: "",
-    combatNotePosition: { x: 32, y: 110 },
-    roundTriggers: [],
-};
+function createEmptyCombatPrep(): PersistedCombatState {
+    return {
+        combatants: [],
+        activeCombatantId: null,
+        round: 1,
+        battlemapUrl: null,
+        mapTokens: [],
+        encounters: [],
+        combatNote: "",
+        combatNotePosition: { x: 32, y: 110 },
+        roundTriggers: [],
+    };
+}
 
 interface EnemyBlockProps {
+    blockId?: string;
     campaignId: string;
     data: {
         entityId?: string;
@@ -59,7 +62,7 @@ function isValidUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function EnemyBlock({ campaignId, data, onChange, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
+export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
     const [searchType, setSearchType] = useState<'monster' | 'npc'>('monster');
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -75,7 +78,7 @@ export function EnemyBlock({ campaignId, data, onChange, isEditing = true, onOpe
 
     const hasValidCampaignId = isValidUuid(campaignId);
 
-    const combatPrep = data.combatPrep ?? EMPTY_COMBAT_PREP;
+    const combatPrep = data.combatPrep ?? createEmptyCombatPrep();
 
     const updateCombatPrep = (
         patch: Partial<PersistedCombatState> | ((prev: PersistedCombatState) => PersistedCombatState)
@@ -490,6 +493,13 @@ export function EnemyBlock({ campaignId, data, onChange, isEditing = true, onOpe
                         </div>
                         <div className="flex-1 min-w-0">
                             <h4 className="text-[11px] uppercase tracking-widest text-red-300/80 mb-1.5 font-medium">Préparation combat</h4>
+
+                            <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/55">
+                                <span className="uppercase tracking-widest text-white/35">debug</span>
+                                <span className="font-mono text-white/70">block {blockId ? blockId.slice(0, 8) : "unknown"}</span>
+                                <span>•</span>
+                                <span>{(combatPrep.roundTriggers ?? []).length} event{(combatPrep.roundTriggers ?? []).length > 1 ? "s" : ""}</span>
+                            </div>
 
                             <div className="space-y-3 rounded-xl border border-red-500/20 bg-black/25 p-3">
                                 <div>
