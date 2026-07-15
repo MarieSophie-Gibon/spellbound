@@ -23,7 +23,7 @@ interface ChapitreEditorProps {
   campaignId: string;
   completed?: boolean;
   onToggleCompleted?: () => void;
-  onOpenCombatDashboard?: (chapitreId: string) => void;
+  onOpenCombatDashboard?: (chapitreId: string, enemyBlockId?: string) => void;
 }
 
 type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note';
@@ -58,9 +58,6 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const [hasChanges, setHasChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  const [combatStateDraft, setCombatStateDraft] = useState<PersistedCombatState>(DEFAULT_COMBAT_STATE);
-  const combatStateDraftRef = useRef<PersistedCombatState>(DEFAULT_COMBAT_STATE);
 
   // Menu d'ajout volant (Side Tab)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -131,22 +128,6 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       setChapitre(data);
       const loadedBlocks = data.content || [];
       setBlocks(loadedBlocks);
-      const persistedCombat = (data.combat_state ?? {}) as Partial<PersistedCombatState>;
-      const nextCombatDraft: PersistedCombatState = {
-        ...DEFAULT_COMBAT_STATE,
-        ...persistedCombat,
-        combatants: persistedCombat.combatants ?? [],
-        activeCombatantId: persistedCombat.activeCombatantId ?? null,
-        round: Number.isFinite(Number(persistedCombat.round)) ? Number(persistedCombat.round) : 1,
-        battlemapUrl: persistedCombat.battlemapUrl ?? null,
-        mapTokens: persistedCombat.mapTokens ?? [],
-        encounters: persistedCombat.encounters ?? [],
-        combatNote: persistedCombat.combatNote ?? "",
-        combatNotePosition: persistedCombat.combatNotePosition ?? { x: 32, y: 110 },
-        roundTriggers: persistedCombat.roundTriggers ?? [],
-      };
-      setCombatStateDraft(nextCombatDraft);
-      combatStateDraftRef.current = nextCombatDraft;
       setHasChanges(false);
       // Si le chapitre est vide, on passe direct en édition
       setIsEditing(loadedBlocks.length === 0);
@@ -163,11 +144,13 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     if (!chapitreId) return;
     setIsSaving(true);
     setSaveError(null);
-    const combatStateToSave = combatStateOverride ?? combatStateDraftRef.current;
     try {
+      const payload = combatStateOverride
+        ? { content: currentBlocks, combat_state: combatStateOverride }
+        : { content: currentBlocks };
       const { error } = await supabase
         .from("chapitres")
-        .update({ content: currentBlocks, combat_state: combatStateToSave })
+        .update(payload)
         .eq("id", chapitreId);
 
       if (error) throw error;
@@ -190,25 +173,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [blocks, combatStateDraft, hasChanges, isEditing, handleSave]);
-
-  // Sauvegarde dédiée du module préparation combat, même si le contenu des blocs ne change pas.
-  useEffect(() => {
-    if (!chapitreId || !isEditing || isLoading) return;
-    const timer = setTimeout(async () => {
-      const { error } = await supabase
-        .from("chapitres")
-        .update({ combat_state: combatStateDraftRef.current })
-        .eq("id", chapitreId);
-
-      if (error) {
-        console.error("Erreur sauvegarde combat_state :", error.message, error);
-        setSaveError(error.message);
-      }
-    }, 900);
-
-    return () => clearTimeout(timer);
-  }, [chapitreId, combatStateDraft, isEditing, isLoading]);
+  }, [blocks, hasChanges, isEditing, handleSave]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -265,17 +230,6 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   const removeBlock = (id: string) => {
     setBlocks(blocks.filter(b => b.id !== id));
-    setHasChanges(true);
-  };
-
-  const updateCombatState = (
-    patch: Partial<PersistedCombatState> | ((prev: PersistedCombatState) => PersistedCombatState)
-  ) => {
-    setCombatStateDraft((prev) => {
-      const next = typeof patch === "function" ? patch(prev) : { ...prev, ...patch };
-      combatStateDraftRef.current = next;
-      return next;
-    });
     setHasChanges(true);
   };
 
@@ -498,15 +452,28 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               campaignId={campaignId}
               data={block.data}
               onChange={(newData) => updateBlock(block.id, newData)}
-              combatState={combatStateDraft}
-              onChangeCombatState={updateCombatState}
               isEditing={isEditing}
               onOpenCombatDashboard={() => {
                 const nextBlocks = blocks.map((b) => b.id === block.id ? { ...b, data: { ...b.data, combatEngaged: true } } : b);
                 setBlocks(nextBlocks);
                 void (async () => {
-                  const expectedTriggersCount = combatStateDraftRef.current.roundTriggers?.length ?? 0;
-                  await handleSave(nextBlocks, combatStateDraftRef.current);
+                  const blockCombat = (block.data?.combatPrep ?? {}) as Partial<PersistedCombatState>;
+                  const combatStateToLaunch: PersistedCombatState = {
+                    ...DEFAULT_COMBAT_STATE,
+                    ...blockCombat,
+                    combatants: blockCombat.combatants ?? [],
+                    activeCombatantId: blockCombat.activeCombatantId ?? null,
+                    round: Number.isFinite(Number(blockCombat.round)) ? Number(blockCombat.round) : 1,
+                    battlemapUrl: blockCombat.battlemapUrl ?? null,
+                    mapTokens: blockCombat.mapTokens ?? [],
+                    encounters: blockCombat.encounters ?? [],
+                    combatNote: blockCombat.combatNote ?? "",
+                    combatNotePosition: blockCombat.combatNotePosition ?? { x: 32, y: 110 },
+                    roundTriggers: blockCombat.roundTriggers ?? [],
+                  };
+
+                  const expectedTriggersCount = combatStateToLaunch.roundTriggers?.length ?? 0;
+                  await handleSave(nextBlocks, combatStateToLaunch);
 
                   const { data: persistedChapter, error: verifyError } = await supabase
                     .from("chapitres")
@@ -537,7 +504,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                     return;
                   }
 
-                  onOpenCombatDashboard?.(chapitreId);
+                  onOpenCombatDashboard?.(chapitreId, block.id);
                 })();
               }}
             />

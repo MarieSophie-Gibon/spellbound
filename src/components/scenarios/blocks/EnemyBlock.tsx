@@ -6,6 +6,18 @@ import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import type { PersistedCombatState, RoundTriggerEvent } from "../combat/types";
 
+const EMPTY_COMBAT_PREP: PersistedCombatState = {
+    combatants: [],
+    activeCombatantId: null,
+    round: 1,
+    battlemapUrl: null,
+    mapTokens: [],
+    encounters: [],
+    combatNote: "",
+    combatNotePosition: { x: 32, y: 110 },
+    roundTriggers: [],
+};
+
 interface EnemyBlockProps {
     campaignId: string;
     data: {
@@ -16,14 +28,9 @@ interface EnemyBlockProps {
         combatEngaged?: boolean;
         comportement?: string;
         notes?: string;
+        combatPrep?: PersistedCombatState;
     };
     onChange: (newData: Partial<EnemyBlockProps["data"]>) => void;
-    combatState?: PersistedCombatState;
-    onChangeCombatState?: (
-        patch:
-            | Partial<PersistedCombatState>
-            | ((prev: PersistedCombatState) => PersistedCombatState)
-    ) => void;
     isEditing?: boolean;
     onOpenCombatDashboard?: () => void;
 }
@@ -52,7 +59,7 @@ function isValidUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCombatState, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
+export function EnemyBlock({ campaignId, data, onChange, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
     const [searchType, setSearchType] = useState<'monster' | 'npc'>('monster');
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -68,10 +75,13 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
 
     const hasValidCampaignId = isValidUuid(campaignId);
 
-    const updateCombatState = (
+    const combatPrep = data.combatPrep ?? EMPTY_COMBAT_PREP;
+
+    const updateCombatPrep = (
         patch: Partial<PersistedCombatState> | ((prev: PersistedCombatState) => PersistedCombatState)
     ) => {
-        onChangeCombatState?.(patch);
+        const next = typeof patch === "function" ? patch(combatPrep) : { ...combatPrep, ...patch };
+        onChange({ combatPrep: next });
     };
 
     const addRoundTrigger = () => {
@@ -85,7 +95,7 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
             roundsLeft: rounds,
             createdAt: Date.now(),
         };
-        updateCombatState((prev) => ({
+        updateCombatPrep((prev) => ({
             ...prev,
             roundTriggers: [...(prev.roundTriggers ?? []), newTrigger],
         }));
@@ -103,7 +113,7 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
             const { error } = await supabase.storage.from("wiki-images").upload(filePath, file);
             if (error) throw error;
             const { data: publicData } = supabase.storage.from("wiki-images").getPublicUrl(filePath);
-            updateCombatState({ battlemapUrl: publicData.publicUrl });
+            updateCombatPrep({ battlemapUrl: publicData.publicUrl });
         } catch (err) {
             console.error("Erreur upload battlemap :", err);
         } finally {
@@ -487,8 +497,8 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
                                     <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
                                         <input
                                             type="text"
-                                            value={combatState?.battlemapUrl ?? ""}
-                                            onChange={(e) => updateCombatState({ battlemapUrl: e.target.value || null })}
+                                            value={combatPrep.battlemapUrl ?? ""}
+                                            onChange={(e) => updateCombatPrep({ battlemapUrl: e.target.value || null })}
                                             placeholder="https://... ou utilisez Upload"
                                             className="h-9 w-full rounded-lg border border-red-500/25 bg-black/30 px-3 text-sm text-white/90 outline-none transition-colors placeholder:text-white/35 focus:border-red-400/45"
                                             disabled={!isEditing}
@@ -519,8 +529,8 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
                                 <div>
                                     <label className="mb-1 block text-[10px] uppercase tracking-widest text-red-200/70">Note de combat</label>
                                     <textarea
-                                        value={combatState?.combatNote ?? ""}
-                                        onChange={(e) => updateCombatState({ combatNote: e.target.value })}
+                                        value={combatPrep.combatNote ?? ""}
+                                        onChange={(e) => updateCombatPrep({ combatNote: e.target.value })}
                                         placeholder="Objectifs, renforts, effets de terrain, rappels..."
                                         className="min-h-24 w-full resize-y rounded-lg border border-red-500/25 bg-black/30 px-3 py-2 text-sm text-white/85 outline-none transition-colors placeholder:text-white/35 focus:border-red-400/45"
                                         disabled={!isEditing}
@@ -559,10 +569,10 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
                                     )}
 
                                     <div className="space-y-1.5">
-                                        {(combatState?.roundTriggers ?? []).length === 0 && (
+                                        {(combatPrep.roundTriggers ?? []).length === 0 && (
                                             <p className="py-1 text-[11px] italic text-white/35">Aucun évènement programmé.</p>
                                         )}
-                                        {(combatState?.roundTriggers ?? [])
+                                        {(combatPrep.roundTriggers ?? [])
                                             .slice()
                                             .sort((a, b) => a.roundsLeft - b.roundsLeft || a.createdAt - b.createdAt)
                                             .map((event) => (
@@ -575,7 +585,7 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
                                                         <button
                                                             type="button"
                                                             onClick={() =>
-                                                                updateCombatState((prev) => ({
+                                                                updateCombatPrep((prev) => ({
                                                                     ...prev,
                                                                     roundTriggers: (prev.roundTriggers ?? []).filter((t) => t.id !== event.id),
                                                                 }))

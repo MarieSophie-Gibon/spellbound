@@ -12,6 +12,7 @@ export function Combat({ campaignId }: CombatPageProps) {
   const [searchParams] = useSearchParams();
 
   const chapitreId = useMemo(() => searchParams.get("chapitreId") ?? "", [searchParams]);
+  const enemyBlockId = useMemo(() => searchParams.get("enemyBlockId") ?? undefined, [searchParams]);
 
   if (!chapitreId) {
     return (
@@ -39,6 +40,7 @@ export function Combat({ campaignId }: CombatPageProps) {
       <div className="relative flex-1 p-4 md:p-6 overflow-hidden">
         <CombatDashboard
           chapitreId={chapitreId}
+          enemyBlockId={enemyBlockId}
           campaignId={campaignId}
           onBackToScenario={() => navigate(`/campaign/scenarios?chapitreId=${chapitreId}`)}
         />

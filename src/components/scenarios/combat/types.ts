@@ -78,6 +78,7 @@ export interface ChapitreBlock {
   type: string;
   data?: {
     combatEngaged?: boolean;
+    combatPrep?: PersistedCombatState;
     entityId?: string;
     entityType?: "monster" | "npc";
     nom?: string;

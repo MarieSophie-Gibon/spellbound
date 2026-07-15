@@ -210,7 +210,11 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
               const ch = chapitres.find(c => c.id === selectedChapitreId);
               if (ch) handleToggleCompleted(ch.id, !!ch.completed);
             }}
-            onOpenCombatDashboard={(chapId) => navigate(`/campaign/combat?chapitreId=${chapId}`)}
+            onOpenCombatDashboard={(chapId, enemyBlockId) => {
+              const params = new URLSearchParams({ chapitreId: chapId });
+              if (enemyBlockId) params.set("enemyBlockId", enemyBlockId);
+              navigate(`/campaign/combat?${params.toString()}`);
+            }}
           />
         ) : selectedScenarioId ? (() => {
           const sc = scenarios.find(s => s.id === selectedScenarioId);

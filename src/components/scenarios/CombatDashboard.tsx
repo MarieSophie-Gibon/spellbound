@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -28,6 +28,7 @@ import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 
 interface CombatDashboardProps {
   chapitreId: string;
+  enemyBlockId?: string;
   campaignId: string;
   onBackToScenario?: () => void;
 }
@@ -47,7 +48,24 @@ function sortCombatants(combatants: Combatant[]): Combatant[] {
   });
 }
 
-export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: CombatDashboardProps) {
+function normalizeCombatState(
+  raw: Partial<PersistedCombatState> | null | undefined,
+  fallbackNotePosition: { x: number; y: number }
+): PersistedCombatState {
+  return {
+    combatants: Array.isArray(raw?.combatants) ? raw.combatants : [],
+    activeCombatantId: raw?.activeCombatantId ?? null,
+    round: toNumber(raw?.round, 1),
+    battlemapUrl: raw?.battlemapUrl ?? null,
+    mapTokens: raw?.mapTokens ?? [],
+    encounters: raw?.encounters ?? [],
+    combatNote: raw?.combatNote ?? "",
+    combatNotePosition: raw?.combatNotePosition ?? fallbackNotePosition,
+    roundTriggers: raw?.roundTriggers ?? [],
+  };
+}
+
+export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackToScenario }: CombatDashboardProps) {
   const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
@@ -285,21 +303,31 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     const bootstrap = async () => {
       const { data: chapterData } = await supabase
         .from("chapitres")
-        .select("combat_state")
+        .select("combat_state, content")
         .eq("id", chapitreId)
         .single();
 
-      const dbState = (chapterData?.combat_state ?? null) as PersistedCombatState | null;
-      if (dbState && typeof dbState === "object") {
-        setCombatants(Array.isArray(dbState.combatants) ? dbState.combatants : []);
-        setActiveCombatantId(dbState.activeCombatantId ?? null);
-        setRound(toNumber(dbState.round, 1));
-        setBattlemapUrl(dbState.battlemapUrl ?? null);
-        setMapTokens(dbState.mapTokens ?? []);
-        setEncounters(dbState.encounters ?? []);
-        setCombatNote(dbState.combatNote ?? "");
-        setNotePosition(dbState.combatNotePosition ?? getDefaultNotePosition());
-        setRoundTriggers(dbState.roundTriggers ?? []);
+      const chapterBlocks = (chapterData?.content ?? []) as ChapitreBlock[];
+      const enemyBlock = enemyBlockId
+        ? chapterBlocks.find((block) => block.id === enemyBlockId && block.type === "enemy")
+        : null;
+      const blockState = enemyBlock?.data && typeof enemyBlock.data === "object"
+        ? ((enemyBlock.data as Record<string, unknown>).combatPrep as Partial<PersistedCombatState> | undefined)
+        : undefined;
+      const dbStateRaw = (chapterData?.combat_state ?? null) as Partial<PersistedCombatState> | null;
+      const stateToHydrate = blockState && typeof blockState === "object" ? blockState : dbStateRaw;
+
+      if (stateToHydrate && typeof stateToHydrate === "object") {
+        const normalized = normalizeCombatState(stateToHydrate, getDefaultNotePosition());
+        setCombatants(normalized.combatants);
+        setActiveCombatantId(normalized.activeCombatantId);
+        setRound(normalized.round);
+        setBattlemapUrl(normalized.battlemapUrl ?? null);
+        setMapTokens(normalized.mapTokens ?? []);
+        setEncounters(normalized.encounters ?? []);
+        setCombatNote(normalized.combatNote ?? "");
+        setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
+        setRoundTriggers(normalized.roundTriggers ?? []);
         setIsHydrated(true);
         return;
       }
@@ -310,19 +338,20 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       try {
         const parsed = JSON.parse(raw) as PersistedCombatState;
         if (!parsed || typeof parsed !== "object") { setIsHydrated(true); return; }
-        setCombatants(Array.isArray(parsed.combatants) ? parsed.combatants : []);
-        setActiveCombatantId(parsed.activeCombatantId ?? null);
-        setRound(toNumber(parsed.round, 1));
-        setBattlemapUrl(parsed.battlemapUrl ?? null);
-        setMapTokens(parsed.mapTokens ?? []);
-        setEncounters(parsed.encounters ?? []);
-        setCombatNote(parsed.combatNote ?? "");
-        setNotePosition(parsed.combatNotePosition ?? getDefaultNotePosition());
-        setRoundTriggers(parsed.roundTriggers ?? []);
+        const normalized = normalizeCombatState(parsed, getDefaultNotePosition());
+        setCombatants(normalized.combatants);
+        setActiveCombatantId(normalized.activeCombatantId);
+        setRound(normalized.round);
+        setBattlemapUrl(normalized.battlemapUrl ?? null);
+        setMapTokens(normalized.mapTokens ?? []);
+        setEncounters(normalized.encounters ?? []);
+        setCombatNote(normalized.combatNote ?? "");
+        setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
+        setRoundTriggers(normalized.roundTriggers ?? []);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
-  }, [chapitreId]);
+  }, [chapitreId, enemyBlockId]);
 
   // --- Persist ---
   useEffect(() => {
@@ -340,10 +369,44 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     const timer = setTimeout(() => {
-      void supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
+      void (async () => {
+        if (!enemyBlockId) {
+          await supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
+          return;
+        }
+
+        const { data: chapterData, error: chapterError } = await supabase
+          .from("chapitres")
+          .select("content")
+          .eq("id", chapitreId)
+          .single();
+
+        if (chapterError) {
+          await supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
+          return;
+        }
+
+        const blocks = (chapterData?.content ?? []) as ChapitreBlock[];
+        const updatedBlocks = blocks.map((block) => {
+          if (block.id !== enemyBlockId || block.type !== "enemy") return block;
+          return {
+            ...block,
+            data: {
+              ...(block.data ?? {}),
+              combatEngaged: true,
+              combatPrep: payload,
+            },
+          };
+        });
+
+        await supabase
+          .from("chapitres")
+          .update({ combat_state: payload, content: updatedBlocks })
+          .eq("id", chapitreId);
+      })();
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated, combatNote, notePosition, roundTriggers]);
+  }, [chapitreId, enemyBlockId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated, combatNote, notePosition, roundTriggers]);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -418,7 +481,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   }, [searchType, searchTerm, campaignId]);
 
   // --- Helpers ---
-  const upsertCombatants = (newEntries: Combatant[]) => {
+  const upsertCombatants = useCallback((newEntries: Combatant[]) => {
     if (newEntries.length === 0) return;
     setCombatants((prev) => {
       const existingKeys = new Set(prev.map((c) => `${c.type}:${c.entityId ?? c.id}`));
@@ -426,15 +489,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       return unique.length > 0 ? [...prev, ...unique] : prev;
     });
     setIsMenuOpen(false);
-  };
-
-  // --- Auto-import au premier chargement ---
-  useEffect(() => {
-    if (!isHydrated || hasAutoImportedRef.current) return;
-    if (combatants.length > 0) { hasAutoImportedRef.current = true; return; }
-    hasAutoImportedRef.current = true;
-    void (async () => { await importCompany(); await importEngagedEnemies(); })();
-  }, [isHydrated, combatants.length]);
+  }, []);
 
   // --- Hydratation : re-fetch TOUJOURS les stats fraîches des PJs depuis la DB ---
   useEffect(() => {
@@ -494,7 +549,29 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHydrated]);
 
-  const importEngagedEnemies = async () => {
+  // Fetch voies depuis les pathways [{ voie_id, rangs_acquis }]
+  const fetchVoiesForPathways = useCallback(async (pathways: Array<{ voie_id: string; rangs_acquis?: number[] }> | null): Promise<VoieEntry[]> => {
+    if (!pathways?.length) return [];
+    const ids = pathways.map((p) => p.voie_id).filter(Boolean);
+    if (!ids.length) return [];
+    const { data } = await supabase
+      .from("voies")
+      .select("id, nom, type, capacites")
+      .in("id", ids);
+    if (!data) return [];
+    return data.map((v) => ({
+      id: v.id,
+      nom: v.nom,
+      type: v.type,
+      capacites: (v.capacites as VoieEntry["capacites"]) ?? {},
+      rangsAcquis: pathways
+        .filter((p) => p.voie_id === v.id)
+        .flatMap((p) => p.rangs_acquis ?? [])
+        .filter((r) => r > 0),
+    }));
+  }, []);
+
+  const importEngagedEnemies = useCallback(async () => {
     setImportingEngaged(true);
     try {
       const { data, error } = await supabase.from("chapitres").select("content").eq("id", chapitreId).single();
@@ -519,43 +596,23 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       upsertCombatants(created);
     } catch (err) { console.error("Error importing engaged enemies", err); }
     finally { setImportingEngaged(false); }
-  };
+  }, [chapitreId, fetchVoiesForPathways, upsertCombatants]);
 
-  // Fetch voies depuis les pathways [{ voie_id, rangs_acquis }]
-  const fetchVoiesForPathways = async (pathways: Array<{ voie_id: string; rangs_acquis?: number[] }> | null): Promise<VoieEntry[]> => {
-    if (!pathways?.length) return [];
-    const ids = pathways.map((p) => p.voie_id).filter(Boolean);
-    if (!ids.length) return [];
-    const { data } = await supabase
-      .from("voies")
-      .select("id, nom, type, capacites")
-      .in("id", ids);
-    if (!data) return [];
-    return data.map((v) => ({
-      id: v.id,
-      nom: v.nom,
-      type: v.type,
-      capacites: (v.capacites as VoieEntry["capacites"]) ?? {},
-      rangsAcquis: pathways
-        .filter((p) => p.voie_id === v.id)
-        .flatMap((p) => p.rangs_acquis ?? [])
-        .filter((r) => r > 0),
-    }));
-  };
-
-  const buildPJStats = (pjRow: { stats: any }) => ({
-    caracteristiques: pjRow.stats?.caracteristiques ?? {},
-    initiative:   toNumber(pjRow.stats?.initiative, 0),
-    att_contact:  toNumber(pjRow.stats?.att_contact, 0),
-    att_distance: toNumber(pjRow.stats?.att_distance, 0),
-    att_magie:    toNumber(pjRow.stats?.att_magie, 0),
-    pm:           toNumber(pjRow.stats?.pm, 0),
-    pm_max:       toNumber(pjRow.stats?.pm_max ?? pjRow.stats?.pm, 0),
-    pc:           toNumber(pjRow.stats?.pc, 0),
-    dr_qty:       toNumber(pjRow.stats?.dr_qty, 0),
-    dr_de:        pjRow.stats?.dr_de ?? "d6",
-    niveau:       toNumber(pjRow.stats?.niveau, 1),
-  });
+  function buildPJStats(pjRow: { stats: any }) {
+    return {
+      caracteristiques: pjRow.stats?.caracteristiques ?? {},
+      initiative: toNumber(pjRow.stats?.initiative, 0),
+      att_contact: toNumber(pjRow.stats?.att_contact, 0),
+      att_distance: toNumber(pjRow.stats?.att_distance, 0),
+      att_magie: toNumber(pjRow.stats?.att_magie, 0),
+      pm: toNumber(pjRow.stats?.pm, 0),
+      pm_max: toNumber(pjRow.stats?.pm_max ?? pjRow.stats?.pm, 0),
+      pc: toNumber(pjRow.stats?.pc, 0),
+      dr_qty: toNumber(pjRow.stats?.dr_qty, 0),
+      dr_de: pjRow.stats?.dr_de ?? "d6",
+      niveau: toNumber(pjRow.stats?.niveau, 1),
+    };
+  }
 
   // ── Fetch familiers de la campagne ────────────────────────────────────────
   const fetchFamiliersForMenu = async () => {
@@ -608,7 +665,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
     setIsMenuOpen(false);
   };
 
-  const importCompany = async () => {
+  const importCompany = useCallback(async () => {
     setImportingCompany(true);
     try {
       const { data, error } = await supabase
@@ -663,7 +720,21 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       setIsMenuOpen(false);
     } catch (err) { console.error("Error importing company", err); }
     finally { setImportingCompany(false); }
-  };
+  }, [campaignId, fetchVoiesForPathways]);
+
+  // --- Auto-import au premier chargement ---
+  useEffect(() => {
+    if (!isHydrated || hasAutoImportedRef.current) return;
+    if (combatants.length > 0) {
+      hasAutoImportedRef.current = true;
+      return;
+    }
+    hasAutoImportedRef.current = true;
+    void (async () => {
+      await importCompany();
+      await importEngagedEnemies();
+    })();
+  }, [isHydrated, combatants.length, importCompany, importEngagedEnemies]);
 
   const addEnemyFromSearch = (result: SearchResult) => {
     const pvMax = toNumber(result.combat?.pv_max ?? result.combat?.pv ?? result.stats?.pv_max ?? result.stats?.pv, 10);
