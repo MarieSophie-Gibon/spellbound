@@ -103,6 +103,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
 
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
+  const latestPayloadRef = useRef<PersistedCombatState | null>(null);
 
   // Drag-and-drop manual ordering
   const [manualOrder, setManualOrder] = useState<string[] | null>(null);
@@ -369,6 +370,42 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     void bootstrap();
   }, [chapitreId, enemyBlockId]);
 
+  const persistCombatState = useCallback(async (payload: PersistedCombatState) => {
+    if (!enemyBlockId) {
+      await supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
+      return;
+    }
+
+    const { data: chapterData, error: chapterError } = await supabase
+      .from("chapitres")
+      .select("content")
+      .eq("id", chapitreId)
+      .single();
+
+    if (chapterError) {
+      console.error("Impossible de charger le contenu du chapitre pour persister combatPrep du bloc", chapterError);
+      return;
+    }
+
+    const blocks = (chapterData?.content ?? []) as ChapitreBlock[];
+    const updatedBlocks = blocks.map((block) => {
+      if (block.id !== enemyBlockId || block.type !== "enemy") return block;
+      return {
+        ...block,
+        data: {
+          ...(block.data ?? {}),
+          combatEngaged: true,
+          combatPrep: payload,
+        },
+      };
+    });
+
+    await supabase
+      .from("chapitres")
+      .update({ content: updatedBlocks })
+      .eq("id", chapitreId);
+  }, [chapitreId, enemyBlockId]);
+
   // --- Persist ---
   useEffect(() => {
     if (!isHydrated) return;
@@ -383,46 +420,22 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       combatNotePosition: notePosition,
       roundTriggers,
     };
+    latestPayloadRef.current = payload;
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     const timer = setTimeout(() => {
-      void (async () => {
-        if (!enemyBlockId) {
-          await supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
-          return;
-        }
-
-        const { data: chapterData, error: chapterError } = await supabase
-          .from("chapitres")
-          .select("content")
-          .eq("id", chapitreId)
-          .single();
-
-        if (chapterError) {
-          console.error("Impossible de charger le contenu du chapitre pour persister combatPrep du bloc", chapterError);
-          return;
-        }
-
-        const blocks = (chapterData?.content ?? []) as ChapitreBlock[];
-        const updatedBlocks = blocks.map((block) => {
-          if (block.id !== enemyBlockId || block.type !== "enemy") return block;
-          return {
-            ...block,
-            data: {
-              ...(block.data ?? {}),
-              combatEngaged: true,
-              combatPrep: payload,
-            },
-          };
-        });
-
-        await supabase
-          .from("chapitres")
-          .update({ content: updatedBlocks })
-          .eq("id", chapitreId);
-      })();
+      void persistCombatState(payload);
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, enemyBlockId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated, combatNote, notePosition, roundTriggers]);
+  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
+
+  useEffect(() => {
+    return () => {
+      if (!isHydrated) return;
+      const payload = latestPayloadRef.current;
+      if (!payload) return;
+      void persistCombatState(payload);
+    };
+  }, [isHydrated, persistCombatState]);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
