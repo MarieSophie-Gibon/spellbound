@@ -274,6 +274,11 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     }
   };
 
+  const bindAutosizeRef = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    resizeTextareaPreserveScroll(el);
+  };
+
   // --- Logique Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, index: number) => {
     if (!isEditing) return e.preventDefault();
@@ -337,6 +342,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       case 'text':
         return isEditing ? (
           <textarea
+            ref={bindAutosizeRef}
             value={block.data.text || ""}
             onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
             placeholder="Commencez à écrire votre récit ici..."
@@ -347,7 +353,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             }}
           />
         ) : (
-          <div className="w-full text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap px-2 py-1">
+          <div className="w-full text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap wrap-break-word px-2 py-1">
             {block.data.text || <span className="italic text-white/30">Texte vide...</span>}
           </div>
         );
@@ -357,6 +363,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
             <textarea
+              ref={bindAutosizeRef}
               value={block.data.text || ""}
               onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
@@ -377,7 +384,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         ) : (
           <div className="relative pl-6 py-3 border-l-4 border-[#E3CCCD]/60 bg-linear-to-r from-[#E3CCCD]/10 to-transparent rounded-r-xl mb-2">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/20 -z-10" />
-            <div className="text-[#E3CCCD] font-serif text-lg leading-relaxed whitespace-pre-wrap">
+            <div className="text-[#E3CCCD] font-serif text-lg leading-relaxed whitespace-pre-wrap wrap-break-word">
               "{block.data.text}"
             </div>
             {block.data.author && (
