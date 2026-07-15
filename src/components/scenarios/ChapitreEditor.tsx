@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
@@ -82,6 +82,14 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   };
 
   const reperes = blocks.filter(b => b.data?.isRepere && b.type !== 'mj_note');
+
+  const rightAnchoredNotesSignature = useMemo(() => (
+    blocks
+      .filter((b) => b.type === 'mj_note' && b.data?.anchorBlockId && b.data?.position === 'right')
+      .map((b) => `${b.id}:${b.data.anchorBlockId}`)
+      .sort()
+      .join('|')
+  ), [blocks]);
 
   // États pour le Drag & Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -190,6 +198,19 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
     return () => cancelAnimationFrame(frame);
   }, [isEditing, chapitreId]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const frame = requestAnimationFrame(() => {
+      const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
+      textareas.forEach((textarea) => {
+        const target = textarea as HTMLTextAreaElement;
+        resizeTextareaPreserveScroll(target);
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isEditing, rightAnchoredNotesSignature]);
 
   // --- Bascule Lecture / Édition ---
   const toggleMode = (forceEdit?: boolean) => {
