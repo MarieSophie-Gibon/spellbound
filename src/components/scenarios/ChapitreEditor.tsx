@@ -5,7 +5,7 @@ import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
   Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote,
-  Bookmark, BookmarkCheck, Navigation
+  Bookmark, BookmarkCheck, Navigation, Bold
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { PersistedCombatState } from "./combat/types";
@@ -95,6 +95,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   // Pour défiler automatiquement vers le nouveau bloc
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -300,6 +301,53 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     resizeTextareaPreserveScroll(el);
   };
 
+  const bindTextBlockRef = (blockId: string, el: HTMLTextAreaElement | null) => {
+    textAreaRefs.current[blockId] = el;
+    bindAutosizeRef(el);
+  };
+
+  const applyBoldToTextBlock = (blockId: string) => {
+    const textarea = textAreaRefs.current[blockId];
+    if (!textarea) return;
+    const text = textarea.value || "";
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    const selected = text.slice(start, end);
+
+    if (start === end) {
+      const insert = "****";
+      const nextText = `${text.slice(0, start)}${insert}${text.slice(end)}`;
+      preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
+      requestAnimationFrame(() => {
+        const next = textAreaRefs.current[blockId];
+        if (!next) return;
+        next.focus();
+        const caret = start + 2;
+        next.setSelectionRange(caret, caret);
+      });
+      return;
+    }
+
+    const nextText = `${text.slice(0, start)}**${selected}**${text.slice(end)}`;
+    preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
+    requestAnimationFrame(() => {
+      const next = textAreaRefs.current[blockId];
+      if (!next) return;
+      next.focus();
+      next.setSelectionRange(start + 2, end + 2);
+    });
+  };
+
+  const renderTextWithBold = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+        return <strong key={`t-${idx}`} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+      }
+      return <span key={`t-${idx}`}>{part}</span>;
+    });
+  };
+
   // --- Logique Drag & Drop ---
   const handleDragStart = (e: React.DragEvent, index: number) => {
     if (!isEditing) return e.preventDefault();
@@ -362,20 +410,39 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     switch (block.type) {
       case 'text':
         return isEditing ? (
-          <textarea
-            ref={bindAutosizeRef}
-            value={block.data.text || ""}
-            onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
-            placeholder="Commencez à écrire votre récit ici..."
-            className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 rounded transition-colors"
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              resizeTextareaPreserveScroll(target);
-            }}
-          />
+          <div className="w-full space-y-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => applyBoldToTextBlock(block.id)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/12 bg-white/6 text-white/70 hover:text-white hover:bg-white/12 transition-colors"
+                title="Mettre en gras (Ctrl/Cmd+B)"
+              >
+                <Bold className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] text-white/35">Gras: sélectionnez du texte puis Ctrl/Cmd+B</span>
+            </div>
+            <textarea
+              ref={(el) => bindTextBlockRef(block.id, el)}
+              value={block.data.text || ""}
+              onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+                  e.preventDefault();
+                  applyBoldToTextBlock(block.id);
+                }
+              }}
+              placeholder="Commencez à écrire votre récit ici..."
+              className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 rounded transition-colors"
+              onInput={(e) => {
+                const target = e.target as HTMLTextAreaElement;
+                resizeTextareaPreserveScroll(target);
+              }}
+            />
+          </div>
         ) : (
           <div className="w-full text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap wrap-break-word px-2 py-1">
-            {block.data.text || <span className="italic text-white/30">Texte vide...</span>}
+            {block.data.text ? renderTextWithBold(block.data.text) : <span className="italic text-white/30">Texte vide...</span>}
           </div>
         );
 
@@ -383,10 +450,27 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         return isEditing ? (
           <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
+            <div className="flex items-center gap-1.5 mb-2">
+              <button
+                type="button"
+                onClick={() => applyBoldToTextBlock(block.id)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/12 bg-white/6 text-white/70 hover:text-white hover:bg-white/12 transition-colors"
+                title="Mettre en gras (Ctrl/Cmd+B)"
+              >
+                <Bold className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] text-white/35">Gras: sélectionnez du texte puis Ctrl/Cmd+B</span>
+            </div>
             <textarea
-              ref={bindAutosizeRef}
+              ref={(el) => bindTextBlockRef(block.id, el)}
               value={block.data.text || ""}
               onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+                  e.preventDefault();
+                  applyBoldToTextBlock(block.id);
+                }
+              }}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
               className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-[#E3CCCD]/30"
               onInput={(e) => {
@@ -406,7 +490,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           <div className="relative pl-6 py-3 border-l-4 border-[#E3CCCD]/60 bg-linear-to-r from-[#E3CCCD]/10 to-transparent rounded-r-xl mb-2">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/20 -z-10" />
             <div className="text-[#E3CCCD] font-serif text-lg leading-relaxed whitespace-pre-wrap wrap-break-word">
-              "{block.data.text}"
+              <span>"</span>{renderTextWithBold(block.data.text || "")}<span>"</span>
             </div>
             {block.data.author && (
               <div className="mt-2 text-[#E3CCCD]/50 text-sm italic">
