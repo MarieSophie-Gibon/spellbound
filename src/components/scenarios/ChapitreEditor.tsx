@@ -164,6 +164,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   }, [blocks, hasChanges, isEditing, handleSave]);
 
   useEffect(() => {
+    if (isEditing) return;
     const frame = requestAnimationFrame(() => {
       const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
       textareas.forEach((textarea) => {
@@ -175,6 +176,20 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
     return () => cancelAnimationFrame(frame);
   }, [isEditing, chapitreId, blocks]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    const frame = requestAnimationFrame(() => {
+      const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
+      textareas.forEach((textarea) => {
+        const target = textarea as HTMLTextAreaElement;
+        target.style.height = "auto";
+        target.style.height = `${target.scrollHeight}px`;
+      });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isEditing, chapitreId]);
 
   // --- Bascule Lecture / Édition ---
   const toggleMode = (forceEdit?: boolean) => {
@@ -232,6 +247,30 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       updateBlock(blockId, { url: urlData.publicUrl });
     } catch (err: any) {
       alert("Erreur lors de l'upload : " + err.message);
+    }
+  };
+
+  const preserveScrollOnChange = (fn: () => void) => {
+    const savedTop = scrollContainerRef.current?.scrollTop ?? null;
+    fn();
+    requestAnimationFrame(() => {
+      if (savedTop !== null && scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = savedTop;
+      }
+    });
+  };
+
+  const resizeTextareaPreserveScroll = (target: HTMLTextAreaElement) => {
+    const savedTop = scrollContainerRef.current?.scrollTop ?? 0;
+    target.style.height = "auto";
+    target.style.height = `${target.scrollHeight}px`;
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = savedTop;
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = savedTop;
+        }
+      });
     }
   };
 
@@ -299,15 +338,12 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         return isEditing ? (
           <textarea
             value={block.data.text || ""}
-            onChange={(e) => updateBlock(block.id, { text: e.target.value })}
+            onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
             placeholder="Commencez à écrire votre récit ici..."
             className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 rounded transition-colors"
             onInput={(e) => {
               const target = e.target as HTMLTextAreaElement;
-              const savedTop = scrollContainerRef.current?.scrollTop ?? 0;
-              target.style.height = "auto";
-              if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = savedTop;
-              target.style.height = `${target.scrollHeight}px`;
+              resizeTextareaPreserveScroll(target);
             }}
           />
         ) : (
@@ -322,15 +358,12 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
             <textarea
               value={block.data.text || ""}
-              onChange={(e) => updateBlock(block.id, { text: e.target.value })}
+              onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
               className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-[#E3CCCD]/30"
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
-                const savedTop = scrollContainerRef.current?.scrollTop ?? 0;
-                target.style.height = "auto";
-                if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = savedTop;
-                target.style.height = `${target.scrollHeight}px`;
+                resizeTextareaPreserveScroll(target);
               }}
             />
             <input

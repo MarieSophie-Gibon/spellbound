@@ -22,9 +22,27 @@ function preserveScroll(fn: () => void) {
   const savedWindow = window.scrollY;
   fn();
   requestAnimationFrame(() => {
-    if (scrollContainer && savedTop !== null) scrollContainer.scrollTop = savedTop;
+    if (scrollContainer && savedTop !== null) {
+      scrollContainer.scrollTop = savedTop;
+      requestAnimationFrame(() => {
+        scrollContainer.scrollTop = savedTop;
+      });
+    }
     if (window.scrollY !== savedWindow) window.scrollTo({ top: savedWindow, behavior: "auto" });
   });
+}
+
+function resizeTextareaPreserveScroll(target: HTMLTextAreaElement) {
+  const scrollContainer = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
+  const savedTop = scrollContainer?.scrollTop ?? null;
+  target.style.height = "auto";
+  target.style.height = `${target.scrollHeight}px`;
+  if (scrollContainer && savedTop !== null) {
+    scrollContainer.scrollTop = savedTop;
+    requestAnimationFrame(() => {
+      scrollContainer.scrollTop = savedTop;
+    });
+  }
 }
 
 export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange, onDetach }: MJBlockProps) {
@@ -64,8 +82,7 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
           className="w-full bg-amber-50/60 border border-amber-800/20 rounded-lg px-3 py-2 text-[13px] leading-relaxed text-amber-950 placeholder:text-amber-800/50 outline-none resize-none overflow-hidden min-h-24"
           onInput={(e) => {
             const target = e.target as HTMLTextAreaElement;
-            target.style.height = "auto";
-            target.style.height = `${target.scrollHeight}px`;
+            resizeTextareaPreserveScroll(target);
           }}
         />
       </div>
