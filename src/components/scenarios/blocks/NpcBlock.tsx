@@ -123,7 +123,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
                   >
                     <img src={npc.image_url || '/default-avatar.png'} alt={npc.name} className="w-8 h-8 rounded-full object-cover border border-violet-500/30 bg-black/50" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white truncate">{npc.name}</div>
+                      <div className="text-sm font-medium text-white whitespace-pre-wrap wrap-break-word">{npc.name}</div>
                     </div>
                   </button>
                 ))}

@@ -211,8 +211,6 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   }, [chapitreId, combatStateDraft, isEditing, isLoading]);
 
   useEffect(() => {
-    if (!isEditing) return;
-
     const frame = requestAnimationFrame(() => {
       const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
       textareas.forEach((textarea) => {
@@ -223,7 +221,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [isEditing, chapitreId]);
+  }, [isEditing, chapitreId, blocks]);
 
   // --- Bascule Lecture / Édition ---
   const toggleMode = (forceEdit?: boolean) => {

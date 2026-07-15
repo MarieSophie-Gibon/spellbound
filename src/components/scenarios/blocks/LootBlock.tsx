@@ -241,7 +241,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                     {/* Nom + badges */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[13px] text-white/90 font-medium truncate">{item.nom}</span>
+                                            <span className="text-[13px] text-white/90 font-medium whitespace-pre-wrap wrap-break-word">{item.nom}</span>
                                             <span className="text-[9px] uppercase tracking-widest text-amber-300/50 bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">
                                                 {TABLE_LABEL[item.table] ?? item.table}
                                             </span>
@@ -257,7 +257,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                             )}
                                         </div>
                                         {item.description && (
-                                            <p className="text-[11px] text-white/35 mt-0.5 leading-relaxed line-clamp-2">{item.description}</p>
+                                            <p className="text-[11px] text-white/35 mt-0.5 leading-relaxed whitespace-pre-wrap wrap-break-word">{item.description}</p>
                                         )}
                                     </div>
 
@@ -302,7 +302,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                                             ? <img src={pj.image_url} className="w-6 h-6 rounded-full object-cover border border-white/10 shrink-0" />
                                                             : <div className="w-6 h-6 rounded-full bg-white/10 border border-white/10 shrink-0" />
                                                         }
-                                                        <span className="text-[12px] text-white/80 truncate">{pj.name}</span>
+                                                        <span className="text-[12px] text-white/80 whitespace-pre-wrap wrap-break-word">{pj.name}</span>
                                                         {assigningPjId === pj.id && <Loader2 className="w-3 h-3 animate-spin text-amber-400 ml-auto shrink-0" />}
                                                     </button>
                                                 ))}
@@ -350,8 +350,8 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                         {res.image_url ? <img src={res.image_url} className="w-full h-full object-cover" /> : <Package className="w-3 h-3 text-white/20" />}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-[12px] text-white/90 font-medium truncate">{res.nom}</div>
-                                        <div className="text-[9px] flex items-center gap-2 truncate mt-0.5">
+                                        <div className="text-[12px] text-white/90 font-medium whitespace-pre-wrap wrap-break-word">{res.nom}</div>
+                                        <div className="text-[9px] flex items-center gap-2 mt-0.5 whitespace-pre-wrap wrap-break-word">
                                             <span className="uppercase tracking-widest text-amber-200/50">{res.table.replace('_', ' ')}</span>
                                             {res.stat && <span className="text-white/40">{res.stat}</span>}
                                         </div>

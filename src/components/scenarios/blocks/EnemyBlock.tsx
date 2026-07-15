@@ -256,9 +256,9 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
                                     >
                                         <img src={entity.image_url || '/default-avatar.png'} alt={entity.name} className="w-8 h-8 rounded-full object-cover border border-red-500/30 bg-black/50" />
                                         <div className="flex-1 min-w-0">
-                                            <div className="text-sm font-medium text-white truncate">{entity.name}</div>
+                                            <div className="text-sm font-medium text-white whitespace-pre-wrap wrap-break-word">{entity.name}</div>
                                             {searchType === 'monster' && (entity.type_creature || entity.nc) && (
-                                                <div className="text-[11px] text-white/45 truncate">
+                                                <div className="text-[11px] text-white/45 whitespace-pre-wrap wrap-break-word">
                                                     {entity.type_creature || 'Créature'}
                                                     {entity.nc ? ` • NC ${entity.nc}` : ''}
                                                 </div>
@@ -570,7 +570,7 @@ export function EnemyBlock({ campaignId, data, onChange, combatState, onChangeCo
                                                     <span className="inline-flex h-6 min-w-12 items-center justify-center rounded-md border border-red-500/35 bg-black/30 px-1 text-[11px] text-red-100/85">
                                                         R-{event.roundsLeft}
                                                     </span>
-                                                    <p className="flex-1 truncate text-xs text-white/90">{event.label}</p>
+                                                    <p className="flex-1 text-xs text-white/90 whitespace-pre-wrap wrap-break-word">{event.label}</p>
                                                     {isEditing && (
                                                         <button
                                                             type="button"

@@ -106,7 +106,7 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
             className="flex-1 bg-transparent font-serif text-base text-sky-100 outline-none placeholder:text-sky-100/30 min-w-0"
           />
         ) : (
-          <span className="flex-1 font-serif text-base text-sky-100 truncate">
+          <span className="flex-1 font-serif text-base text-sky-100 whitespace-pre-wrap wrap-break-word">
             {data.title || <span className="text-sky-100/30 italic">Enquête sans titre</span>}
           </span>
         )}
@@ -178,7 +178,7 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
                           <span className="px-1.5 py-0.5 rounded-md bg-sky-500/10 border border-sky-500/20 text-[10px] uppercase tracking-wide font-semibold text-sky-200">
                             {currentStat}
                           </span>
-                          <span className="text-[12px] text-white/70 truncate">
+                          <span className="text-[12px] text-white/70 whitespace-pre-wrap wrap-break-word">
                             {STAT_LABELS[currentStat] || currentStat}
                           </span>
                         </div>
