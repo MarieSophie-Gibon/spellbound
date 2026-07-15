@@ -75,10 +75,10 @@ export function RoundTriggerPanel({
           .sort((a, b) => a.roundsLeft - b.roundsLeft || a.createdAt - b.createdAt)
           .map((event) => (
             <div key={event.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-2">
-              <span className="inline-flex h-6 min-w-12 items-center justify-center rounded-md border border-white/20 bg-white/8 px-1 text-[11px] text-white/80">
-                R-{event.roundsLeft}
+              <span className={`inline-flex h-6 min-w-12 items-center justify-center rounded-md border px-1 text-[11px] ${event.hasFired ? "border-amber-400/35 bg-amber-400/10 text-amber-200" : "border-white/20 bg-white/8 text-white/80"}`}>
+                {event.hasFired ? "OK" : `R-${event.roundsLeft}`}
               </span>
-              <p className="flex-1 truncate text-xs text-white/90">{event.label}</p>
+              <p className="flex-1 text-xs text-white/90 whitespace-pre-wrap wrap-break-word">{event.label}</p>
               <button
                 onClick={() => onRemoveTrigger(event.id)}
                 className="text-white/40 transition-colors hover:text-red-300"

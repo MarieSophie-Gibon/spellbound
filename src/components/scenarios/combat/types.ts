@@ -124,6 +124,7 @@ export interface RoundTriggerEvent {
   label: string;
   roundsLeft: number;
   createdAt: number;
+  hasFired?: boolean;
 }
 
 export interface PersistedCombatState {

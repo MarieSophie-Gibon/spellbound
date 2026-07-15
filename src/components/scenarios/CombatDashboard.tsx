@@ -316,8 +316,22 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         : undefined;
       const dbStateRaw = (chapterData?.combat_state ?? null) as Partial<PersistedCombatState> | null;
       const stateToHydrate = enemyBlockId
-        ? (blockState && typeof blockState === "object" ? blockState : null)
+        ? (blockState && typeof blockState === "object" ? blockState : dbStateRaw)
         : dbStateRaw;
+
+      if (enemyBlockId && !blockState && dbStateRaw && enemyBlock) {
+        const updatedBlocks = chapterBlocks.map((block) => {
+          if (block.id !== enemyBlockId || block.type !== "enemy") return block;
+          return {
+            ...block,
+            data: {
+              ...(block.data ?? {}),
+              combatPrep: dbStateRaw,
+            },
+          };
+        });
+        void supabase.from("chapitres").update({ content: updatedBlocks }).eq("id", chapitreId);
+      }
 
       if (stateToHydrate && typeof stateToHydrate === "object") {
         const normalized = normalizeCombatState(stateToHydrate, getDefaultNotePosition());
@@ -793,20 +807,26 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       setActiveCombatantId(orderedCombatants[0].id);
       setRound((r) => r + 1);
       setRoundTriggers((prev) => {
-        const fired: RoundTriggerEvent[] = [];
-        const pending: RoundTriggerEvent[] = [];
-        for (const event of prev) {
-          const updatedRounds = event.roundsLeft - 1;
-          if (updatedRounds <= 0) fired.push(event);
-          else pending.push({ ...event, roundsLeft: updatedRounds });
-        }
+        const newlyFired: RoundTriggerEvent[] = [];
+        const nextTriggers = prev.map((event) => {
+          const updatedRounds = Math.max(0, event.roundsLeft - 1);
+          const isNowFired = updatedRounds <= 0;
+          if (isNowFired && !event.hasFired) {
+            newlyFired.push(event);
+          }
+          return {
+            ...event,
+            roundsLeft: updatedRounds,
+            hasFired: event.hasFired || isNowFired,
+          };
+        });
 
-        if (fired.length > 0) {
-          const text = fired.map((event) => `• ${event.label}`).join("\n");
+        if (newlyFired.length > 0) {
+          const text = newlyFired.map((event) => `• ${event.label}`).join("\n");
           setFiredTriggerMessage(text);
         }
 
-        return pending;
+        return nextTriggers;
       });
     } else {
       setActiveCombatantId(orderedCombatants[next].id);
@@ -825,6 +845,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         label,
         roundsLeft: rounds,
         createdAt: Date.now(),
+        hasFired: false,
       },
     ]);
     setNewTriggerText("");
