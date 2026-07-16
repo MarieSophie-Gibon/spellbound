@@ -97,6 +97,14 @@ function computeDerived(stats: StatsMap, famille: FamilleRef | null) {
   };
 }
 
+function normalizeCompendiumItemId(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+}
+
 export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   // Navigation & Toggle
   const [step, setStep] = useState(1);
@@ -429,13 +437,14 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         const itemsToInsert = selectedEquipItems.map((item) => ({
           pnj_id: pnjInsertData[0].id,
           item_type: item.source,
-          item_id: Number(item.id),
+          item_id: normalizeCompendiumItemId(item.id),
           nom_custom: item.nom,
           description_custom: item.details ?? "",
           qte: 1,
           is_equipped: false,
         }));
-        await supabase.from("pj_inventaire").insert(itemsToInsert);
+        const { error: invErr } = await supabase.from("pj_inventaire").insert(itemsToInsert);
+        if (invErr) throw invErr;
       }
 
       const created = pnjInsertData?.[0] ? { id: pnjInsertData[0].id, name: pnjInsertData[0].name, image_url: pnjInsertData[0].image_url } : undefined;

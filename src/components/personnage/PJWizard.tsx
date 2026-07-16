@@ -72,6 +72,14 @@ function getPvParNiveau(groupe: string | undefined): number {
   return 4; // Aventuriers et Mystiques
 }
 
+function normalizeCompendiumItemId(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+}
+
 function computeDerived(stats: StatsMap, famille: FamilleRef | null) {
   const pv = famille ? 2 * famille.pv_niveau + stats.CON : stats.CON;
   const drQty = famille?.groupe === "Mystiques" ? 3 + stats.CON : 2 + stats.CON;
@@ -497,7 +505,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         const itemsToInsert = selectedEquipItems.map((item) => ({
           pj_id: newPjId,
           item_type: item.source,
-          item_id: Number(item.id),
+          item_id: normalizeCompendiumItemId(item.id),
           nom_custom: item.nom,
           description_custom: item.details ?? "",
           qte: 1,

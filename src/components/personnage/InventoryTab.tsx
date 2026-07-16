@@ -15,6 +15,15 @@ interface InventoryTabProps {
 
 type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
 
+const normalizeItemIdForDb = (value: string | number | null) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+};
+
 export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats }: InventoryTabProps) {
   const isPnj = !!pnjId;
   const ownerId = pnjId || pjId;
@@ -122,7 +131,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
     } else {
       const selected = compendiumItems.find(i => i.id.toString() === val);
       if (selected) {
-        let desc = selected.description || "";
+        let desc = selected.description || selected.data?.description || "";
         if (formData.item_type === "arme_contact" || formData.item_type === "arme_distance") desc = `Dégâts: ${selected.dm}`;
         if (formData.item_type === "armure") desc = `Défense: ${selected.bonus_def}`;
         
@@ -138,25 +147,40 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
 
   const handleSaveItem = async () => {
     if (!formData.nom_custom.trim()) return;
-    if (isPnj) {
-      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
-      const current: any[] = data?.inventory?.items ?? [];
-      let updated: any[];
-      if (editingItemId) {
-        updated = current.map((it: any) => it.id === editingItemId ? { ...it, ...formData } : it);
+    try {
+      if (isPnj) {
+        const { data, error } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
+        if (error) throw error;
+
+        const current: any[] = data?.inventory?.items ?? [];
+        let updated: any[];
+        if (editingItemId) {
+          updated = current.map((it: any) => it.id === editingItemId ? { ...it, ...formData } : it);
+        } else {
+          updated = [...current, { ...formData, id: crypto.randomUUID() }];
+        }
+        const { error: updateErr } = await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
+        if (updateErr) throw updateErr;
       } else {
-        updated = [...current, { ...formData, id: crypto.randomUUID() }];
+        const payload = {
+          ...formData,
+          // `pj_inventaire.item_id` is numeric in DB: keep custom labels for non-numeric IDs.
+          item_id: normalizeItemIdForDb(formData.item_id),
+        };
+
+        if (editingItemId) {
+          const { error } = await supabase.from("pj_inventaire").update(payload).eq("id", editingItemId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("pj_inventaire").insert({ ...payload, pj_id: pjId });
+          if (error) throw error;
+        }
       }
-      await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
-    } else {
-      if (editingItemId) {
-        await supabase.from("pj_inventaire").update(formData).eq("id", editingItemId);
-      } else {
-        await supabase.from("pj_inventaire").insert({ ...formData, pj_id: pjId });
-      }
+      setIsModalOpen(false);
+      fetchEverything();
+    } catch (error: any) {
+      alert("Impossible d'enregistrer cet objet: " + (error?.message ?? "erreur inconnue"));
     }
-    setIsModalOpen(false);
-    fetchEverything();
   };
 
   const handleDeleteItem = async () => {
