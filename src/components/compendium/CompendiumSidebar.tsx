@@ -447,8 +447,7 @@ function SidebarActions({ mode, onCreatePeuple, onCreateFamille, onCreateProfil,
               <Swords className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Créature
             </button>
           )}
-          {mode === 'all' && (
-            <>
+          <>
               <button
                 onClick={() => { onCreatePeuple(); setShowMenu(false); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors border-b border-white/5"
@@ -495,8 +494,7 @@ function SidebarActions({ mode, onCreatePeuple, onCreateFamille, onCreateProfil,
                   </div>
                 )}
               </div>
-            </>
-          )}
+          </>
         </div>
       )}
 

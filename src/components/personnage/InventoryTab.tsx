@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Coins, Package, Shield, Sword, Target, Backpack, Loader2, Plus, Pencil, Trash2, X, Save } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface InventoryTabProps {
   pjId: string;
@@ -124,8 +125,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
   };
 
   // Quand l'utilisateur choisit un objet dans le menu déroulant
-  const handleCompendiumSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
+  const handleCompendiumSelect = (val: string) => {
     if (val === "custom") {
       setFormData({ ...formData, item_id: null, nom_custom: "", description_custom: "" });
     } else {
@@ -214,6 +214,16 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
 
   const weaponsAndArmor = unifiedItems.filter(i => ["arme_contact", "arme_distance", "armure"].includes(i.item_type));
   const genericItems = unifiedItems.filter(i => i.item_type === "equipement" || !i.item_type);
+  const selectedCompendiumItem = formData.item_id
+    ? compendiumItems.find(i => i.id?.toString() === formData.item_id?.toString())
+    : null;
+  const itemTypeLabelMap: Record<ItemType, string> = {
+    arme_contact: "Arme de contact",
+    arme_distance: "Arme a distance",
+    armure: "Armure / Bouclier",
+    equipement: "Equipement divers",
+  };
+  const selectItemClass = "!text-white **:!text-white hover:!text-white focus:!text-white data-highlighted:!text-white hover:bg-white/10 focus:bg-white/10 data-highlighted:bg-white/10 data-[state=checked]:!text-white focus:**:!text-white data-highlighted:**:!text-white";
 
   if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 text-[#E3CCCD]/50 animate-spin" /></div>;
 
@@ -320,8 +330,8 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
 
       {/* MODALE CRUD (COMPENDIUM AWARE) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-[#120D2F] border border-[#E3CCCD]/20 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[1px] p-4">
+          <div className="bg-[#221B50]/95 border border-[#E3CCCD]/28 rounded-2xl w-full max-w-md p-6 shadow-[0_18px_55px_rgba(7,5,20,0.45)]">
             <div className="flex justify-between items-center mb-5">
               <h3 className="text-lg font-serif text-white">{editingItemId ? "Modifier l'objet" : "Ajouter un objet"}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-white/40 hover:text-white"><X className="w-5 h-5" /></button>
@@ -331,47 +341,71 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
               {/* Type d'objet */}
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Catégorie</label>
-                <select value={formData.item_type} onChange={e => { setFormData({...formData, item_type: e.target.value as ItemType, item_id: null, nom_custom: "", description_custom: ""}); }} className="w-full bg-black/20 border border-white/15 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/50">
-                  <option value="arme_contact">Arme de contact</option>
-                  <option value="arme_distance">Arme à distance</option>
-                  <option value="armure">Armure / Bouclier</option>
-                  <option value="equipement">Équipement divers</option>
-                </select>
+                <Select
+                  value={formData.item_type}
+                  onValueChange={(val) => setFormData({ ...formData, item_type: val as ItemType, item_id: null, nom_custom: "", description_custom: "" })}
+                >
+                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 focus-visible:border-[#E3CCCD]/55">
+                    <SelectValue placeholder="Choisir une catégorie" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg overflow-hidden **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                    <SelectItem value="arme_contact" className={selectItemClass}>Arme de contact</SelectItem>
+                    <SelectItem value="arme_distance" className={selectItemClass}>Arme à distance</SelectItem>
+                    <SelectItem value="armure" className={selectItemClass}>Armure / Bouclier</SelectItem>
+                    <SelectItem value="equipement" className={selectItemClass}>Équipement divers</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Sélection depuis le Compendium */}
               <div>
-                <label className="block text-[10px] uppercase tracking-widest text-[#E3CCCD]/60 mb-1">Objet du Compendium</label>
-                <select 
-                  value={formData.item_id?.toString() || "custom"} 
-                  onChange={handleCompendiumSelect} 
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] uppercase tracking-widest text-[#E3CCCD]/60">Objet du Compendium</label>
+                  <span className="text-[10px] text-white/35 font-mono">{compendiumItems.length}</span>
+                </div>
+
+                <Select
+                  value={formData.item_id?.toString() || "custom"}
+                  onValueChange={handleCompendiumSelect}
                   disabled={isFetchingCompendium}
-                  className="w-full bg-[#E3CCCD]/5 border border-[#E3CCCD]/30 rounded-lg p-2.5 text-[#E3CCCD] text-sm outline-none focus:border-[#E3CCCD] disabled:opacity-50"
                 >
-                  <option value="custom" className="bg-[#120D2F]">✨ Objet personnalisé...</option>
-                  {compendiumItems.map(item => (
-                    <option key={item.id} value={item.id.toString()} className="bg-[#120D2F] text-white">
-                      {item.nom}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 focus-visible:border-[#E3CCCD]/55 disabled:opacity-50">
+                    <SelectValue placeholder="Objet personnalisé..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                    <SelectItem value="custom" className={selectItemClass}>Objet personnalisé...</SelectItem>
+                    {compendiumItems.map(item => (
+                      <SelectItem key={item.id} value={item.id.toString()} className={selectItemClass}>
+                        {item.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <p className="mt-1 text-[10px] text-white/35">
+                  {isFetchingCompendium
+                    ? "Chargement..."
+                    : selectedCompendiumItem
+                      ? `Source compendium • ${itemTypeLabelMap[formData.item_type]}`
+                      : `Objet personnalisé • ${itemTypeLabelMap[formData.item_type]}`}
+                </p>
               </div>
 
               {/* Champs (Grise si lié au compendium pour montrer d'où viennent les données) */}
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Nom de l'objet</label>
-                  <input type="text" value={formData.nom_custom} onChange={e => setFormData({...formData, nom_custom: e.target.value})} placeholder="ex: Épée longue" className="w-full bg-black/20 border border-white/15 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/50" />
+                  <input type="text" value={formData.nom_custom} onChange={e => setFormData({...formData, nom_custom: e.target.value})} placeholder="ex: Épée longue" className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/55" />
                 </div>
                 <div className="w-20">
                   <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Qté</label>
-                  <input type="number" min={1} value={formData.qte} onChange={e => setFormData({...formData, qte: parseInt(e.target.value)||1})} className="w-full bg-black/20 border border-white/15 rounded-lg p-2.5 text-white text-center font-mono text-sm outline-none focus:border-[#E3CCCD]/50" />
+                  <input type="number" min={1} value={formData.qte} onChange={e => setFormData({...formData, qte: parseInt(e.target.value)||1})} className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-center font-mono text-sm outline-none focus:border-[#E3CCCD]/55" />
                 </div>
               </div>
 
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Stats ou Description</label>
-                <input type="text" value={formData.description_custom} onChange={e => setFormData({...formData, description_custom: e.target.value})} placeholder={formData.item_type.includes('arme') ? "ex: Dégâts: 1d8" : formData.item_type === 'armure' ? "ex: Défense: +2" : "ex: Une corde de 15m"} className="w-full bg-black/20 border border-white/15 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/50" />
+                <input type="text" value={formData.description_custom} onChange={e => setFormData({...formData, description_custom: e.target.value})} placeholder={formData.item_type.includes('arme') ? "ex: Dégâts: 1d8" : formData.item_type === 'armure' ? "ex: Défense: +2" : "ex: Une corde de 15m"} className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/55" />
               </div>
 
               {formData.item_type !== "equipement" && (
