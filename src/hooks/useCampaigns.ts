@@ -8,10 +8,7 @@ export interface Campaign {
   image_url: string | null
   owner_id?: string | null
   created_at?: string | null
-}
-
-interface CampaignIdRow {
-  campaign_id: string | null
+  access_type?: 'owner' | 'member' | 'pj'
 }
 
 function isMissingTableError(err: unknown): boolean {
@@ -44,7 +41,15 @@ export function useCampaigns(role?: 'mj' | 'player') {
         const byId = new Map<string, Campaign>()
         for (const list of lists) {
           for (const campaign of list) {
-            byId.set(campaign.id, campaign)
+            const existing = byId.get(campaign.id)
+            if (!existing) {
+              byId.set(campaign.id, campaign)
+              continue
+            }
+            const rank = (t?: Campaign['access_type']) => (t === 'owner' ? 3 : t === 'member' ? 2 : 1)
+            if (rank(campaign.access_type) > rank(existing.access_type)) {
+              byId.set(campaign.id, campaign)
+            }
           }
         }
         return Array.from(byId.values()).sort(
@@ -59,7 +64,7 @@ export function useCampaigns(role?: 'mj' | 'player') {
         .eq('owner_id', user.id)
         .order('created_at', { ascending: false })
       if (ownedError && !isMissingColumnError(ownedError)) throw ownedError
-      const ownedCampaigns = (ownedData ?? []) as Campaign[]
+      const ownedCampaigns = ((ownedData ?? []) as Campaign[]).map((c) => ({ ...c, access_type: 'owner' as const }))
 
       // 2. Campagnes rejointes via invitation (campaign_members)
       let memberCampaigns: Campaign[] = []
@@ -75,7 +80,7 @@ export function useCampaigns(role?: 'mj' | 'player') {
           .select('*')
           .in('id', memberIds)
         if (mErr) throw mErr
-        memberCampaigns = (mData ?? []) as Campaign[]
+        memberCampaigns = ((mData ?? []) as Campaign[]).map((c) => ({ ...c, access_type: 'member' as const }))
       }
 
       // 3. Campagnes liées via un PJ (accès joueur ancien format)
@@ -95,7 +100,7 @@ export function useCampaigns(role?: 'mj' | 'player') {
           .select('*')
           .in('id', remainingPjIds)
         if (pjCErr) throw pjCErr
-        pjCampaigns = (pjData ?? []) as Campaign[]
+        pjCampaigns = ((pjData ?? []) as Campaign[]).map((c) => ({ ...c, access_type: 'pj' as const }))
       }
 
       return mergeAndSort(ownedCampaigns, memberCampaigns, pjCampaigns)
@@ -243,6 +248,28 @@ export function useDeleteCampaign() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from('campagnes').delete().eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    }
+  })
+}
+
+export function useLeaveCampaign() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Utilisateur non connecté')
+
+      const { error } = await supabase
+        .from('campaign_members')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .eq('user_id', user.id)
+
       if (error) throw error
     },
     onSuccess: () => {

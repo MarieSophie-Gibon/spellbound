@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pencil, Trash2, Copy } from 'lucide-react'
+import { Pencil, Trash2, Copy, LogOut } from 'lucide-react'
 import { theme } from '@/lib/theme'
 
 interface MagicCardProps {
@@ -12,9 +12,10 @@ interface MagicCardProps {
   onEdit?: (e: React.MouseEvent) => void
   onDelete?: (e: React.MouseEvent) => void
   onDuplicate?: (e: React.MouseEvent) => void
+  onLeave?: (e: React.MouseEvent) => void
 }
 
-export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onDuplicate }: MagicCardProps) {
+export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onDuplicate, onLeave }: MagicCardProps) {
   const bgImage = imageUrl || '/default-bg.jpg'
   const isCompact = size === 'compact'
   const cardSizeClass = isCompact ? 'w-48 h-72' : 'w-60 h-95'
@@ -44,7 +45,7 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
         />
 
         {/* Edit / Duplicate / Delete buttons */}
-        {(onEdit || onDuplicate || onDelete) && (
+        {(onEdit || onDuplicate || onDelete || onLeave) && (
           <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             {onEdit && (
               <button
@@ -68,6 +69,14 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
                 className="p-1.5 rounded-full bg-white/70 backdrop-blur-sm text-red-400/80 hover:text-red-600 hover:bg-white transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onLeave && (
+              <button
+                onClick={onLeave}
+                className="p-1.5 rounded-full bg-white/70 backdrop-blur-sm text-amber-500/80 hover:text-amber-700 hover:bg-white transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
