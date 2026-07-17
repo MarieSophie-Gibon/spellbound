@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { EquipementDetailMobile } from "@/components/compendium/equipement/MagicalItemDetailMobile";
 
 type EquipementDetailProps = {
   equipements: any[];
@@ -56,6 +57,18 @@ export function EquipementDetail({
 }: EquipementDetailProps) {
   const isMobile = useIsMobile();
   const { label, icon: Icon } = TABLE_LABELS[selectedTable];
+
+  if (isMobile) {
+    return (
+      <EquipementDetailMobile
+        equipements={equipements}
+        selectedTable={selectedTable}
+        readOnly={readOnly}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
