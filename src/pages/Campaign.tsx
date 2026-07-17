@@ -3,15 +3,18 @@ import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
 import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch } from "lucide-react";
 import { PJList } from "@/components/campaign/PJList";
+import { CampaignHomeMobile } from "@/components/campaign/CampaignHomeMobile";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface CampaignProps {
     campaign: Campaign;
 }
 
 export function CampaignHome({ campaign }: CampaignProps) {
+    const isMobile = useIsMobile();
     const role = useAuthStore((s) => s.role);
     const isMJ = role === "mj";
     const bgImage = campaign.image_url || '/default-bg.jpg';
@@ -59,6 +62,10 @@ export function CampaignHome({ campaign }: CampaignProps) {
     const createdAt = campaign.created_at
         ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(campaign.created_at))
         : null;
+
+    if (isMobile) {
+        return <CampaignHomeMobile campaign={campaign} />;
+    }
 
     return (
         <div className="flex-1 relative p-10">

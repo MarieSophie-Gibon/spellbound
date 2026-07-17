@@ -11,6 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { LobbyMobile } from "@/components/lobby/LobbyMobile";
 
 interface LobbyProps {
   onSelectCampaign: (campaign: Campaign) => void;
@@ -18,6 +20,7 @@ interface LobbyProps {
 }
 
 export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
+  const isMobile = useIsMobile();
   const session = useAuthStore((s) => s.session);
   const currentUserId = session?.user?.id;
   const { data: campaigns, isLoading } = useCampaigns();
@@ -33,6 +36,23 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const [inviteCode, setInviteCode] = useState("");
   const [joinError, setJoinError] = useState<string | null>(null);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+
+  const handleJoinByCode = () => {
+    setJoinError(null);
+    joinByCode.mutate(
+      { code: inviteCode },
+      {
+        onSuccess: (campaign) => {
+          setInviteCode("");
+          setIsJoinDialogOpen(false);
+          onSelectCampaign(campaign);
+        },
+        onError: (err: any) => {
+          setJoinError(err?.message ?? "Impossible de rejoindre la campagne");
+        },
+      }
+    );
+  };
 
   if (isLoading) {
     return (
@@ -63,105 +83,112 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
           }
         `}
       </style>
-      <div className="hidden xl:block fixed top-4 right-4 w-80 rounded-xl border border-white/12 bg-black/25 backdrop-blur-md px-3 py-3 z-40">
-        <div className="flex items-center gap-2 mb-2 text-white/80">
-          <Ticket className="w-3.5 h-3.5 text-amber-300" />
-          <p className="text-[10px] uppercase tracking-[0.18em]">Rejoindre une campagne</p>
-        </div>
-        <div className="flex gap-2">
-          <Input
-            value={inviteCode}
-            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-            placeholder="Code invitation (ex: A7K2M9QX)"
-            className="h-8 text-xs bg-white/5 border-white/15 text-white placeholder:text-white/35"
-          />
-          <Button
-            disabled={!inviteCode.trim() || joinByCode.isPending}
-            onClick={() => {
-              setJoinError(null);
-              joinByCode.mutate(
-                { code: inviteCode },
-                {
-                  onSuccess: (campaign) => {
-                    setInviteCode("");
-                    onSelectCampaign(campaign);
-                  },
-                  onError: (err: any) => {
-                    setJoinError(err?.message ?? "Impossible de rejoindre la campagne");
-                  },
-                }
-              );
-            }}
-            className="h-8 px-2.5 text-xs bg-amber-600 hover:bg-amber-500 text-white"
-          >
-            {joinByCode.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rejoindre"}
-          </Button>
-        </div>
-        {joinError && <p className="text-[11px] text-red-300 mt-2">{joinError}</p>}
-      </div>
-
-      <div className="xl:hidden fixed top-3 right-3 z-40">
-        <Button
-          onClick={() => {
-            setJoinError(null);
-            setIsJoinDialogOpen(true);
+      {isMobile ? (
+        <LobbyMobile
+          campaigns={[...(campaigns ?? [])].sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())}
+          currentUserId={currentUserId}
+          inviteCode={inviteCode}
+          joinError={joinError}
+          isJoining={joinByCode.isPending}
+          onInviteCodeChange={setInviteCode}
+          onJoin={handleJoinByCode}
+          onSelectCampaign={onSelectCampaign}
+          onCreateCampaign={onCreateCampaign}
+          onEditCampaign={setEditingCampaign}
+          onDuplicateCampaign={(campaign) => {
+            setDuplicateName(`Copie de ${campaign.nom}`);
+            setDuplicatingCampaign(campaign);
           }}
-          className="h-8 px-2.5 text-xs bg-amber-600 hover:bg-amber-500 text-white"
-        >
-          <Ticket className="w-3.5 h-3.5 mr-1.5" />
-          Rejoindre
-        </Button>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center w-full h-full p-4 sm:p-6 md:p-8 md:pr-24">
-        <div className="w-full max-w-6xl relative h-full flex items-center justify-center">
-          <div className="w-full overflow-x-auto
-            scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-            <div className="flex items-stretch gap-5 py-6 px-4 w-max mx-auto">
-          {
-            <div className="shrink-0">
-              <MagicCard
-                size="compact"
-                onClick={onCreateCampaign}
-                title={
-                  <>
-                    Créer une
-                    <br />
-                    nouvelle
-                    <br />
-                    campagne
-                  </>
-                }
-              />
+          onDeleteCampaign={setDeletingCampaign}
+          onLeaveCampaign={setLeavingCampaign}
+        />
+      ) : (
+        <>
+          <div className="hidden xl:block fixed top-4 right-4 w-80 rounded-xl border border-white/12 bg-black/25 backdrop-blur-md px-3 py-3 z-40">
+            <div className="flex items-center gap-2 mb-2 text-white/80">
+              <Ticket className="w-3.5 h-3.5 text-amber-300" />
+              <p className="text-[10px] uppercase tracking-[0.18em]">Rejoindre une campagne</p>
             </div>
-          }
-
-          {[...(campaigns ?? [])]
-            .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
-            .map((campaign) => (
-            <div key={campaign.id} className="shrink-0">
-              {(() => {
-                const isOwner = !!currentUserId && campaign.owner_id === currentUserId;
-                const canLeave = !isOwner && campaign.access_type === "member";
-                return (
-              <MagicCard
-                size="compact"
-                onClick={() => onSelectCampaign(campaign)}
-                imageUrl={campaign.image_url}
-                title={campaign.nom}
-                onEdit={isOwner ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
-                onDuplicate={isOwner ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
-                onDelete={isOwner ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
-                onLeave={canLeave ? (e) => { e.stopPropagation(); setLeavingCampaign(campaign); } : undefined}
+            <div className="flex gap-2">
+              <Input
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                placeholder="Code invitation (ex: A7K2M9QX)"
+                className="h-8 text-xs bg-white/5 border-white/15 text-white placeholder:text-white/35"
               />
-                );
-              })()}
+              <Button
+                disabled={!inviteCode.trim() || joinByCode.isPending}
+                onClick={handleJoinByCode}
+                className="h-8 px-2.5 text-xs bg-amber-600 hover:bg-amber-500 text-white"
+              >
+                {joinByCode.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rejoindre"}
+              </Button>
             </div>
-          ))}
+            {joinError && <p className="text-[11px] text-red-300 mt-2">{joinError}</p>}
+          </div>
+
+          <div className="xl:hidden fixed top-3 right-3 z-40">
+            <Button
+              onClick={() => {
+                setJoinError(null);
+                setIsJoinDialogOpen(true);
+              }}
+              className="h-8 px-2.5 text-xs bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              <Ticket className="w-3.5 h-3.5 mr-1.5" />
+              Rejoindre
+            </Button>
+          </div>
+
+          <div className="flex-1 flex items-center justify-center w-full h-full p-4 sm:p-6 md:p-8 md:pr-24">
+            <div className="w-full max-w-6xl relative h-full flex items-center justify-center">
+              <div className="w-full overflow-x-auto
+                scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+                <div className="flex items-stretch gap-5 py-6 px-4 w-max mx-auto">
+                  <div className="shrink-0">
+                    <MagicCard
+                      size="compact"
+                      onClick={onCreateCampaign}
+                      title={
+                        <>
+                          Créer une
+                          <br />
+                          nouvelle
+                          <br />
+                          campagne
+                        </>
+                      }
+                    />
+                  </div>
+
+                  {[...(campaigns ?? [])]
+                    .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
+                    .map((campaign) => (
+                      <div key={campaign.id} className="shrink-0">
+                        {(() => {
+                          const isOwner = !!currentUserId && campaign.owner_id === currentUserId;
+                          const canLeave = !isOwner && campaign.access_type === "member";
+                          return (
+                            <MagicCard
+                              size="compact"
+                              onClick={() => onSelectCampaign(campaign)}
+                              imageUrl={campaign.image_url}
+                              title={campaign.nom}
+                              onEdit={isOwner ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
+                              onDuplicate={isOwner ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
+                              onDelete={isOwner ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
+                              onLeave={canLeave ? (e) => { e.stopPropagation(); setLeavingCampaign(campaign); } : undefined}
+                            />
+                          );
+                        })()}
+                      </div>
+                    ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
       <Dialog open={isJoinDialogOpen} onOpenChange={setIsJoinDialogOpen}>
         <DialogContent className="bg-[#1E1941]/95 border border-amber-300/30 rounded-2xl shadow-2xl p-8 max-w-sm w-full flex flex-col items-center gap-5 text-white animate-in zoom-in-95 duration-200">
@@ -196,22 +223,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
             <button
               type="button"
               disabled={!inviteCode.trim() || joinByCode.isPending}
-              onClick={() => {
-                setJoinError(null);
-                joinByCode.mutate(
-                  { code: inviteCode },
-                  {
-                    onSuccess: (campaign) => {
-                      setInviteCode("");
-                      setIsJoinDialogOpen(false);
-                      onSelectCampaign(campaign);
-                    },
-                    onError: (err: any) => {
-                      setJoinError(err?.message ?? "Impossible de rejoindre la campagne");
-                    },
-                  }
-                );
-              }}
+              onClick={handleJoinByCode}
               className="flex-1 px-4 py-2.5 rounded-xl bg-amber-300/15 border border-amber-300/40 hover:bg-amber-300/25 text-amber-200 text-[13px] transition-colors disabled:opacity-50 flex items-center justify-center"
             >
               {joinByCode.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Rejoindre"}

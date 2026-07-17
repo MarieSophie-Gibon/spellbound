@@ -3,8 +3,11 @@ import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, Mail, MoreHorizontal, Zap } from 'lucide-react'
 import { theme } from '@/lib/theme'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { LoginMobile } from '@/components/auth/LoginMobile'
 
 export function Login() {
+  const isMobile = useIsMobile()
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>('login')
   const [pseudo, setPseudo] = useState('')
   const [email, setEmail] = useState('')
@@ -175,6 +178,40 @@ export function Login() {
     setPassword('')
     setConfirmPassword('')
     setLoading(false)
+  }
+
+  const clearMessages = () => {
+    setError(null)
+    setInfo(null)
+  }
+
+  if (isMobile) {
+    return (
+      <LoginMobile
+        mode={mode}
+        pseudo={pseudo}
+        email={email}
+        password={password}
+        confirmPassword={confirmPassword}
+        showPassword={showPassword}
+        showConfirmPassword={showConfirmPassword}
+        rememberMe={rememberMe}
+        loading={loading}
+        error={error}
+        info={info}
+        cooldownSeconds={cooldownSeconds}
+        onSubmit={handleAuth}
+        setMode={setMode}
+        setPseudo={setPseudo}
+        setEmail={setEmail}
+        setPassword={setPassword}
+        setConfirmPassword={setConfirmPassword}
+        setShowPassword={setShowPassword}
+        setShowConfirmPassword={setShowConfirmPassword}
+        setRememberMe={setRememberMe}
+        clearMessages={clearMessages}
+      />
+    )
   }
 
   return (

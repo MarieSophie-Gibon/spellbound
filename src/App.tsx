@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Login } from "@/components/auth/Login";
 import { SideNav } from "@/components/layout/SideNav";
+import { SideNavMobile } from "@/components/layout/SideNavMobile";
 import { Footer } from "@/components/layout/Footer";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
@@ -21,8 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Copy, Loader2 } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 function App() {
+  const isMobile = useIsMobile();
   const location = useLocation();
   const isBattlemapRoute = location.pathname === "/battlemap";
 
@@ -83,12 +86,16 @@ function App() {
   // Navigation handler pour SideNav (global ou campagne)
   const handleTabChange = (tab: string) => {
     if (isCampaignRoute) {
+      if (tab === "none") {
+        setActiveCampaign(null);
+        navigate("/");
+      }
       if (tab === "grimoire") navigate("/campaign/grimoire");
       else if (tab === "compendium") navigate("/campaign/compendium");
       else if (tab === "bestiaire") navigate("/campaign/bestiaire");
       else if (tab === "scenarios") navigate("/campaign/scenarios");
       else if (tab === "personnages") navigate("/campaign/personnages");
-      else navigate("/campaign");
+      else if (tab !== "none") navigate("/campaign");
     } else {
       if (tab === "grimoire") navigate("/grimoire");
       else if (tab === "compendium") navigate("/compendium");
@@ -96,6 +103,8 @@ function App() {
       else navigate("/");
     }
   };
+
+  const shouldShowNav = location.pathname === "/" || location.pathname === "/grimoire" || location.pathname === "/compendium" || location.pathname === "/bestiaire" || isCampaignRoute;
 
   return (
     <div className="relative h-screen flex flex-col font-sans text-slate-200" style={{ overflow: "clip" }}>
@@ -108,7 +117,7 @@ function App() {
         <div className="absolute inset-0 backdrop-blur-md" />
         <div className="absolute inset-0 bg-[#d9d9d9]/20 mix-blend-overlay" />
         <div
-          className="absolute inset-0 bg-contain bg-right pointer-events-none opacity-80 bg-no-repeat"
+          className="absolute inset-0 bg-cover lg:bg-contain bg-right pointer-events-none opacity-80 bg-no-repeat"
           style={{ backgroundImage: "url('/overlay.svg')" }}
         />
       </div>
@@ -116,7 +125,7 @@ function App() {
       {/* ZONE CENTRALE */}
       <div className="relative z-10 flex flex-1 overflow-hidden">
         {/* Affiche la SideNav sur / (lobby), /grimoire, /compendium, /campaign et ses sous-routes */}
-        {(location.pathname === "/" || location.pathname === "/grimoire" || location.pathname === "/compendium" || location.pathname === "/bestiaire" || isCampaignRoute) && (
+        {!isMobile && shouldShowNav && (
           <SideNav
             activeTab={getActiveTab()}
             onTabChange={handleTabChange}
@@ -125,7 +134,7 @@ function App() {
           />
         )}
 
-        <main className="flex-1 overflow-hidden flex flex-col">
+        <main className={`flex-1 overflow-hidden flex flex-col ${isMobile && shouldShowNav ? "pb-24" : ""}`}>
           {!session ? (
             <Login />
           ) : (
@@ -273,20 +282,41 @@ function App() {
         </main>
       </div>
 
-      {/* FOOTER (Prend 100% de la largeur de l'écran en bas) */}
-      <div className="relative z-20 w-full shrink-0">
-        <Footer
-          activeCampaign={activeCampaign}
-          onCampaignClick={() => {
+      {isMobile && shouldShowNav && (
+        <SideNavMobile
+          activeTab={getActiveTab()}
+          onTabChange={handleTabChange}
+          onBackToLobby={() => {
             setActiveCampaign(null);
             navigate("/");
           }}
-          onEditCampaign={activeCampaign && canManageActiveCampaign ? () => setEditingCampaign(activeCampaign) : undefined}
-          onDeleteCampaign={activeCampaign && canManageActiveCampaign ? () => setShowDeleteCampaignConfirm(true) : undefined}
-          onDuplicateCampaign={activeCampaign && canManageActiveCampaign ? () => { setDuplicateName(`Copie de ${activeCampaign.nom}`); setShowDuplicateCampaignModal(true); } : undefined}
-          onSwitchCampaign={(campaign) => { setActiveCampaign(campaign); navigate("/campaign"); }}
+          showBackToLobbyButton={isCampaignRoute}
+          onGoToCampaignDashboard={() => {
+            if (isCampaignRoute) navigate("/campaign");
+          }}
+          showCampaignDashboardButton={isCampaignRoute}
+          showProfileMenuButton={!isCampaignRoute}
+          showMenuTitles={!isCampaignRoute}
+          tabs={getTabs()}
         />
-      </div>
+      )}
+
+      {/* FOOTER (Prend 100% de la largeur de l'écran en bas) */}
+      {!isMobile && (
+        <div className="relative z-20 w-full shrink-0">
+          <Footer
+            activeCampaign={activeCampaign}
+            onCampaignClick={() => {
+              setActiveCampaign(null);
+              navigate("/");
+            }}
+            onEditCampaign={activeCampaign && canManageActiveCampaign ? () => setEditingCampaign(activeCampaign) : undefined}
+            onDeleteCampaign={activeCampaign && canManageActiveCampaign ? () => setShowDeleteCampaignConfirm(true) : undefined}
+            onDuplicateCampaign={activeCampaign && canManageActiveCampaign ? () => { setDuplicateName(`Copie de ${activeCampaign.nom}`); setShowDuplicateCampaignModal(true); } : undefined}
+            onSwitchCampaign={(campaign) => { setActiveCampaign(campaign); navigate("/campaign"); }}
+          />
+        </div>
+      )}
 
       {editingCampaign && (
         <CreateCampaign

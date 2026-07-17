@@ -53,35 +53,41 @@ export function PersonnageSidebar({
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full bg-linear-to-b from-[#1E1941]/30 via-transparent to-black/10">
             {/* SÉLECTEUR D'ONGLETS */}
-            <div className="flex p-2 gap-1 border-b border-white/10 shrink-0 bg-black/10">
+            <div className="flex p-2 sm:p-3 gap-2 border-b border-white/10 shrink-0 bg-black/15 sticky top-0 z-10 backdrop-blur-md">
                 <button 
                     onClick={() => setActiveTab("pj")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-all ${
                         activeTab === "pj" 
                         ? "bg-[#E3CCCD]/15 text-[#E3CCCD] border border-[#E3CCCD]/30" 
                         : "text-white/40 hover:bg-white/5 hover:text-white/80 border border-transparent"
                     }`}
                 >
-                    <User className="w-3.5 h-3.5" />
+                    <User className="w-4 h-4" />
                     Joueurs
                 </button>
                 <button 
                     onClick={() => setActiveTab("pnj")}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-all ${
                         activeTab === "pnj" 
                         ? "bg-sky-500/15 text-sky-400 border border-sky-500/30" 
                         : "text-white/40 hover:bg-white/5 hover:text-white/80 border border-transparent"
                     }`}
                 >
-                    <Users className="w-3.5 h-3.5" />
+                    <Users className="w-4 h-4" />
                     PNJ
                 </button>
             </div>
 
+            <div className="px-4 pt-3 pb-1 shrink-0">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">
+                    {displayedList.length} entr{displayedList.length > 1 ? "ées" : "ée"}
+                </p>
+            </div>
+
             {/* LISTE DES PERSONNAGES */}
-            <div className="flex-1 overflow-y-auto py-2 scrollbar-thin scrollbar-thumb-white/10">
+            <div className="flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin scrollbar-thumb-white/10">
                 {isLoading ? (
                     <div className="flex justify-center py-10">
                         <Loader2 className="w-6 h-6 animate-spin text-white/30" />
@@ -95,22 +101,22 @@ export function PersonnageSidebar({
                         <button
                             key={perso.id}
                             onClick={() => onSelect(perso.id, activeTab)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all hover:bg-white/5 ${
+                            className={`w-full flex items-center gap-3.5 px-4 py-3.5 text-left transition-all rounded-2xl border mb-2.5 ${
                                 selectedId === perso.id 
                                     ? activeTab === "pj" 
-                                        ? "bg-[#E3CCCD]/10 border-r-2 border-[#E3CCCD]/50" 
-                                        : "bg-sky-500/10 border-r-2 border-sky-500/50"
-                                    : ""
+                                        ? "bg-[#E3CCCD]/12 border-[#E3CCCD]/35 shadow-[0_6px_20px_rgba(227,204,205,0.08)]" 
+                                        : "bg-sky-500/12 border-sky-500/35 shadow-[0_6px_20px_rgba(14,165,233,0.08)]"
+                                    : "bg-white/3 border-white/8 hover:bg-white/6 hover:border-white/15"
                             }`}
                         >
-                            <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-white/15 bg-white/5 flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/15 bg-white/5 flex items-center justify-center">
                                 {perso.image_url
                                     ? <img src={perso.image_url} alt={perso.name} className="w-full h-full object-cover" />
                                     : <User className="w-4 h-4 text-white/30" />}
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-2">
-                                    <p className={`text-[13px] font-medium break-words min-w-0 ${
+                                    <p className={`text-[14px] font-medium wrap-break-word min-w-0 ${
                                         selectedId === perso.id 
                                             ? activeTab === "pj" ? "text-[#E3CCCD]" : "text-sky-400"
                                             : "text-white/70"
@@ -123,7 +129,7 @@ export function PersonnageSidebar({
                                     )}
                                 </div>
                                 {(perso.stats?.sexe || perso.stats?.age) && (
-                                    <p className="text-[11px] text-white/35 break-words min-w-0 mt-0.5">
+                                    <p className="text-[11px] text-white/35 wrap-break-word min-w-0 mt-0.5">
                                         {[perso.stats.sexe, perso.stats.age].filter(Boolean).join(" · ")}
                                     </p>
                                 )}
@@ -134,11 +140,11 @@ export function PersonnageSidebar({
             </div>
 
             {/* FOOTER : BOUTONS D'ACTION */}
-            <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5">
+                        <div className="p-4 space-y-3 shrink-0 bg-black/20 border-t border-white/10 backdrop-blur-md">
                 {!readOnly && (
                   <button
                     onClick={handleCreate}
-                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border transition-all text-[12px] font-medium ${
+                                        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border transition-all text-[12px] font-bold uppercase tracking-wider ${
                         activeTab === "pj"
                         ? "bg-[#E3CCCD]/10 border-[#E3CCCD]/25 text-[#E3CCCD]/80 hover:bg-[#E3CCCD]/20 hover:text-[#E3CCCD]"
                         : "bg-sky-500/10 border-sky-500/25 text-sky-400/80 hover:bg-sky-500/20 hover:text-sky-400"

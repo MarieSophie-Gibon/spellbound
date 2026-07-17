@@ -5,7 +5,7 @@ import { PJWizard } from "@/components/personnage/PJWizard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { PersonnageSidebar } from "@/components/personnage/PersonnageSidebar";
 import { PersonnageDetail } from "@/components/personnage/PersonnageDetail";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Sparkles } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 
@@ -90,6 +90,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
   // Récupère les PJ ET les PNJ
   const fetchData = useCallback(async () => {
@@ -113,6 +114,12 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
   const selectedCharacter = selectedType === "pj" 
     ? pjs.find(p => p.id === selectedId) ?? null 
     : pnjs.find(p => p.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!selectedCharacter && mobileView === "detail") {
+      setMobileView("list");
+    }
+  }, [selectedCharacter, mobileView]);
 
   // Read-only: players can edit only their own PJ (explicit user_id match required).
   // Any falsy value (no user assigned, no session) → read-only for players.
@@ -151,40 +158,119 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
 
   return (
     <>
-      <BookLayout
-        spineTitle="Personnages"
-        hideSidebar={isFullscreen}
-        sidebar={
-          <PersonnageSidebar
-            pjs={pjs}
-            pnjs={pnjs}
-            isLoading={isLoading}
-            selectedId={selectedId}
-            readOnly={!isMJ}
-            onSelect={(id, type) => {
-              setSelectedId(id);
-              if (type) setSelectedType(type);
-            }}
-            onCreatePJClick={() => setShowPJWizard(true)}
-            onCreatePNJClick={() => setShowPNJWizard(true)}
-            onBack={onBack}
+      {/* Mobile-native flow */}
+      <div className="lg:hidden h-full min-h-0 flex flex-col bg-[#100c2f]">
+        {mobileView === "list" ? (
+          <>
+            <div className="shrink-0 px-4 pt-4 pb-3 border-b border-white/10 bg-linear-to-b from-[#1E1941]/75 to-[#1E1941]/35 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  onClick={onBack}
+                  className="h-10 px-3 rounded-xl border border-white/15 text-white/75 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="text-[11px] uppercase tracking-widest">Retour</span>
+                </button>
+                <div className="text-right">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/55">Campagne</p>
+                  <h1 className="font-serif text-xl text-white tracking-wide">Personnages</h1>
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-white/45 leading-relaxed flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#E3CCCD]/60" />
+                Sélectionnez un personnage pour ouvrir sa fiche.
+              </p>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PersonnageSidebar
+                pjs={pjs}
+                pnjs={pnjs}
+                isLoading={isLoading}
+                selectedId={selectedId}
+                readOnly={!isMJ}
+                onSelect={(id, type) => {
+                  setSelectedId(id);
+                  if (type) setSelectedType(type);
+                  setMobileView("detail");
+                }}
+                onCreatePJClick={() => setShowPJWizard(true)}
+                onCreatePNJClick={() => setShowPNJWizard(true)}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="shrink-0 px-3 pt-3 pb-2 border-b border-white/10 bg-linear-to-b from-[#1E1941]/80 to-[#1E1941]/35 backdrop-blur-md">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setMobileView("list")}
+                  className="h-10 px-3 rounded-xl border border-white/15 text-white/75 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="text-[11px] uppercase tracking-widest">Liste</span>
+                </button>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-[#E3CCCD]/60 truncate">
+                  {selectedType === "pj" ? "PJ" : "PNJ"} {selectedCharacter ? `· ${selectedCharacter.name}` : ""}
+                </p>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PersonnageDetail
+                pj={selectedCharacter}
+                type={selectedType}
+                campaignId={campaignId}
+                isFullscreen={true}
+                readOnly={effectiveReadOnly}
+                technicalSheetOnly={technicalSheetOnly}
+                isMJ={isMJ}
+                showFullscreenToggle={false}
+                onToggleFullscreen={() => setMobileView("list")}
+                onDeleteClick={() => setShowDeleteConfirm(true)}
+                onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
+                onEditSuccess={() => fetchData()}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Desktop/tablet existing layout */}
+      <div className="hidden lg:block h-full min-h-0">
+        <BookLayout
+          spineTitle="Personnages"
+          hideSidebar={isFullscreen}
+          sidebar={
+            <PersonnageSidebar
+              pjs={pjs}
+              pnjs={pnjs}
+              isLoading={isLoading}
+              selectedId={selectedId}
+              readOnly={!isMJ}
+              onSelect={(id, type) => {
+                setSelectedId(id);
+                if (type) setSelectedType(type);
+              }}
+              onCreatePJClick={() => setShowPJWizard(true)}
+              onCreatePNJClick={() => setShowPNJWizard(true)}
+              onBack={onBack}
+            />
+          }
+        >
+          <PersonnageDetail
+            pj={selectedCharacter}
+            type={selectedType}
+            campaignId={campaignId}
+            isFullscreen={isFullscreen}
+            readOnly={effectiveReadOnly}
+            technicalSheetOnly={technicalSheetOnly}
+            isMJ={isMJ}
+            onToggleFullscreen={() => setIsFullscreen((v) => !v)}
+            onDeleteClick={() => setShowDeleteConfirm(true)}
+            onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
+            onEditSuccess={() => fetchData()}
           />
-        }
-      >
-        <PersonnageDetail
-          pj={selectedCharacter}
-          type={selectedType}
-          campaignId={campaignId}
-          isFullscreen={isFullscreen}
-          readOnly={effectiveReadOnly}
-          technicalSheetOnly={technicalSheetOnly}
-          isMJ={isMJ}
-          onToggleFullscreen={() => setIsFullscreen((v) => !v)}
-          onDeleteClick={() => setShowDeleteConfirm(true)}
-          onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
-          onEditSuccess={() => fetchData()}
-        />
-      </BookLayout>
+        </BookLayout>
+      </div>
 
       {showPJWizard && (
         <PJWizard

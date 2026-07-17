@@ -1,0 +1,245 @@
+import { Eye, EyeOff, Mail, MoreHorizontal, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+interface LoginMobileProps {
+  mode: "login" | "signup" | "forgot" | "reset";
+  pseudo: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  showPassword: boolean;
+  showConfirmPassword: boolean;
+  rememberMe: boolean;
+  loading: boolean;
+  error: string | null;
+  info: string | null;
+  cooldownSeconds: number;
+  onSubmit: (e: React.FormEvent) => void;
+  setMode: (mode: "login" | "signup" | "forgot" | "reset") => void;
+  setPseudo: (value: string) => void;
+  setEmail: (value: string) => void;
+  setPassword: (value: string) => void;
+  setConfirmPassword: (value: string) => void;
+  setShowPassword: (value: boolean) => void;
+  setShowConfirmPassword: (value: boolean) => void;
+  setRememberMe: (value: boolean) => void;
+  clearMessages: () => void;
+}
+
+export function LoginMobile({
+  mode,
+  pseudo,
+  email,
+  password,
+  confirmPassword,
+  showPassword,
+  showConfirmPassword,
+  rememberMe,
+  loading,
+  error,
+  info,
+  cooldownSeconds,
+  onSubmit,
+  setMode,
+  setPseudo,
+  setEmail,
+  setPassword,
+  setConfirmPassword,
+  setShowPassword,
+  setShowConfirmPassword,
+  setRememberMe,
+  clearMessages,
+}: LoginMobileProps) {
+  return (
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 pb-8">
+      <div className="mx-auto w-full max-w-md">
+        <div className="rounded-3xl border border-white/10 bg-[#1E1941]/70 backdrop-blur-xl p-4 shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+          <div className="mb-4 px-1">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/60">Spellbound</p>
+            <h1 className="font-serif text-2xl text-white">Connexion</h1>
+            <p className="text-[12px] text-white/45 mt-1">Version mobile optimisee pour un usage tactile.</p>
+          </div>
+
+          <form onSubmit={onSubmit} className="space-y-4">
+            {error && (
+              <div className="p-2.5 text-[11px] font-medium text-amber-200 bg-red-950/45 border border-red-900/50 rounded-xl text-center">
+                {error}
+              </div>
+            )}
+
+            {info && (
+              <div className="p-2.5 text-[11px] font-medium text-emerald-200 bg-emerald-950/35 border border-emerald-900/60 rounded-xl text-center">
+                {info}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/12 bg-black/20 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  clearMessages();
+                }}
+                className={`h-10 rounded-lg text-[11px] uppercase tracking-wider transition-colors ${
+                  mode === "login" || mode === "forgot" || mode === "reset"
+                    ? "bg-white/15 text-white"
+                    : "text-white/50"
+                }`}
+              >
+                Connexion
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signup");
+                  clearMessages();
+                }}
+                className={`h-10 rounded-lg text-[11px] uppercase tracking-wider transition-colors ${
+                  mode === "signup" ? "bg-white/15 text-white" : "text-white/50"
+                }`}
+              >
+                Inscription
+              </button>
+            </div>
+
+            {mode === "signup" && (
+              <div className="relative flex items-center bg-black/20 border border-white/12 rounded-xl overflow-hidden focus-within:border-white/35 transition-colors">
+                <div className="pl-3 pr-2 py-3 text-slate-300">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Pseudo"
+                  value={pseudo}
+                  onChange={(e) => setPseudo(e.target.value)}
+                  className="w-full bg-transparent text-sm text-white placeholder:text-slate-400 focus:outline-none py-3"
+                  required={mode === "signup"}
+                />
+              </div>
+            )}
+
+            <div className="relative flex items-center bg-black/20 border border-white/12 rounded-xl overflow-hidden focus-within:border-white/35 transition-colors">
+              <div className="pl-3 pr-2 py-3 text-slate-300">
+                <Mail className="w-4 h-4" />
+              </div>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-transparent text-sm text-white placeholder:text-slate-400 focus:outline-none py-3"
+                required
+              />
+            </div>
+
+            <div className="relative flex items-center bg-black/20 border border-white/12 rounded-xl overflow-hidden focus-within:border-white/35 transition-colors">
+              <div className="pl-3 pr-2 py-3 text-slate-300">
+                <MoreHorizontal className="w-4 h-4" />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-transparent text-sm text-white placeholder:text-slate-400 focus:outline-none py-3"
+                required={mode !== "forgot"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="px-3 py-3 text-slate-300"
+                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {(mode === "signup" || mode === "reset") && (
+              <div className="relative flex items-center bg-black/20 border border-white/12 rounded-xl overflow-hidden focus-within:border-white/35 transition-colors">
+                <div className="pl-3 pr-2 py-3 text-slate-300">
+                  <MoreHorizontal className="w-4 h-4" />
+                </div>
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirmer le mot de passe"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-transparent text-sm text-white placeholder:text-slate-400 focus:outline-none py-3"
+                  required={mode === "signup" || mode === "reset"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="px-3 py-3 text-slate-300"
+                  aria-label={showConfirmPassword ? "Masquer la confirmation du mot de passe" : "Afficher la confirmation du mot de passe"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            )}
+
+            {mode === "login" && (
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-[12px] text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-white/30 bg-transparent"
+                  />
+                  Se souvenir de moi
+                </label>
+              </div>
+            )}
+
+            {(mode === "login" || mode === "forgot") && (
+              <div className="flex justify-end">
+                {mode === "login" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("forgot");
+                      clearMessages();
+                    }}
+                    className="text-[11px] text-slate-300/80"
+                  >
+                    Mot de passe oublie ?
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("login");
+                      clearMessages();
+                    }}
+                    className="text-[11px] text-slate-300/80"
+                  >
+                    Retour a la connexion
+                  </button>
+                )}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              variant="outline"
+              className="w-full h-11 bg-white/5 border-white/25 hover:bg-white/20 text-white text-[12px] font-medium tracking-[0.1em] uppercase rounded-xl"
+              disabled={loading || (mode === "forgot" && cooldownSeconds > 0)}
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              {loading
+                ? "..."
+                : mode === "login"
+                  ? "Connexion"
+                  : mode === "signup"
+                    ? "Inscription"
+                    : mode === "forgot"
+                      ? (cooldownSeconds > 0 ? `Attendre ${cooldownSeconds}s` : "Envoyer le lien")
+                      : "Reinitialiser"}
+            </Button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

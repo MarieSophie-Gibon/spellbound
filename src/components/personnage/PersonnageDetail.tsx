@@ -67,6 +67,7 @@ interface PersonnageDetailProps {
   readOnly?: boolean;
   technicalSheetOnly?: boolean;
   isMJ?: boolean;
+  showFullscreenToggle?: boolean;
   onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
@@ -114,6 +115,7 @@ export function PersonnageDetail({
   readOnly,
   technicalSheetOnly = false,
   isMJ = false,
+  showFullscreenToggle = true,
   onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
@@ -456,7 +458,7 @@ export function PersonnageDetail({
   const pointsRemaining = 2 - pointsSpent;
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative">
+    <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 pb-24 md:pb-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative">
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
       {isLevelingUp && !readOnly && !technicalSheetOnly && (
         <LevelUpOverlay
@@ -475,8 +477,8 @@ export function PersonnageDetail({
       {/* HEADER BAR */}
       <div className="flex flex-col mb-4 shrink-0 gap-4 mt-1">
         {/* Titre et Boutons d'édition */}
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-baseline gap-3 min-w-0 flex-1 mr-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-2">
+          <div className="flex items-center sm:items-baseline flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
             {isEditing ? (
               <>
                 <input
@@ -504,7 +506,7 @@ export function PersonnageDetail({
               </>
             ) : (
               <>
-                <h1 className="font-serif text-3xl text-white tracking-wider truncate">
+                <h1 className="font-serif text-2xl sm:text-3xl text-white tracking-wider truncate">
                   {pj.name}
                 </h1>
                 {!isNonCombatantPNJ && (
@@ -516,7 +518,7 @@ export function PersonnageDetail({
                 {!isNonCombatantPNJ && !readOnly && !technicalSheetOnly && (
                   <button
                     onClick={() => setIsLevelingUp(true)}
-                    className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
+                    className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all sm:ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
                   >
                     <ArrowUpCircle className="w-3.5 h-3.5" /> Level Up
                   </button>
@@ -524,27 +526,31 @@ export function PersonnageDetail({
               </>
             )}
           </div>
-          <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1 backdrop-blur-md shadow-xl shrink-0">
-            <button
-              onClick={onToggleFullscreen}
-              className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors mr-1"
-              title={isFullscreen ? "Réduire" : "Plein écran"}
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-            <div className="w-px h-4 bg-white/20 mx-1"></div>
+          <div className="self-end sm:self-auto flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1 backdrop-blur-md shadow-xl shrink-0">
+            {showFullscreenToggle && (
+              <>
+                <button
+                  onClick={onToggleFullscreen}
+                  className="p-2 sm:p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors mr-1"
+                  title={isFullscreen ? "Réduire" : "Plein écran"}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+                <div className="w-px h-4 bg-white/20 mx-1"></div>
+              </>
+            )}
             {isEditing ? (
               <>
                 <button
                   onClick={() => setIsEditing(false)}
-                  className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                  className="p-2 sm:p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={isSaving}
-                  className="p-1.5 text-emerald-400/80 hover:text-emerald-300 hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
+                  className="p-2 sm:p-1.5 text-emerald-400/80 hover:text-emerald-300 hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
                 </button>
@@ -554,7 +560,7 @@ export function PersonnageDetail({
                 {!readOnly && (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                    className="p-2 sm:p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -562,7 +568,7 @@ export function PersonnageDetail({
                 {!readOnly && (
                   <button
                     onClick={onDeleteClick}
-                    className="p-1 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
+                    className="p-2 sm:p-1 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -598,10 +604,10 @@ export function PersonnageDetail({
 
         {/* TABS SELECTOR - Masqué si PNJ Non Combattant */}
         {!isNonCombatantPNJ && (
-          <div className="flex gap-1 border-b border-[#E3CCCD]/20 px-2 mt-2">
+          <div className="hidden md:flex gap-1 border-b border-[#E3CCCD]/20 px-2 mt-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10">
             <button
               onClick={() => setActiveTab("stats")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+              className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
                 activeTab === "stats"
                   ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
                   : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
@@ -612,7 +618,7 @@ export function PersonnageDetail({
 
             <button
               onClick={() => setActiveTab("inventory")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+              className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
                 activeTab === "inventory"
                   ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
                   : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
@@ -625,7 +631,7 @@ export function PersonnageDetail({
               <>
                 <button
                   onClick={() => setActiveTab("lore")}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                  className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
                     activeTab === "lore"
                       ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
                       : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
@@ -636,7 +642,7 @@ export function PersonnageDetail({
 
                 <button
                   onClick={() => setActiveTab("familiers")}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                  className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
                     activeTab === "familiers"
                       ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
                       : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
@@ -686,7 +692,7 @@ export function PersonnageDetail({
             <div className="flex-1 space-y-6">
               {isEditing ? (
                 <>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
                     <div className="flex-1 space-y-1.5">
                       <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Sexe</label>
                       <select
@@ -1138,7 +1144,7 @@ export function PersonnageDetail({
               <div className="flex-1 space-y-6">
                 {isEditing ? (
                   <>
-                    <div className="flex gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                       <div className="flex-1 space-y-1.5">
                         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Sexe</label>
                         <select
@@ -1237,6 +1243,61 @@ export function PersonnageDetail({
           />
         )}
       </div>
+
+      {!isNonCombatantPNJ && (
+        <div className="md:hidden sticky bottom-0 mt-4 -mx-3 px-3 pb-3 z-20 bg-linear-to-t from-[#100c2f] via-[#100c2f]/92 to-transparent">
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#E3CCCD]/20 bg-[#1E1941]/85 backdrop-blur-xl p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
+            <button
+              onClick={() => setActiveTab("stats")}
+              className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+                activeTab === "stats"
+                  ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
+                  : "text-white/55 border border-transparent"
+              }`}
+            >
+              Technique
+            </button>
+            <button
+              onClick={() => setActiveTab("inventory")}
+              className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+                activeTab === "inventory"
+                  ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
+                  : "text-white/55 border border-transparent"
+              }`}
+            >
+              Equipement
+            </button>
+            {!technicalSheetOnly ? (
+              <>
+                <button
+                  onClick={() => setActiveTab("lore")}
+                  className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+                    activeTab === "lore"
+                      ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
+                      : "text-white/55 border border-transparent"
+                  }`}
+                >
+                  {type === "pnj" ? "Description" : "Lore"}
+                </button>
+                <button
+                  onClick={() => setActiveTab("familiers")}
+                  className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
+                    activeTab === "familiers"
+                      ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
+                      : "text-white/55 border border-transparent"
+                  }`}
+                >
+                  Familiers
+                </button>
+              </>
+            ) : (
+              <div className="h-11 rounded-xl border border-white/8 flex items-center justify-center text-[10px] uppercase tracking-widest text-white/35">
+                Acces technique
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
