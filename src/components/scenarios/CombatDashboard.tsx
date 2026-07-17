@@ -280,12 +280,6 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     };
   }, [isNoteVisible]);
 
-  useEffect(() => {
-    if (!firedTriggerMessage) return;
-    const timer = setTimeout(() => setFiredTriggerMessage(null), 6000);
-    return () => clearTimeout(timer);
-  }, [firedTriggerMessage]);
-
   const startCardDrag = (e: React.PointerEvent, combatantId: string) => {
     e.preventDefault();
     e.stopPropagation();
