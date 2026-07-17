@@ -67,10 +67,12 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
 
     const ribbonShape = "polygon(0 0, 100% 0, 100% 75%, 50% 100%, 0 75%)";
     const isPJ = combatant.type === "pj";
+    const isNPC = combatant.type === "npc";
+    const isPJLike = isPJ || isNPC;
     const pj = combatant.pjStats;
     const caract = pj?.caracteristiques ?? {};
 
-    const quickStats = isPJ
+    const quickStats = isPJLike
         ? [
             { icon: <Zap className="w-3 h-3" />, value: String(combatant.initiative ?? pj?.initiative ?? 0), label: "Initiative" },
             { icon: <Shield className="w-3 h-3" />, value: String(combatant.defense ?? 0), label: "Défense" },
@@ -101,17 +103,22 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                     <X className="w-3 h-3" />
                 </button>
             )}
-            {/* Aura colorée : rouge pour monstres, neutre pour PJ/PNJ */}
+            {/* Aura colorée */}
             {isMonster && (
                 <div className="absolute -inset-2 rounded-3xl pointer-events-none z-0" style={{ background: "radial-gradient(ellipse at center, rgba(220,38,38,0.18) 0%, transparent 70%)" }} />
+            )}
+            {isNPC && (
+                <div className="absolute -inset-2 rounded-3xl pointer-events-none z-0" style={{ background: "radial-gradient(ellipse at center, rgba(130,60,200,0.18) 0%, transparent 70%)" }} />
             )}
             <div
                 onClick={() => setEditOpen(true)}
                 className={`relative flex rounded-2xl backdrop-blur-2xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] cursor-pointer ${
-                    isMonster ? "border border-red-500/30" : "border border-white/15"
+                    isMonster ? "border border-red-500/30" : isNPC ? "border border-purple-500/30" : "border border-white/15"
                 }`}
                 style={{ background: isMonster
                     ? "linear-gradient(135deg, rgba(220,38,38,0.10) 0%, rgba(255,255,255,0.03) 100%)"
+                    : isNPC
+                    ? "linear-gradient(135deg, rgba(120,40,180,0.10) 0%, rgba(255,255,255,0.03) 100%)"
                     : "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)"
                 }}
             >
@@ -233,7 +240,7 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                     <div className="flex flex-col justify-around flex-1">
                         {STAT_ORDER.map((statKey) => {
                             let displayVal: string;
-                            if (isPJ) {
+                            if (isPJLike) {
                                 const raw = caract[statKey];
                                 displayVal = raw !== undefined ? String(raw) : "-";
                             } else {
@@ -256,14 +263,14 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
 
                 {/* COL 3 : Nom + onglets + contenu */}
                 <div className="relative z-10 flex flex-col p-3 w-64 gap-2 self-start">
-                    {!isPJ && !isMonster && (
+                    {isNPC && (
                         <div className="flex items-start justify-between gap-2">
                             <span className="font-serif text-sm text-[#E3CCCD] font-semibold leading-tight truncate flex-1">{combatant.name}</span>
-                            <span className="text-[9px] uppercase tracking-[0.15em] text-white/40 border border-white/15 rounded px-1.5 py-0.5 shrink-0">PNJ</span>
+                            <span className="text-[9px] uppercase tracking-[0.15em] text-purple-300/60 border border-purple-400/25 rounded px-1.5 py-0.5 shrink-0">PNJ</span>
                         </div>
                     )}
 
-                    {isPJ ? (
+                    {isPJLike ? (
                         <div className="overflow-y-auto space-y-1.5 scrollbar-none max-h-72">
                             {(() => {
                                 const acquired = combatant.voies?.flatMap((voie) =>

@@ -24,7 +24,7 @@ interface CombatMenuProps {
   searchResults: SearchResult[];
   onSetSearchType: (type: "monster" | "npc") => void;
   onSetSearchTerm: (term: string) => void;
-  onAddFromSearch: (result: SearchResult) => void;
+  onAddFromSearch: (result: SearchResult) => void | Promise<void>;
   familierResults: FamilierResult[];
   onAddFamilier: (f: FamilierResult) => void;
 }

@@ -494,7 +494,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         } else {
           let query = supabase
             .from("pnj")
-            .select("id, name, image_url, stats")
+            .select("id, name, image_url, stats, pathways")
             .eq("campaign_id", campaignId)
             .order("name")
             .limit(20);
@@ -556,7 +556,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       }
       if (npcsMissing.length > 0) {
         const ids = npcsMissing.map((c) => c.entityId!);
-        const { data } = await supabase.from("pnj").select("id, pathways").in("id", ids);
+        const { data } = await supabase.from("pnj").select("id, stats, pathways").in("id", ids);
         if (data?.length) {
           const voiesPerNPC = await Promise.all(data.map((r) => fetchVoiesForPathways(r.pathways)));
           setCombatants((prev) =>
@@ -564,7 +564,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
               if (c.type !== "npc" || c.voies) return c;
               const idx = data.findIndex((d) => d.id === c.entityId);
               if (idx < 0) return c;
-              return { ...c, voies: voiesPerNPC[idx] };
+              return { ...c, voies: voiesPerNPC[idx], pjStats: buildPJStats(data[idx]) };
             })
           );
         }
@@ -765,8 +765,9 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     })();
   }, [isHydrated, combatants.length, importCompany, importEngagedEnemies]);
 
-  const addEnemyFromSearch = (result: SearchResult) => {
+  const addEnemyFromSearch = async (result: SearchResult) => {
     const pvMax = toNumber(result.combat?.pv_max ?? result.combat?.pv ?? result.stats?.pv_max ?? result.stats?.pv, 10);
+    const voies = result.type === "npc" ? await fetchVoiesForPathways(result.pathways ?? null) : undefined;
     const newEntry: Combatant = {
       id: makeCombatantId(), entityId: result.id, type: result.type, name: result.name,
       imageUrl: result.image_url ?? undefined,
@@ -774,6 +775,8 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       pv: pvMax, pvMax, defense: toNumber(result.combat?.defense ?? result.stats?.defense, 0),
       conditions: [],
       details: result.type === "monster" ? { stats: (result.stats as MonsterStatsMap) ?? undefined, combat: result.combat, attaques: result.attaques, capacites: result.capacites } : undefined,
+      pjStats: result.type === "npc" ? buildPJStats({ stats: result.stats }) : undefined,
+      voies,
     };
     // On ajoute directement sans dédupliquer sur entityId : plusieurs instances du même monstre sont autorisées
     // Numérotation automatique quand plusieurs exemplaires de la même espèce sont présents
