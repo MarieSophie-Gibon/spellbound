@@ -83,6 +83,7 @@ export function CompendiumMobile({
   const [query, setQuery] = useState("");
   const [openSection, setOpenSection] = useState<Section | null>(null);
   const [openProfilGroups, setOpenProfilGroups] = useState<Set<string>>(new Set());
+  const [openVoiesGroups, setOpenVoiesGroups] = useState<Set<string>>(new Set());
   const wasListInView = useRef(showListInView);
   const normalizedQuery = query.trim().toLowerCase();
 
@@ -90,6 +91,7 @@ export function CompendiumMobile({
     if (showListInView && !wasListInView.current) {
       setOpenSection(null);
       setOpenProfilGroups(new Set());
+      setOpenVoiesGroups(new Set());
       onSectionChange(null);
     }
     wasListInView.current = showListInView;
@@ -97,6 +99,15 @@ export function CompendiumMobile({
 
   const toggleProfilGroup = (groupName: string) => {
     setOpenProfilGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupName)) next.delete(groupName);
+      else next.add(groupName);
+      return next;
+    });
+  };
+
+  const toggleVoiesGroup = (groupName: string) => {
+    setOpenVoiesGroups((prev) => {
       const next = new Set(prev);
       if (next.has(groupName)) next.delete(groupName);
       else next.add(groupName);
@@ -160,6 +171,25 @@ export function CompendiumMobile({
         profils: grouped[groupName].sort((a, b) => a.nom.localeCompare(b.nom)),
       }));
   }, [profils, normalizedQuery]);
+
+  const voiesByGroup = useMemo(() => {
+    const byQuery = (value: string) => !normalizedQuery || value.toLowerCase().includes(normalizedQuery);
+    const filteredVoies = voiesPrestige.filter((v) => byQuery(v.nom) || byQuery(v.famille_nom ?? ""));
+
+    const grouped = filteredVoies.reduce<Record<string, FamilleVoie[]>>((acc, voie) => {
+      const groupName = voie.famille_nom || "Sans famille";
+      if (!acc[groupName]) acc[groupName] = [];
+      acc[groupName].push(voie);
+      return acc;
+    }, {});
+
+    return Object.keys(grouped)
+      .sort((a, b) => a.localeCompare(b))
+      .map((groupName) => ({
+        groupName,
+        voies: grouped[groupName].sort((a, b) => a.nom.localeCompare(b.nom)),
+      }));
+  }, [voiesPrestige, normalizedQuery]);
 
   const selectItemForSection = (section: Section, id: string) => {
     if (section === "peuples") onSelectPeuple(id);
@@ -267,6 +297,44 @@ export function CompendiumMobile({
                                             className="w-full text-left rounded-lg px-2.5 py-1.5 text-[12px] font-light text-white/65 hover:bg-white/6 hover:text-white transition-colors"
                                           >
                                             <span className="block leading-snug line-clamp-2">{profil.nom}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </SmoothPanel>
+                                  </div>
+                                );
+                              })
+                            )
+                          ) : section === "voies_prestige" ? (
+                            voiesByGroup.length === 0 ? (
+                              <div className="px-3 py-2 text-[11px] text-white/40 italic">Aucun element dans cette categorie.</div>
+                            ) : (
+                              voiesByGroup.map(({ groupName, voies }) => {
+                                const isGroupOpen = openVoiesGroups.has(groupName);
+
+                                return (
+                                  <div key={groupName} className="overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleVoiesGroup(groupName)}
+                                      className="w-full px-2.5 py-1.5 text-left flex items-center justify-between text-[11px] font-medium text-white/55 hover:text-white/85 transition-colors"
+                                    >
+                                      <span className="truncate pr-2">{groupName}</span>
+                                      <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${isGroupOpen ? "rotate-180" : ""}`} />
+                                    </button>
+
+                                    <SmoothPanel open={isGroupOpen}>
+                                      <div className="mt-0.5 mb-1 ml-2 border-l border-white/10 pl-2 space-y-0.5">
+                                        {voies.map((voie) => (
+                                          <button
+                                            key={voie.id ?? voie.nom}
+                                            type="button"
+                                            onClick={() => {
+                                              onSelectVoiePrestige(voie.id ?? voie.nom);
+                                            }}
+                                            className="w-full text-left rounded-lg px-2.5 py-1.5 text-[12px] font-light text-white/65 hover:bg-white/6 hover:text-white transition-colors"
+                                          >
+                                            <span className="block leading-snug line-clamp-2">{voie.nom}</span>
                                           </button>
                                         ))}
                                       </div>
