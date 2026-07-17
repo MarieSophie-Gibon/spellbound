@@ -1011,7 +1011,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         >
           <div
             onPointerDown={(e) => startCardDrag(e, selectedCombatant.id)}
-            className={`mb-1.5 ml-auto w-fit rounded-full border border-white/10 bg-black/35 p-1 text-white/35 select-none touch-none transition-colors hover:text-white/55 hover:border-white/20 ${draggingCardId === selectedCombatant.id ? "cursor-grabbing" : "cursor-grab"}`}
+            className={`absolute -top-2 -left-2 z-20 w-6 h-6 rounded-full bg-black/70 border border-white/20 flex items-center justify-center text-white/60 select-none touch-none transition-colors hover:text-white hover:bg-black/90 ${draggingCardId === selectedCombatant.id ? "cursor-grabbing" : "cursor-grab"}`}
             title="Déplacer la fiche"
           >
             <GripVertical className="w-3.5 h-3.5" />
@@ -1047,6 +1047,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         noteRef={noteRef}
         onPointerDown={startNoteDrag}
         onChangeNote={setCombatNote}
+        onClose={() => setIsNoteVisible(false)}
       />
 
     </div>
