@@ -1,5 +1,7 @@
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon } from "lucide-react";
 import type { Peuple, Voie } from "@/types/compendium";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { PeupleDetailMobile } from "@/components/compendium/peuple/PeupleDetailMobile";
 
 interface PeupleDetailProps {
   peuple: Peuple;
@@ -12,19 +14,37 @@ interface PeupleDetailProps {
 }
 
 export function PeupleDetail({ peuple, voie, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: PeupleDetailProps) {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <PeupleDetailMobile
+        peuple={peuple}
+        voie={voie}
+        readOnly={readOnly}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    );
+  }
+
+  const hasActions = !readOnly;
+
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
 
       {/* HEADER */}
       <div className="flex items-center justify-between border-b border-[#E3CCCD]/20 pb-3 mb-3 shrink-0">
         <h1 className="font-serif text-3xl text-white tracking-wider">{peuple.nom}</h1>
-        <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
-          <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
-          {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
-          {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
-        </div>
+        {hasActions && (
+          <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
+            <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
+            {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 flex-1">
@@ -33,7 +53,7 @@ export function PeupleDetail({ peuple, voie, isFullscreen, readOnly, onToggleFul
         <div className="flex gap-3 items-stretch">
           <PeupleCard peuple={peuple} />
 
-          <div className="flex-1 max-h-66.25 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
+          <div className="w-full flex-1 md:max-h-66.25 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-3 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
             <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
             <div>
               <div className="whitespace-pre-wrap">{peuple.description || "Aucune description renseignée."}</div>

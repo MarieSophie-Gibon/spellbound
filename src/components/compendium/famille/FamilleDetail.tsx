@@ -1,5 +1,6 @@
 import { Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
 import type { FamilleArchetype } from "@/types/compendium";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface FamilleDetailProps {
     famille: FamilleArchetype;
@@ -11,6 +12,10 @@ interface FamilleDetailProps {
 }
 
 export function FamilleDetail({ famille, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: FamilleDetailProps) {
+    const isMobile = useIsMobile();
+    const hasActions = !isMobile || !readOnly;
+    const notes = famille.notes?.trim() ?? "";
+
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
 
@@ -18,22 +23,23 @@ export function FamilleDetail({ famille, isFullscreen, readOnly, onToggleFullscr
             <div className="flex items-center justify-between border-b border-[#E3CCCD]/20 pb-3 mb-3 shrink-0">
                 <div className="flex items-baseline gap-3">
                     <h1 className="font-serif text-3xl text-white tracking-wider">{famille.nom}</h1>
-                    <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2.5 py-0.5">
-                        Archétype
-                    </span>
                 </div>
-                <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
-                    <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-                        {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                    </button>
-                    {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
-                    {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
-                </div>
+                {hasActions && (
+                    <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
+                        {!isMobile && (
+                            <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                            </button>
+                        )}
+                        {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
+                        {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
+                    </div>
+                )}
             </div>
 
             <div className="space-y-5 flex-1">
                 {/* STATISTIQUES */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="px-5 py-4 rounded-2xl border border-dashed border-[#E3CCCD]/25 bg-[#29206A]/20 text-center">
                         <p className="text-[10px] uppercase tracking-widest text-white/40 mb-2">PV / niveau</p>
                         <p className="text-2xl text-white font-semibold">{famille.pv_niveau}</p>
@@ -54,6 +60,13 @@ export function FamilleDetail({ famille, isFullscreen, readOnly, onToggleFullscr
                     <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-2xl p-4 flex gap-4 text-[13px] font-light text-white/90 leading-relaxed shadow-inner">
                         <div className="shrink-0 mt-0.5"><span className="text-[#E3CCCD]">✧</span></div>
                         <div className="whitespace-pre-wrap">{famille.description}</div>
+                    </div>
+                )}
+
+                {!!notes && (
+                    <div className="border border-dashed border-[#E3CCCD]/25 rounded-2xl p-4 text-[13px] text-white/90">
+                        <p className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60 mb-2">Notes</p>
+                        <p className="font-light text-white/85 leading-relaxed whitespace-pre-wrap">{notes}</p>
                     </div>
                 )}
             </div>

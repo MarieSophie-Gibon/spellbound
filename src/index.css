@@ -136,6 +136,24 @@
 .tiptap-editor img.ProseMirror-selectednode { outline: 2px solid rgba(227, 204, 205, 0.6); outline-offset: 2px; }
 .tiptap-editor p:has(img) { overflow: hidden; }
 .tiptap-editor::after { content: ""; display: table; clear: both; }
+
+@media (max-width: 768px) {
+  .tiptap-editor table {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    table-layout: auto;
+  }
+
+  .tiptap-editor th,
+  .tiptap-editor td {
+    min-width: 140px;
+  }
+}
+
   * {
     @apply border-border outline-ring/50;
     }

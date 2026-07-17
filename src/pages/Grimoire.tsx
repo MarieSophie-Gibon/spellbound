@@ -4,10 +4,12 @@ import { BookOpen, AlertTriangle } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
 import { supabase } from "@/lib/supabase";
 import { GrimoireSidebar } from "@/components/grimoire/GrimoireSidebar";
+import { GrimoireMobile } from "@/components/grimoire/GrimoireMobile";
 import { PageEditor } from "@/components/grimoire/PageEditor";
 import { PageView } from "@/components/grimoire/PageView";
 import type { InitialPageData } from "@/components/grimoire/PageEditor";
 import type { Category, WikiPage, DraggedItem } from "@/types/grimoire";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface GrimoireProps {
   isGlobal?: boolean;
@@ -17,6 +19,7 @@ interface GrimoireProps {
 }
 
 export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false }: GrimoireProps) {
+  const isMobile = useIsMobile();
   const [isCreating, setIsCreating] = useState(false);
   const [editingPageData, setEditingPageData] = useState<InitialPageData | null>(null);
   const [pages, setPages] = useState<WikiPage[]>([]);
@@ -179,6 +182,35 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
     />
   ) : undefined;
 
+  const content = isCreating && !readOnly ? (
+    <PageEditor
+      initialData={editingPageData ?? undefined}
+      categories={categories}
+      pages={pages}
+      campaignId={campaignId}
+      isGlobal={isGlobal}
+      onSaveSuccess={handleSaveSuccess}
+      onCancel={handleCancel}
+      onCategoriesChanged={fetchData}
+    />
+  ) : selectedPage ? (
+    <PageView
+      page={selectedPage}
+      isFullscreen={isFullscreen}
+      hideFullscreenToggle={isMobile}
+      readOnly={readOnly}
+      onEdit={handleEdit}
+      onDelete={() => setDeleteTarget(selectedPageId!)}
+      onToggleFullscreen={() => setIsFullscreen((f) => !f)}
+    />
+  ) : (
+    <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
+      <BookOpen className="w-16 h-16 text-white/20 mb-6" />
+      <h2 className="font-serif text-xl text-white tracking-widest uppercase mb-2 leading-none">Grimoire</h2>
+      <p className="text-xs text-white/40 italic font-light">Selectionnez un article ou commencez a ecrire une nouvelle legende.</p>
+    </div>
+  );
+
   return (
     <>
       {deleteTarget && (
@@ -197,36 +229,38 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
         </div>
       )}
 
-      <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen}>
-        {isCreating && !readOnly ? (
-          <PageEditor
-            initialData={editingPageData ?? undefined}
-            categories={categories}
-            pages={pages}
-            campaignId={campaignId}
-            isGlobal={isGlobal}
-            onSaveSuccess={handleSaveSuccess}
-            onCancel={handleCancel}
-            onCategoriesChanged={fetchData}
-          />
-        ) : selectedPage ? (
-          <PageView
-            page={selectedPage}
-            isFullscreen={isFullscreen}
-            readOnly={readOnly}
-            onEdit={handleEdit}
-            onDelete={() => setDeleteTarget(selectedPageId!)}
-            onToggleFullscreen={() => setIsFullscreen((f) => !f)}
-          />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
-            <BookOpen className="w-16 h-16 text-white/20 mb-6" />
-            <h2 className="font-serif text-xl text-white tracking-widest uppercase mb-2 leading-none">Grimoire</h2>
-            <p className="text-xs text-white/40 italic font-light">Sélectionnez un article ou commencez à écrire une nouvelle légende.</p>
-          </div>
-        )}
-
-      </BookLayout>
+      {isMobile ? (
+        <GrimoireMobile
+          pages={pages}
+          categories={categories}
+          selectedPageId={selectedPageId}
+          expandedCats={expandedCats}
+          showArticleListInView={!isCreating && !selectedPageId}
+          readOnly={readOnly}
+          onSelectPage={(id) => {
+            setIsCreating(false);
+            setEditingPageData(null);
+            setSelectedPageId(id);
+          }}
+          onBackToArticleList={() => {
+            setIsCreating(false);
+            setEditingPageData(null);
+            setSelectedPageId(null);
+          }}
+          onCreatePage={() => {
+            handleCancel();
+            setIsCreating(true);
+            setSelectedPageId(null);
+          }}
+          onToggleCat={(id) => setExpandedCats((prev) => ({ ...prev, [id]: !prev[id] }))}
+        >
+          {content}
+        </GrimoireMobile>
+      ) : (
+        <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen}>
+          {content}
+        </BookLayout>
+      )}
     </>
   );
 }

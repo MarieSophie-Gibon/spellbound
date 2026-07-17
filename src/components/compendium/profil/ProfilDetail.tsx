@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Famille, FamilleArchetype, FamilleVoie } from "@/types/compendium";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { ProfilDetailMobile } from "@/components/compendium/profil/ProfilDetailMobile";
 
 interface ProfilDetailProps {
     profil: Famille;
@@ -16,6 +18,9 @@ interface ProfilDetailProps {
 }
 
 export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: ProfilDetailProps) {
+    const isMobile = useIsMobile();
+    const hasActions = !readOnly;
+
     const equipAssoc = profil.data?.equipement_associe as { arme_contact?: string[]; arme_distance?: string[]; armure?: string[] } | undefined;
     const hasEquipAssoc = equipAssoc && (equipAssoc.arme_contact?.length || equipAssoc.arme_distance?.length || equipAssoc.armure?.length);
 
@@ -42,6 +47,21 @@ export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, re
         fetchNoms();
     }, [profil.id]);
 
+    if (isMobile) {
+        return (
+            <ProfilDetailMobile
+                profil={profil}
+                familleArchetype={familleArchetype}
+                voies={voies}
+                readOnly={readOnly}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                hasEquipAssoc={!!hasEquipAssoc}
+                equipNoms={equipNoms}
+            />
+        );
+    }
+
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
 
@@ -55,13 +75,15 @@ export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, re
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
-                    <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
-                        {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-                    </button>
-                    {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
-                    {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
-                </div>
+                {hasActions && (
+                    <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
+                        <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                        </button>
+                        {!readOnly && <button onClick={onEdit} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"><Pencil className="w-4 h-4" /></button>}
+                        {!readOnly && <button onClick={onDelete} className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"><Trash2 className="w-4 h-4" /></button>}
+                    </div>
+                )}
             </div>
 
             <div className="space-y-3 flex-1">
@@ -151,7 +173,7 @@ export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, re
                         </div>
                     ) : (
                         voies.map((voie, i) => (
-                            <VoieBlock key={voie.id ?? i} voie={voie} defaultOpen={i === 0} />
+                            <VoieBlock key={voie.id ?? i} voie={voie} />
                         ))
                     )}
                 </div>

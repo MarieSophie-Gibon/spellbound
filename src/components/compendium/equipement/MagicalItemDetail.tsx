@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 type EquipementDetailProps = {
   equipements: any[];
@@ -53,6 +54,7 @@ export function EquipementDetail({
   onEdit,
   onDelete,
 }: EquipementDetailProps) {
+  const isMobile = useIsMobile();
   const { label, icon: Icon } = TABLE_LABELS[selectedTable];
 
   return (
@@ -68,16 +70,18 @@ export function EquipementDetail({
             {equipements.length} élément{equipements.length !== 1 ? "s" : ""}
           </span>
         </div>
-        <button
-          onClick={onToggleFullscreen}
-          className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-        >
-          {isFullscreen ? (
-            <Minimize2 className="w-4 h-4" />
-          ) : (
-            <Maximize2 className="w-4 h-4" />
-          )}
-        </button>
+        {!isMobile && (
+          <button
+            onClick={onToggleFullscreen}
+            className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4" />
+            ) : (
+              <Maximize2 className="w-4 h-4" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* LIST */}

@@ -4,6 +4,7 @@ import { BookOpen as BookOpenIcon } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
 import { supabase } from "@/lib/supabase";
 import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
+import { CompendiumMobile } from "@/components/compendium/CompendiumMobile";
 import { PeupleDetail } from "@/components/compendium/peuple/PeupleDetail";
 import { FamilleDetail } from "@/components/compendium/famille/FamilleDetail";
 import { ProfilDetail } from "@/components/compendium/profil/ProfilDetail";
@@ -19,6 +20,7 @@ import { EquipementDetail } from "@/components/compendium/equipement/MagicalItem
 import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/VoiePrestigeWizard";
 import { VoiePrestigeDetail } from "@/components/compendium/voie de prestige/VoiePrestigeDetail";
 import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -28,6 +30,7 @@ interface CompendiumProps {
 }
 
 export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full' }: CompendiumProps) {
+  const isMobile = useIsMobile();
   const isBestiaireOnly = mode === 'bestiaire';
   const [activeSection, setActiveSection] = useState<Section | null>(isBestiaireOnly ? 'bestiaire' : 'peuples');
   const [peuples, setPeuples] = useState<Peuple[]>([]);
@@ -220,6 +223,15 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
   const selectedMonstre = monstres.find(m => m.id === selectedMonstreId);
   const filteredEquipements = equipements.filter(e => e.table_source === selectedEquipementTable);
   const selectedVoiePrestige = voiesPrestige.find(v => v.id === selectedVoiePrestigeId);
+  const availableSections: Section[] = isBestiaireOnly ? ['bestiaire'] : ['peuples', 'familles', 'profils', 'objets', 'voies_prestige'];
+  const showMobileList =
+    activeSection === 'peuples' ? !selectedPeupleId :
+    activeSection === 'familles' ? !selectedFamilleArchetypeId :
+    activeSection === 'profils' ? !selectedProfilId :
+    activeSection === 'bestiaire' ? !selectedMonstreId :
+    activeSection === 'objets' ? !selectedEquipementTable :
+    activeSection === 'voies_prestige' ? !selectedVoiePrestigeId :
+    true;
 
   const handleDeleteMonstre = async () => {
     if (!selectedMonstre) return;
@@ -296,7 +308,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
   const sidebar = (
     <CompendiumSidebar
       activeSection={activeSection}
-      sections={isBestiaireOnly ? ['bestiaire'] : ['peuples', 'familles', 'profils', 'objets', 'voies_prestige']}
+      sections={availableSections}
       actionsMode={isBestiaireOnly ? 'bestiaire' : 'compendium'}
       peuples={peuples}
       selectedPeupleId={selectedPeupleId}
@@ -330,6 +342,111 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
 
   return (
     <>
+      {isMobile ? (
+        <CompendiumMobile
+          title={isBestiaireOnly ? "Bestiaire" : "Compendium"}
+          sections={availableSections}
+          activeSection={activeSection}
+          showListInView={showMobileList}
+          readOnly={readOnly}
+          peuples={peuples}
+          famillesArchetypes={famillesArchetypes}
+          profils={profils}
+          monstres={monstres}
+          equipements={equipements}
+          voiesPrestige={voiesPrestige}
+          onSectionChange={(section) => handleSectionChange(section)}
+          onSelectPeuple={setSelectedPeupleId}
+          onSelectFamilleArchetype={setSelectedFamilleArchetypeId}
+          onSelectProfil={setSelectedProfilId}
+          onSelectMonstre={setSelectedMonstreId}
+          onSelectEquipementTable={setSelectedEquipementTable}
+          onSelectVoiePrestige={setSelectedVoiePrestigeId}
+          onBackToList={() => {
+            if (activeSection === 'peuples') setSelectedPeupleId(null);
+            if (activeSection === 'familles') setSelectedFamilleArchetypeId(null);
+            if (activeSection === 'profils') setSelectedProfilId(null);
+            if (activeSection === 'bestiaire') setSelectedMonstreId(null);
+            if (activeSection === 'objets') setSelectedEquipementTable(null);
+            if (activeSection === 'voies_prestige') setSelectedVoiePrestigeId(null);
+            setIsFullscreen(false);
+          }}
+          onCreateCurrent={() => {
+            if (activeSection === 'peuples') setShowCreateWizard(true);
+            if (activeSection === 'familles') setShowCreateFamilleArchetype(true);
+            if (activeSection === 'profils') setShowCreateProfil(true);
+            if (activeSection === 'bestiaire') setShowCreateMonster(true);
+            if (activeSection === 'objets') { setCreateObjetType('equipement'); setShowCreateObjet(true); }
+            if (activeSection === 'voies_prestige') setShowVoiePrestigeWizard(true);
+          }}
+        >
+          {activeSection === 'peuples' && selectedPeuple ? (
+            <PeupleDetail
+              peuple={selectedPeuple}
+              voie={selectedVoie}
+              isFullscreen={isFullscreen}
+              readOnly={readOnly}
+              onToggleFullscreen={() => setIsFullscreen(f => !f)}
+              onEdit={() => setShowEditWizard(true)}
+              onDelete={() => setShowDeleteConfirm(true)}
+            />
+          ) : activeSection === 'familles' && selectedFamilleArchetype ? (
+            <FamilleDetail
+              famille={selectedFamilleArchetype}
+              isFullscreen={isFullscreen}
+              readOnly={readOnly}
+              onToggleFullscreen={() => setIsFullscreen(f => !f)}
+              onEdit={() => setShowEditFamilleArchetype(true)}
+              onDelete={() => setShowDeleteFamilleArchetypeConfirm(true)}
+            />
+          ) : activeSection === 'profils' && selectedProfil ? (
+            <ProfilDetail
+              profil={selectedProfil}
+              familleArchetype={famillesArchetypes.find(f => f.id === selectedProfil.famille_id)}
+              voies={selectedProfilVoies}
+              isFullscreen={isFullscreen}
+              readOnly={readOnly}
+              onToggleFullscreen={() => setIsFullscreen(f => !f)}
+              onEdit={() => setShowEditProfil(true)}
+              onDelete={() => setShowDeleteFamilleConfirm(true)}
+            />
+          ) : activeSection === 'bestiaire' && selectedMonstre ? (
+            <MonsterDetail
+              monstre={selectedMonstre}
+              isFullscreen={isFullscreen}
+              readOnly={readOnly}
+              onToggleFullscreen={() => setIsFullscreen(f => !f)}
+              onEdit={() => setShowEditMonster(true)}
+              onDelete={() => setShowDeleteMonsterConfirm(true)}
+            />
+          ) : activeSection === 'objets' && selectedEquipementTable ? (
+            <EquipementDetail
+              equipements={filteredEquipements}
+              selectedTable={selectedEquipementTable}
+              isFullscreen={isFullscreen}
+              readOnly={readOnly}
+              onToggleFullscreen={() => setIsFullscreen(f => !f)}
+              onEdit={(eq) => { setEditingEquipement(eq); setShowEditObjet(true); }}
+              onDelete={(eq) => { setDeletingEquipement(eq); setShowDeleteObjetConfirm(true); }}
+            />
+          ) : activeSection === 'voies_prestige' && selectedVoiePrestige ? (
+            <VoiePrestigeDetail
+              voie={selectedVoiePrestige}
+              isFullscreen={isFullscreen}
+              readOnly={readOnly}
+              onToggleFullscreen={() => setIsFullscreen(f => !f)}
+              onEdit={() => { setEditingVoiePrestige(selectedVoiePrestige); setShowVoiePrestigeWizard(true); }}
+              onDelete={() => setShowDeleteVoiePrestigeConfirm(true)}
+            />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
+              <BookOpenIcon className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />
+              <h2 className="font-serif text-2xl text-white tracking-widest uppercase mb-3 leading-none">{isBestiaireOnly ? 'Bestiaire' : 'Compendium'}</h2>
+              <p className="text-[13px] text-white/50 font-light max-w-sm">Selectionnez une categorie.</p>
+            </div>
+          )}
+        </CompendiumMobile>
+      ) : (
       <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen}>
         {activeSection === 'peuples' && selectedPeuple ? (
           <PeupleDetail
@@ -401,6 +518,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
           </div>
         )}
       </BookLayout>
+      )}
 
       {showCreateWizard && (
         <PeupleWizard
