@@ -130,17 +130,38 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
         .single();
 
       const blocks: any[] = chapData?.content ?? [];
-      const npcIds: string[] = blocks
-        .filter((b) => b.type === "npc" && b.data?.npcId)
-        .map((b) => b.data.npcId);
+      const npcIds = Array.from(new Set(
+        blocks
+          .filter((b) => b.type === "npc")
+          .map((b) => b?.data?.npcId ?? b?.data?.pnjId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+      ));
 
       if (npcIds.length > 0) {
-        await supabase
+        // On évite d'utiliser upsert(onConflict) ici pour rester compatible même
+        // si la contrainte unique (campaign_id, pnj_id) n'existe pas en DB.
+        const { data: alreadyRevealed, error: alreadyErr } = await supabase
           .from("campaign_revealed_pnjs")
-          .upsert(
-            npcIds.map((pnj_id) => ({ campaign_id: campaignId, pnj_id })),
-            { onConflict: "campaign_id,pnj_id" }
-          );
+          .select("pnj_id")
+          .eq("campaign_id", campaignId)
+          .in("pnj_id", npcIds);
+
+        if (alreadyErr) {
+          console.error("Erreur lecture PNJ révélés:", alreadyErr.message);
+          return;
+        }
+
+        const already = new Set((alreadyRevealed ?? []).map((r: { pnj_id: string }) => r.pnj_id));
+        const missing = npcIds.filter((id) => !already.has(id));
+        if (missing.length === 0) return;
+
+        const { error: insertErr } = await supabase
+          .from("campaign_revealed_pnjs")
+          .insert(missing.map((pnj_id) => ({ campaign_id: campaignId, pnj_id })));
+
+        if (insertErr) {
+          console.error("Erreur reveal PNJ:", insertErr.message);
+        }
       }
     }
   };

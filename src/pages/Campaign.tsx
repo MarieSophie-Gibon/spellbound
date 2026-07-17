@@ -4,7 +4,8 @@ import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } fro
 import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch } from "lucide-react";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface CampaignProps {
     campaign: Campaign;
@@ -20,6 +21,40 @@ export function CampaignHome({ campaign }: CampaignProps) {
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [inviteError, setInviteError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [selectedPnjId, setSelectedPnjId] = useState<string | null>(null);
+    const [selectedPnjVoies, setSelectedPnjVoies] = useState<Array<{ id: string; nom: string; rang: number }>>([]);
+
+    const selectedPnj = (revealedPnjs ?? []).find((pnj) => pnj.id === selectedPnjId) ?? null;
+
+    useEffect(() => {
+        const loadVoies = async () => {
+            if (!selectedPnj?.pathways?.length) {
+                setSelectedPnjVoies([]);
+                return;
+            }
+            const voieIds = selectedPnj.pathways.map((p) => p.voie_id).filter(Boolean);
+            if (voieIds.length === 0) {
+                setSelectedPnjVoies([]);
+                return;
+            }
+            const { data } = await supabase
+                .from("voies")
+                .select("id, nom")
+                .in("id", voieIds);
+
+            const voieName = new Map((data ?? []).map((v) => [v.id, v.nom]));
+            setSelectedPnjVoies(
+                selectedPnj.pathways
+                    .map((p) => ({
+                        id: p.voie_id,
+                        nom: voieName.get(p.voie_id) ?? "Voie inconnue",
+                        rang: (p.rangs_acquis && p.rangs_acquis.length > 0) ? Math.max(...p.rangs_acquis) : 0,
+                    }))
+                    .sort((a, b) => a.nom.localeCompare(b.nom))
+            );
+        };
+        void loadVoies();
+    }, [selectedPnjId, selectedPnj]);
 
     const createdAt = campaign.created_at
         ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(campaign.created_at))
@@ -143,9 +178,11 @@ export function CampaignHome({ campaign }: CampaignProps) {
                     </div>
                     <div className="flex flex-wrap gap-4">
                         {revealedPnjs!.map((pnj) => (
-                            <div
+                            <button
                                 key={pnj.id}
-                                className="flex flex-col items-center gap-2 w-24 group"
+                                type="button"
+                                onClick={() => setSelectedPnjId(pnj.id)}
+                                className="flex flex-col items-center gap-2 w-24 group text-left"
                             >
                                 <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-violet-500/30 bg-white/5 shadow-lg group-hover:border-violet-400/60 transition-colors">
                                     <img
@@ -162,8 +199,76 @@ export function CampaignHome({ campaign }: CampaignProps) {
                                         {pnj.description}
                                     </span>
                                 )}
-                            </div>
+                            </button>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {selectedPnj && (
+                <div className="fixed inset-0 z-60 bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => setSelectedPnjId(null)}>
+                    <div className="w-full max-w-xl rounded-2xl border border-violet-300/25 bg-[#1E1941]/95 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-5 py-4 border-b border-white/10 flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-full border-2 border-violet-400/60 overflow-hidden shrink-0">
+                                <img src={selectedPnj.image_url || '/default-avatar.png'} alt={selectedPnj.name} className="w-full h-full object-cover" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[10px] uppercase tracking-widest text-violet-300/55">Fiche technique PNJ</p>
+                                <h3 className="font-serif text-xl text-white truncate">{selectedPnj.name}</h3>
+                            </div>
+                            <button onClick={() => setSelectedPnjId(null)} className="p-1.5 rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors" aria-label="Fermer la fiche PNJ">
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Initiative</p>
+                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">{Number(selectedPnj.stats?.initiative ?? 0)}</p>
+                                </div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Défense</p>
+                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">{Number(selectedPnj.stats?.defense ?? 0)}</p>
+                                </div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Niveau</p>
+                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">{Number(selectedPnj.stats?.niveau ?? 1)}</p>
+                                </div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Att. contact</p>
+                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{Number(selectedPnj.stats?.att_contact ?? 0)}</p>
+                                </div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Att. distance</p>
+                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{Number(selectedPnj.stats?.att_distance ?? 0)}</p>
+                                </div>
+                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Att. magie</p>
+                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{Number(selectedPnj.stats?.att_magie ?? 0)}</p>
+                                </div>
+                            </div>
+
+                            {selectedPnjVoies.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-[10px] uppercase tracking-[0.15em] text-violet-300/60">Voies connues</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {selectedPnjVoies.map((voie) => (
+                                            <span key={`${voie.id}-${voie.rang}`} className="text-[11px] px-2.5 py-1 rounded-full border border-violet-300/25 bg-violet-500/10 text-violet-100/90">
+                                                {voie.nom}{voie.rang > 0 ? ` (R${voie.rang})` : ""}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedPnj.description && (
+                                <div className="space-y-1.5">
+                                    <p className="text-[10px] uppercase tracking-[0.15em] text-white/45">Description publique</p>
+                                    <p className="text-[13px] text-white/70 leading-relaxed">{selectedPnj.description}</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

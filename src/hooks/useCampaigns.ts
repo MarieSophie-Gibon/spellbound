@@ -357,6 +357,8 @@ export interface RevealedPnj {
   name: string
   image_url: string | null
   description: string | null
+  stats?: Record<string, unknown> | null
+  pathways?: Array<{ voie_id: string; rangs_acquis?: number[] }> | null
   revealed_at: string
 }
 
@@ -366,19 +368,23 @@ export function useRevealedPnjs(campaignId: string) {
     queryFn: async (): Promise<RevealedPnj[]> => {
       const { data, error } = await supabase
         .from('campaign_revealed_pnjs')
-        .select('revealed_at, pnj:pnj_id(id, name, image_url, description)')
+        .select('revealed_at, pnj:pnj_id(id, name, image_url, description, stats, pathways)')
         .eq('campaign_id', campaignId)
         .order('revealed_at', { ascending: true })
 
       if (error) throw error
 
-      return (data ?? []).map((row: any) => ({
-        id: row.pnj.id,
-        name: row.pnj.name,
-        image_url: row.pnj.image_url,
-        description: row.pnj.description,
-        revealed_at: row.revealed_at,
-      }))
+      return (data ?? [])
+        .filter((row: any) => !!row?.pnj)
+        .map((row: any) => ({
+          id: row.pnj.id,
+          name: row.pnj.name,
+          image_url: row.pnj.image_url,
+          description: row.pnj.description,
+          stats: row.pnj.stats,
+          pathways: row.pnj.pathways,
+          revealed_at: row.revealed_at,
+        }))
     },
     enabled: !!campaignId,
   })

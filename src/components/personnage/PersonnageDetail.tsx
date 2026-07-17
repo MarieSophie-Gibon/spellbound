@@ -66,6 +66,7 @@ interface PersonnageDetailProps {
   isFullscreen: boolean;
   readOnly?: boolean;
   technicalSheetOnly?: boolean;
+  isMJ?: boolean;
   onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
@@ -112,6 +113,7 @@ export function PersonnageDetail({
   isFullscreen,
   readOnly,
   technicalSheetOnly = false,
+  isMJ = false,
   onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
@@ -629,7 +631,7 @@ export function PersonnageDetail({
                       : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
                   }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? "Description & Notes" : "Histoire & Lore"}
+                  <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? (isMJ ? "Description & Notes" : "Description") : "Histoire & Lore"}
                 </button>
 
                 <button
@@ -717,15 +719,17 @@ export function PersonnageDetail({
                       className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl p-3.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
-                    <textarea
-                      value={editNotes}
-                      onChange={(e) => setEditNotes(e.target.value)}
-                      rows={5}
-                      className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
-                    />
-                  </div>
+                  {isMJ && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
+                      <textarea
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        rows={5}
+                        className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
+                      />
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -740,12 +744,14 @@ export function PersonnageDetail({
                       {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
-                    <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24">
-                      {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                  {isMJ && (
+                    <div className="space-y-2">
+                      <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
+                      <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24">
+                        {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
             </div>
@@ -1165,15 +1171,17 @@ export function PersonnageDetail({
                         className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl p-3.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed"
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
-                      <textarea
-                        value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
-                        rows={6}
-                        className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
-                      />
-                    </div>
+                    {isMJ && (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
+                        <textarea
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          rows={6}
+                          className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
+                        />
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1188,12 +1196,14 @@ export function PersonnageDetail({
                         {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
-                      <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-32">
-                        {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                    {isMJ && (
+                      <div className="space-y-2">
+                        <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
+                        <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-32">
+                          {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </>
                 )}
               </div>

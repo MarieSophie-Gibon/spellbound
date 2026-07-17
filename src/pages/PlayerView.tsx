@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { BookMarked, Map, Swords, Users } from "lucide-react";
+import { BookMarked, Map, Shield, Swords, Users, Wand2, X, Zap } from "lucide-react";
 import type { Combatant, EncounterEntry, MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
 import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
@@ -27,6 +27,7 @@ type Tab = "map" | "combatants" | "encounter";
 export function PlayerView() {
   const [state, setState] = useState<LiveState | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("map");
+  const [selectedEncounterKey, setSelectedEncounterKey] = useState<string | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -114,6 +115,28 @@ export function PlayerView() {
 
   const activeCombatant = state?.combatants.find(c => c.id === state.activeCombatantId);
   const visibleCombatants = (state?.combatants ?? []).filter((c) => !c.hidden);
+  const getEncounterNpcCombatant = useCallback((entry: EncounterEntry): Combatant | null => {
+    if (!state || entry.type !== "npc") return null;
+    if (entry.entityId) {
+      const byEntity = state.combatants.find((c) => c.type === "npc" && c.entityId === entry.entityId);
+      if (byEntity) return byEntity;
+    }
+    const byName = state.combatants.find((c) => c.type === "npc" && c.name === entry.name);
+    return byName ?? null;
+  }, [state]);
+
+  const selectedEncounterNpc = useMemo(() => {
+    if (!selectedEncounterKey || !state) return null;
+    const entry = state.encounters.find((e) => e.key === selectedEncounterKey);
+    if (!entry) return null;
+    return getEncounterNpcCombatant(entry);
+  }, [selectedEncounterKey, state, getEncounterNpcCombatant]);
+
+  useEffect(() => {
+    if (!selectedEncounterKey || selectedEncounterNpc) return;
+    setSelectedEncounterKey(null);
+  }, [selectedEncounterKey, selectedEncounterNpc]);
+
   const targetTokenPositions = useMemo(() => {
     const targets: Record<string, { x: number; y: number }> = {};
     if (!state) return targets;
@@ -235,18 +258,29 @@ export function PlayerView() {
       return <p className="text-white/30 text-sm italic text-center pt-12">Aucun encounter pour le moment</p>;
     }
 
-    return encounters.map((entry) => (
-      <div key={entry.key} className="rounded-xl border border-white/10 bg-white/3 p-3 flex items-center gap-3">
-        <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shrink-0 ${tokenRingClass(entry.type)}`}>
-          <img src={entry.imageUrl || "/default-avatar.png"} alt={entry.name} className="w-full h-full object-cover" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm text-white font-medium truncate">{entry.name}</p>
-          <p className="text-[10px] text-white/35 uppercase tracking-wide">{entry.type === "monster" ? "Monstre" : "PNJ"}</p>
-        </div>
-        <span className="text-[10px] text-white/30 shrink-0">Rencontré</span>
-      </div>
-    ));
+    return encounters.map((entry) => {
+      const canOpenNpcSheet = entry.type === "npc" && !!getEncounterNpcCombatant(entry);
+      return (
+        <button
+          key={entry.key}
+          type="button"
+          onClick={() => {
+            if (!canOpenNpcSheet) return;
+            setSelectedEncounterKey(entry.key);
+          }}
+          className={`w-full rounded-xl border p-3 flex items-center gap-3 text-left transition-colors ${canOpenNpcSheet ? "border-white/10 bg-white/3 hover:bg-white/8" : "border-white/10 bg-white/3"}`}
+        >
+          <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shrink-0 ${tokenRingClass(entry.type)}`}>
+            <img src={entry.imageUrl || "/default-avatar.png"} alt={entry.name} className="w-full h-full object-cover" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-white font-medium truncate">{entry.name}</p>
+            <p className="text-[10px] text-white/35 uppercase tracking-wide">{entry.type === "monster" ? "Monstre" : "PNJ"}</p>
+          </div>
+          <span className="text-[10px] text-white/30 shrink-0">{canOpenNpcSheet ? "Fiche technique" : "Rencontré"}</span>
+        </button>
+      );
+    });
   };
 
   return (
@@ -386,6 +420,67 @@ export function PlayerView() {
           <span className="text-[10px] uppercase tracking-wide font-medium">Encounter</span>
         </button>
       </div>
+
+      {selectedEncounterNpc && (
+        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center">
+          <div className="w-full max-w-xl rounded-2xl border border-white/15 bg-[#131125]/95 shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/10 flex items-start gap-3">
+              <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shrink-0 ${tokenRingClass("npc")}`}>
+                <img src={selectedEncounterNpc.imageUrl || "/default-avatar.png"} alt={selectedEncounterNpc.name} className="w-full h-full object-cover" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase tracking-widest text-white/40">Fiche technique PNJ</p>
+                <h3 className="text-lg font-semibold text-white truncate">{selectedEncounterNpc.name}</h3>
+              </div>
+              <button type="button" onClick={() => setSelectedEncounterKey(null)} className="p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors" aria-label="Fermer la fiche">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Zap className="w-3 h-3" /> Initiative</p>
+                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">{selectedEncounterNpc.pjStats?.initiative ?? selectedEncounterNpc.initiative ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Shield className="w-3 h-3" /> Defense</p>
+                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">{selectedEncounterNpc.defense ?? selectedEncounterNpc.pjStats?.caracteristiques?.DEF ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Swords className="w-3 h-3" /> Niveau</p>
+                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">{selectedEncounterNpc.pjStats?.niveau ?? 1}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45">Att. contact</p>
+                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{selectedEncounterNpc.pjStats?.att_contact ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45">Att. distance</p>
+                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{selectedEncounterNpc.pjStats?.att_distance ?? 0}</p>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Wand2 className="w-3 h-3" /> Att. magie</p>
+                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{selectedEncounterNpc.pjStats?.att_magie ?? 0}</p>
+                </div>
+              </div>
+
+              {selectedEncounterNpc.voies && selectedEncounterNpc.voies.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-white/45">Voies connues</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEncounterNpc.voies.map((voie) => (
+                      <span key={voie.id} className="text-[11px] px-2.5 py-1 rounded-full border border-white/15 bg-white/6 text-white/80">
+                        {voie.nom}{voie.rangsAcquis.length > 0 ? ` (R${Math.max(...voie.rangsAcquis)})` : ""}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

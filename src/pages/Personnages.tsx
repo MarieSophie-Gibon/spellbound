@@ -178,6 +178,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
           isFullscreen={isFullscreen}
           readOnly={effectiveReadOnly}
           technicalSheetOnly={technicalSheetOnly}
+          isMJ={isMJ}
           onToggleFullscreen={() => setIsFullscreen((v) => !v)}
           onDeleteClick={() => setShowDeleteConfirm(true)}
           onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
