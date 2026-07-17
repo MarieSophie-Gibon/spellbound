@@ -801,9 +801,12 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       const next = usedNums.length > 0 ? Math.max(...usedNums) + 1 : siblings.length + 1;
       return [...prev, { ...newEntry, name: `${baseName} #${next}` }];
     });
-    setIsMenuOpen(false);
-    setSearchTerm("");
-    setSearchResults([]);
+    // Pour les monstres : on garde le menu ouvert pour permettre d'en ajouter plusieurs
+    if (result.type !== "monster") {
+      setIsMenuOpen(false);
+      setSearchTerm("");
+      setSearchResults([]);
+    }
   };
 
   const removeCombatant = (id: string) => {
@@ -893,6 +896,14 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     setManualOrder(next);
   };
 
+  const combatantCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of combatants) {
+      if (c.entityId) counts[c.entityId] = (counts[c.entityId] ?? 0) + 1;
+    }
+    return counts;
+  }, [combatants]);
+
   // ---------------------------------------------------------------- RENDER
 
   const selectedCardPosition = selectedCombatant
@@ -953,6 +964,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         onAddFromSearch={addEnemyFromSearch}
         familierResults={familierResults}
         onAddFamilier={addFamilierToCombat}
+        combatantCounts={combatantCounts}
       />
 
       {/* Message si arène vide */}

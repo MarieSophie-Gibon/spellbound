@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronRight, Ghost, Plus, Search, Swords, UserRound, Users, X } from "lucide-react";
+import { useCallback, useState } from "react";
+import { Check, ChevronRight, Ghost, Plus, Search, Swords, UserRound, Users, X } from "lucide-react";
 import type { SearchResult } from "./types";
 
 interface FamilierResult {
@@ -27,6 +27,7 @@ interface CombatMenuProps {
   onAddFromSearch: (result: SearchResult) => void | Promise<void>;
   familierResults: FamilierResult[];
   onAddFamilier: (f: FamilierResult) => void;
+  combatantCounts?: Record<string, number>;
 }
 
 export function CombatMenu({
@@ -43,9 +44,16 @@ export function CombatMenu({
   onAddFromSearch,
   familierResults,
   onAddFamilier,
+  combatantCounts = {},
 }: CombatMenuProps) {
   const [submenu, setSubmenu] = useState<"monster" | "npc" | "familier" | null>(null);
   const [familierFilter, setFamilierFilter] = useState("");
+  const [flashedIds, setFlashedIds] = useState<Set<string>>(new Set());
+
+  const flashId = useCallback((id: string) => {
+    setFlashedIds((prev) => new Set(prev).add(id));
+    setTimeout(() => setFlashedIds((prev) => { const next = new Set(prev); next.delete(id); return next; }), 1200);
+  }, []);
 
   const openSubmenu = (type: "monster" | "npc") => {
     if (submenu === type) {
@@ -162,19 +170,41 @@ export function CombatMenu({
           {searchResults.length === 0 && (
             <p className="text-[11px] text-white/30 italic text-center py-2">Aucun résultat</p>
           )}
-          {searchResults.map((res) => (
-            <button
-              key={`${res.type}-${res.id}`}
-              onClick={() => { onAddFromSearch(res); setSubmenu(null); }}
-              className="w-full flex items-center gap-2.5 p-2 rounded-lg bg-white/4 hover:bg-white/9 transition-colors text-left group border border-transparent hover:border-white/10"
-            >
-              <img src={res.image_url || "/default-avatar.png"} alt={res.name} className="w-8 h-8 rounded-full object-cover border border-white/20 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-white/90 truncate">{res.name}</div>
-              </div>
-              <Plus className="w-4 h-4 text-white/35 group-hover:text-white/85 shrink-0" />
-            </button>
-          ))}
+          {searchResults.map((res) => {
+            const isMonster = res.type === "monster";
+            const count = combatantCounts[res.id] ?? 0;
+            const flashed = flashedIds.has(res.id);
+            return (
+              <button
+                key={`${res.type}-${res.id}`}
+                onClick={() => {
+                  void onAddFromSearch(res);
+                  if (isMonster) {
+                    flashId(res.id);
+                  } else {
+                    setSubmenu(null);
+                  }
+                }}
+                className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left group border ${
+                  flashed
+                    ? "bg-emerald-500/15 border-emerald-500/40"
+                    : "bg-white/4 hover:bg-white/9 border-transparent hover:border-white/10"
+                }`}
+              >
+                <img src={res.image_url || "/default-avatar.png"} alt={res.name} className="w-8 h-8 rounded-full object-cover border border-white/20 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-white/90 truncate">{res.name}</div>
+                </div>
+                {count > 0 && (
+                  <span className="text-[10px] font-bold text-white/60 bg-white/12 rounded-full w-5 h-5 flex items-center justify-center shrink-0">{count}</span>
+                )}
+                {flashed
+                  ? <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  : <Plus className="w-4 h-4 text-white/35 group-hover:text-white/85 shrink-0" />
+                }
+              </button>
+            );
+          })}
         </div>
       </div>
 
