@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { Brush, Cloud, Eye, EyeOff, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
+import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Combatant, EncounterEntry, MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
@@ -163,11 +163,9 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRafRef = useRef<number | null>(null);
   const pendingPanRef = useRef<{ x: number; y: number } | null>(null);
-  const panStartRef = useRef<{ mx: number; my: number; px: number; py: number } | null>(null);
-  const isPanningRef = useRef(false);
 
   const [tokenSize, setTokenSize] = useState(40);
-  const [showNameTags, setShowNameTags] = useState(true);
+  const [showNameTags] = useState(true);
   const [dragPreviewToken, setDragPreviewToken] = useState<{ combatantId: string; x: number; y: number } | null>(null);
   const [fogEnabled, setFogEnabled] = useState(false);
   const [fogBrushSize, setFogBrushSize] = useState(6);
@@ -302,33 +300,33 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
 
   const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    isPanningRef.current = true;
-    panStartRef.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [pan]);
+    e.preventDefault();
+    const startPan = { x: pan.x, y: pan.y };
+    const startMouse = { x: e.clientX, y: e.clientY };
 
-  const handleBgPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isPanningRef.current || !panStartRef.current) return;
-    pendingPanRef.current = {
-      x: panStartRef.current.px + (e.clientX - panStartRef.current.mx),
-      y: panStartRef.current.py + (e.clientY - panStartRef.current.my),
+    const onMove = (ev: PointerEvent) => {
+      pendingPanRef.current = {
+        x: startPan.x + (ev.clientX - startMouse.x),
+        y: startPan.y + (ev.clientY - startMouse.y),
+      };
+      if (panRafRef.current !== null) return;
+      panRafRef.current = requestAnimationFrame(() => {
+        panRafRef.current = null;
+        if (pendingPanRef.current) setPan(pendingPanRef.current);
+      });
     };
 
-    if (panRafRef.current !== null) return;
-    panRafRef.current = requestAnimationFrame(() => {
-      panRafRef.current = null;
-      if (pendingPanRef.current) setPan(pendingPanRef.current);
-    });
-  }, []);
+    const onUp = () => {
+      if (pendingPanRef.current) { setPan(pendingPanRef.current); pendingPanRef.current = null; }
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+    };
 
-  const handleBgPointerUp = useCallback(() => {
-    isPanningRef.current = false;
-    panStartRef.current = null;
-    if (pendingPanRef.current) {
-      setPan(pendingPanRef.current);
-      pendingPanRef.current = null;
-    }
-  }, []);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+  }, [pan]);
   const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   const handleFile = async (file: File) => {
@@ -600,9 +598,6 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
               className="absolute inset-0"
               style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "center" }}
               onPointerDown={handleBgPointerDown}
-              onPointerMove={handleBgPointerMove}
-              onPointerUp={handleBgPointerUp}
-              onPointerLeave={handleBgPointerUp}
             >
               {/* Image de fond */}
               <img

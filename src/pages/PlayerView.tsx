@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { BookMarked, Map, Swords, Users } from "lucide-react";
 import type { Combatant, EncounterEntry, MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
-import { tokenRingClass, BATTLEMAP_CHANNEL, getTokenNameTagMetrics, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
+import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 interface LiveState {
@@ -300,7 +300,6 @@ export function PlayerView() {
                 const target = targetTokenPositions[token.combatantId] ?? { x: token.x, y: token.y };
                 const smoothed = smoothedTokenPositions[token.combatantId] ?? target;
                 const sz = mapTokenSize;
-                const tag = getTokenNameTagMetrics(sz);
                 const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
                 return (
                   <div
@@ -316,19 +315,19 @@ export function PlayerView() {
                       style={{ width: sz, height: sz }}
                     >
                       <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover" draggable={false} />
+                      {activeConditions.length > 0 && (
+                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-wrap content-center gap-0.5 pointer-events-none" style={{ padding: sz * 0.08 }}>
+                          {activeConditions.map(opt => (
+                            <span key={opt.key} title={opt.label} style={{ fontSize: sz * 0.28, lineHeight: 1 }}>{opt.icon}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {activeConditions.length > 0 && (
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
-                        {activeConditions.slice(0, 3).map(opt => (
-                          <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
-                        ))}
+                    {(() => { const m = combatant.name.match(/^(.*?) #(\d+)$/); return m ? (
+                      <div className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full bg-black/80 border border-white/30 flex items-center justify-center z-30 pointer-events-none">
+                        <span className="text-[8px] font-bold text-white leading-none">{m[2]}</span>
                       </div>
-                    )}
-                    {state.showNameTags !== false && (
-                      <div className="absolute top-full left-1/2 -translate-x-1/2 whitespace-nowrap" style={{ marginTop: tag.offset, fontSize: tag.fontSize }}>
-                        <span className="text-white/90 bg-black/80 backdrop-blur rounded block text-center leading-tight" style={{ padding: `${tag.padY}px ${tag.padX}px` }}>{combatant.name}</span>
-                      </div>
-                    )}
+                    ) : null; })()}
                   </div>
                 );
               })}
