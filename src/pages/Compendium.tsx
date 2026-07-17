@@ -346,7 +346,6 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
         <CompendiumMobile
           title={isBestiaireOnly ? "Bestiaire" : "Compendium"}
           sections={availableSections}
-          activeSection={activeSection}
           showListInView={showMobileList}
           readOnly={readOnly}
           peuples={peuples}

@@ -6,7 +6,6 @@ import type { Equipement, Famille, FamilleArchetype, FamilleVoie, Monstre, Peupl
 interface CompendiumMobileProps {
   title: string;
   sections: Section[];
-  activeSection: Section | null;
   showListInView: boolean;
   readOnly?: boolean;
   peuples: Peuple[];
@@ -60,7 +59,6 @@ function SmoothPanel({ open, children }: { open: boolean; children: React.ReactN
 export function CompendiumMobile({
   title,
   sections,
-  activeSection,
   showListInView,
   readOnly,
   peuples,
