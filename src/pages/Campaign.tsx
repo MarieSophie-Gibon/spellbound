@@ -1,7 +1,7 @@
 import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
-import { CalendarDays, Ticket, Copy, Loader2, UserSearch } from "lucide-react";
+import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch } from "lucide-react";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useState } from "react";
@@ -19,6 +19,7 @@ export function CampaignHome({ campaign }: CampaignProps) {
     const createInvitation = useCreateCampaignInvitation();
     const [inviteCode, setInviteCode] = useState<string | null>(null);
     const [inviteError, setInviteError] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     const createdAt = campaign.created_at
         ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(campaign.created_at))
@@ -113,13 +114,19 @@ export function CampaignHome({ campaign }: CampaignProps) {
                         </button>
                         {inviteCode && (
                             <button
-                                onClick={async () => {
+                            onClick={async () => {
                                     await navigator.clipboard.writeText(inviteCode);
+                                    setCopied(true);
+                                    setTimeout(() => setCopied(false), 2000);
                                 }}
-                                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-white text-[11px] py-2 transition-colors"
+                                className={`w-full flex items-center justify-center gap-1.5 rounded-lg border text-[11px] py-2 transition-colors ${
+                                    copied
+                                        ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
+                                        : "border-white/15 bg-white/5 hover:bg-white/10 text-white"
+                                }`}
                             >
-                                <Copy className="w-3.5 h-3.5" />
-                                {inviteCode}
+                                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copied ? "Copié !" : inviteCode}
                             </button>
                         )}
                         {inviteError && <p className="text-[10px] text-red-300">{inviteError}</p>}

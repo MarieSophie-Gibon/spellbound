@@ -642,7 +642,6 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
                       isActive={isActive}
                       tokenSize={tokenSize}
                       onPointerDown={tokenPointerDown}
-                      onRemove={removeToken}
                       setTokenEl={setTokenEl}
                     />
                     </div>
