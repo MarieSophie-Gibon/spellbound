@@ -65,6 +65,7 @@ interface PersonnageDetailProps {
   campaignId: string;
   isFullscreen: boolean;
   readOnly?: boolean;
+  technicalSheetOnly?: boolean;
   onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
@@ -110,6 +111,7 @@ export function PersonnageDetail({
   campaignId,
   isFullscreen,
   readOnly,
+  technicalSheetOnly = false,
   onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
@@ -246,6 +248,12 @@ export function PersonnageDetail({
     // Si c'est un PJ ou un PNJ combattant, on remet l'onglet stats par défaut
     setActiveTab("stats");
   }, [pj, type]);
+
+  useEffect(() => {
+    if (!technicalSheetOnly) return;
+    setActiveTab("stats");
+    setIsLevelingUp(false);
+  }, [technicalSheetOnly]);
 
   const handleSave = async () => {
     if (!pj) return;
@@ -448,7 +456,7 @@ export function PersonnageDetail({
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative">
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
-      {isLevelingUp && (
+      {isLevelingUp && !readOnly && !technicalSheetOnly && (
         <LevelUpOverlay
           pj={pj}
           targetLevel={targetLevel}
@@ -503,7 +511,7 @@ export function PersonnageDetail({
                   </span>
                 )}
                 {/* Level Up caché pour les PNJ non combattants */}
-                {!isNonCombatantPNJ && (
+                {!isNonCombatantPNJ && !readOnly && !technicalSheetOnly && (
                   <button
                     onClick={() => setIsLevelingUp(true)}
                     className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
@@ -611,27 +619,31 @@ export function PersonnageDetail({
               <Package className="w-3.5 h-3.5" /> Sac & Équipement
             </button>
 
-            <button
-              onClick={() => setActiveTab("lore")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
-                activeTab === "lore"
-                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
-                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? "Description & Notes" : "Histoire & Lore"}
-            </button>
+            {!technicalSheetOnly && (
+              <>
+                <button
+                  onClick={() => setActiveTab("lore")}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                    activeTab === "lore"
+                      ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                      : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? "Description & Notes" : "Histoire & Lore"}
+                </button>
 
-            <button
-              onClick={() => setActiveTab("familiers")}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
-                activeTab === "familiers"
-                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
-                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
-              }`}
-            >
-              🐾 Familiers
-            </button>
+                <button
+                  onClick={() => setActiveTab("familiers")}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                    activeTab === "familiers"
+                      ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                      : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+                  }`}
+                >
+                  🐾 Familiers
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1104,6 +1116,7 @@ export function PersonnageDetail({
             pnjId={type === "pnj" ? pj.id : null}
             profilId={pj.stats?.profil_id || voieDetails.find(v => v.profil_id)?.profil_id} 
             pjStats={pj.stats}
+            readOnly={readOnly || technicalSheetOnly}
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
               await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);

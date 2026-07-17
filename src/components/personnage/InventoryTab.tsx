@@ -12,6 +12,7 @@ interface InventoryTabProps {
   profilId?: string | null;
   pjStats: any;
   onUpdateStats: (newStats: any) => void;
+  readOnly?: boolean;
 }
 
 type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
@@ -25,7 +26,7 @@ const normalizeItemIdForDb = (value: string | number | null) => {
   return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
 };
 
-export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats }: InventoryTabProps) {
+export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false }: InventoryTabProps) {
   const isPnj = !!pnjId;
   const ownerId = pnjId || pjId;
   const [isLoading, setIsLoading] = useState(true);
@@ -238,15 +239,15 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         <div className="flex gap-4">
           <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
             <span className="text-white/40 text-[10px] font-bold">PA</span>
-            <input type="number" value={pa} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPa(v); onUpdateStats({ ...pjStats, bourse_pa: v, bourse_po: po, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none" />
+            <input type="number" disabled={readOnly} value={pa} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPa(v); onUpdateStats({ ...pjStats, bourse_pa: v, bourse_po: po, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
           <div className="flex items-center gap-2 bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
             <span className="text-yellow-500/60 text-[10px] font-bold">PO</span>
-            <input type="number" value={po} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPo(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: v, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none" />
+            <input type="number" disabled={readOnly} value={po} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPo(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: v, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
           <div className="flex items-center gap-2 bg-orange-400/10 px-3 py-1.5 rounded-lg border border-orange-400/20">
             <span className="text-orange-500/60 text-[10px] font-bold">PC</span>
-            <input type="number" value={pc} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPc(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: po, bourse_pc: v }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none" />
+            <input type="number" disabled={readOnly} value={pc} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPc(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: po, bourse_pc: v }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
         </div>
       </div>
@@ -257,16 +258,18 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
             <Shield className="w-3.5 h-3.5" /> Armes & Armures
           </p>
-          <button onClick={() => handleOpenModal(null, "arme_contact")} className="flex items-center gap-1 text-[10px] text-white/50 bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors">
-            <Plus className="w-3 h-3" /> Ajouter
-          </button>
+          {!readOnly && (
+            <button onClick={() => handleOpenModal(null, "arme_contact")} className="flex items-center gap-1 text-[10px] text-white/50 bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors">
+              <Plus className="w-3 h-3" /> Ajouter
+            </button>
+          )}
         </div>
 
         {weaponsAndArmor.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {weaponsAndArmor.map(item => (
               <div key={item.id} className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${item.is_equipped ? "bg-[#E3CCCD]/10 border-[#E3CCCD]/30" : "bg-white/5 border-white/10"}`}>
-                <button onClick={() => toggleEquip(item)} disabled={item.is_from_profile} className={`p-2 rounded-lg border transition-colors ${item.is_equipped ? "bg-[#29206A]/40 border-[#E3CCCD]/20" : "bg-black/40 border-transparent hover:bg-white/10"} disabled:opacity-50`}>
+                <button onClick={() => toggleEquip(item)} disabled={item.is_from_profile || readOnly} className={`p-2 rounded-lg border transition-colors ${item.is_equipped ? "bg-[#29206A]/40 border-[#E3CCCD]/20" : "bg-black/40 border-transparent hover:bg-white/10"} disabled:opacity-50`}>
                   {item.item_type === "arme_contact" ? <Sword className="w-4 h-4 text-[#E3CCCD]" /> : item.item_type === "arme_distance" ? <Target className="w-4 h-4 text-[#E3CCCD]" /> : <Shield className="w-4 h-4 text-[#E3CCCD]" />}
                 </button>
                 <div className="min-w-0 flex-1">
@@ -276,7 +279,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
                   </div>
                   {item.description_custom && <p className="text-xs text-white/40 truncate font-mono mt-0.5">{item.description_custom}</p>}
                 </div>
-                {!item.is_from_profile && (
+                {!item.is_from_profile && !readOnly && (
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => handleOpenModal(item)} className="p-1.5 text-white/30 hover:text-white transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
                     <button onClick={() => setItemToDelete(item)} className="p-1.5 text-white/30 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -296,9 +299,11 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
             <Backpack className="w-3.5 h-3.5" /> Équipement & Divers
           </p>
-          <button onClick={() => handleOpenModal(null, "equipement")} className="flex items-center gap-1 text-[10px] text-white/50 bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors">
-            <Plus className="w-3 h-3" /> Ajouter
-          </button>
+          {!readOnly && (
+            <button onClick={() => handleOpenModal(null, "equipement")} className="flex items-center gap-1 text-[10px] text-white/50 bg-white/5 hover:bg-white/10 px-2 py-1 rounded border border-white/10 transition-colors">
+              <Plus className="w-3 h-3" /> Ajouter
+            </button>
+          )}
         </div>
 
         {genericItems.length > 0 ? (
@@ -314,7 +319,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
                   </div>
                   {item.description_custom && <p className="text-[11px] text-white/50 mt-1 leading-tight">{item.description_custom}</p>}
                 </div>
-                {!item.is_from_profile && (
+                {!item.is_from_profile && !readOnly && (
                   <div className="flex flex-col gap-1 shrink-0">
                     <button onClick={() => handleOpenModal(item)} className="text-white/20 hover:text-white transition-colors mb-2"><Pencil className="w-3 h-3" /></button>
                     <button onClick={() => setItemToDelete(item)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
@@ -329,7 +334,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
       </div>
 
       {/* MODALE CRUD (COMPENDIUM AWARE) */}
-      {isModalOpen && (
+      {isModalOpen && !readOnly && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[1px] p-4">
           <div className="bg-[#221B50]/95 border border-[#E3CCCD]/28 rounded-2xl w-full max-w-md p-6 shadow-[0_18px_55px_rgba(7,5,20,0.45)]">
             <div className="flex justify-between items-center mb-5">
@@ -426,7 +431,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         </div>
       )}
 
-      {itemToDelete && (
+      {itemToDelete && !readOnly && (
         <DeleteConfirmModal
           name={itemToDelete.nom_custom || "cet objet"}
           isDeleting={isDeleting}

@@ -38,26 +38,7 @@ export function useCampaigns(role?: 'mj' | 'player') {
     queryKey: ['campaigns', role],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
-
-      // Base robuste : toutes les campagnes visibles via RLS pour l'utilisateur courant.
-      const { data: visibleCampaigns, error: visibleError } = await supabase
-        .from('campagnes')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (visibleError) throw visibleError
-
-      // Campagnes dont l'utilisateur connecté est explicitement propriétaire.
-      let ownedCampaigns: Campaign[] = []
-      if (user) {
-        const { data: ownedData, error: ownedError } = await supabase
-          .from('campagnes')
-          .select('*')
-          .eq('owner_id', user.id)
-
-        // Compat: migration pas encore appliquée => on ignore owner_id temporairement.
-        if (ownedError && !isMissingColumnError(ownedError)) throw ownedError
-        ownedCampaigns = (ownedData ?? []) as Campaign[]
-      }
+      if (!user) return []
 
       const mergeAndSort = (...lists: Campaign[][]): Campaign[] => {
         const byId = new Map<string, Campaign>()
@@ -66,64 +47,58 @@ export function useCampaigns(role?: 'mj' | 'player') {
             byId.set(campaign.id, campaign)
           }
         }
-
         return Array.from(byId.values()).sort(
           (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
         )
       }
 
-      // On complète systématiquement avec les campagnes liées au PJ/membership
-      // pour ne plus dépendre d'un rôle global au niveau application.
-      if (!user) {
-        return mergeAndSort(
-          (visibleCampaigns ?? []) as Campaign[],
-          ownedCampaigns
-        )
+      // 1. Campagnes dont l'utilisateur est propriétaire
+      const { data: ownedData, error: ownedError } = await supabase
+        .from('campagnes')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false })
+      if (ownedError && !isMissingColumnError(ownedError)) throw ownedError
+      const ownedCampaigns = (ownedData ?? []) as Campaign[]
+
+      // 2. Campagnes rejointes via invitation (campaign_members)
+      let memberCampaigns: Campaign[] = []
+      const { data: memberRows, error: memberErr } = await supabase
+        .from('campaign_members')
+        .select('campaign_id')
+        .eq('user_id', user.id)
+      if (memberErr && !isMissingTableError(memberErr)) throw memberErr
+      const memberIds = (memberRows ?? []).map((r) => r.campaign_id).filter(Boolean) as string[]
+      if (memberIds.length > 0) {
+        const { data: mData, error: mErr } = await supabase
+          .from('campagnes')
+          .select('*')
+          .in('id', memberIds)
+        if (mErr) throw mErr
+        memberCampaigns = (mData ?? []) as Campaign[]
       }
 
+      // 3. Campagnes liées via un PJ (accès joueur ancien format)
+      let pjCampaigns: Campaign[] = []
       const { data: pjRows, error: pjErr } = await supabase
         .from('pj')
         .select('campaign_id')
         .eq('user_id', user.id)
       if (pjErr) throw pjErr
-
-      let memberRows: CampaignIdRow[] = []
-      const { data: membershipData, error: memberErr } = await supabase
-        .from('campaign_members')
-        .select('campaign_id')
-        .eq('user_id', user.id)
-
-      if (memberErr) {
-        // Compat : si la table d'invitations/membres n'existe pas encore, on reste sur le flux PJ.
-        if (!isMissingTableError(memberErr)) throw memberErr
-      } else {
-        memberRows = (membershipData ?? []) as CampaignIdRow[]
+      const pjIds = (pjRows ?? []).map((r) => r.campaign_id).filter(Boolean) as string[]
+      // Exclure les campagnes déjà couvertes
+      const knownIds = new Set([...ownedCampaigns.map(c => c.id), ...memberIds])
+      const remainingPjIds = pjIds.filter(id => !knownIds.has(id))
+      if (remainingPjIds.length > 0) {
+        const { data: pjData, error: pjCErr } = await supabase
+          .from('campagnes')
+          .select('*')
+          .in('id', remainingPjIds)
+        if (pjCErr) throw pjCErr
+        pjCampaigns = (pjData ?? []) as Campaign[]
       }
 
-      const campaignIds = [...new Set(
-        [...(pjRows ?? []), ...memberRows]
-          .map((r) => r.campaign_id)
-          .filter(Boolean)
-      )] as string[]
-
-      if (campaignIds.length === 0) {
-        return mergeAndSort(
-          (visibleCampaigns ?? []) as Campaign[],
-          ownedCampaigns
-        )
-      }
-
-      const { data: linkedCampaigns, error: linkedError } = await supabase
-        .from('campagnes')
-        .select('*')
-        .in('id', campaignIds)
-
-      if (linkedError) throw linkedError
-      return mergeAndSort(
-        (visibleCampaigns ?? []) as Campaign[],
-        (linkedCampaigns ?? []) as Campaign[],
-        ownedCampaigns
-      )
+      return mergeAndSort(ownedCampaigns, memberCampaigns, pjCampaigns)
     }
   })
 }
@@ -185,7 +160,9 @@ export function useJoinCampaignByCode() {
         .from('campaign_invitations')
         .select('id, campaign_id, code, expires_at')
         .eq('code', normalized)
-        .single()
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
       if (inviteErr || !invitation) {
         throw new Error("Code d'invitation invalide")
@@ -205,9 +182,11 @@ export function useJoinCampaignByCode() {
         .from('campagnes')
         .select('*')
         .eq('id', invitation.campaign_id)
-        .single()
+        .limit(1)
+        .maybeSingle()
 
       if (campaignErr) throw campaignErr
+      if (!campaign) throw new Error('Campagne introuvable')
       return campaign as Campaign
     },
     onSuccess: () => {

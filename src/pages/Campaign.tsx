@@ -170,7 +170,7 @@ export function CampaignHome({ campaign }: CampaignProps) {
 
             {/* Liste design des personnages joueurs */}
             <div className="max-w-6xl mx-auto">
-                <PJList campaignId={campaign.id} />
+                <PJList campaignId={campaign.id} isMJ={isMJ} />
             </div>
         </div>
     );

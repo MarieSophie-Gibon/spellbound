@@ -10,6 +10,7 @@ export interface PJ {
   inventory: any;
   peuple_id?: string | null;
   player_id?: string | null;
+  user_id?: string | null;
   profils_id?: string | null;
 }
 
@@ -19,7 +20,7 @@ export function usePJs(campaignId: string) {
     queryFn: async (): Promise<PJ[]> => {
       const { data, error } = await supabase
         .from('pj')
-        .select('id, name, image_url, stats, pathways, inventory, peuple_id, player_id, profils_id')
+        .select('id, name, image_url, stats, pathways, inventory, peuple_id, player_id, user_id, profils_id')
         .eq('campaign_id', campaignId)
         .order('name');
       if (error) throw error;

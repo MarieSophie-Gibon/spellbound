@@ -3,15 +3,18 @@ import { useEffect, useState } from 'react';
 import type { Peuple } from '@/types/compendium';
 import { fetchPlayers } from '@/hooks/usePJs';
 import { supabase } from '@/lib/supabase';
-import { User } from 'lucide-react';
+import { Lock, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 interface PJListProps {
   campaignId: string;
+  isMJ?: boolean;
 }
 
-export function PJList({ campaignId }: PJListProps) {
+export function PJList({ campaignId, isMJ = false }: PJListProps) {
   const { data: pjs, isLoading } = usePJs(campaignId);
+  const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [players, setPlayers] = useState<{ id: string; pseudo: string }[]>([]);
   const [profils, setProfils] = useState<{ id: string; nom: string }[]>([]);
@@ -55,11 +58,16 @@ export function PJList({ campaignId }: PJListProps) {
           }
           const profil = profils.find((pr) => pr.id === profilId);
 
+          const isOwnPJ = pj.user_id === currentUserId;
+          const canAccess = isMJ || isOwnPJ;
+
           return (
             <button 
               key={pj.id} 
-              onClick={() => navigate('/campaign/personnages')}
-              className="group relative flex flex-col w-30 h-65 focus:outline-none hover:-translate-y-3 transition-transform duration-500 drop-shadow-2xl bg-linear-to-b from-[#E3CCCD] via-[#E3CCCD]/50 to-[#E3CCCD] p-0.5"
+              onClick={() => navigate(`/campaign/personnages?pjId=${pj.id}`)}
+              className={`group relative flex flex-col w-30 h-65 focus:outline-none transition-transform duration-500 drop-shadow-2xl bg-linear-to-b from-[#E3CCCD] via-[#E3CCCD]/50 to-[#E3CCCD] p-0.5 ${
+                canAccess ? 'hover:-translate-y-3 cursor-pointer' : 'hover:-translate-y-1 cursor-pointer opacity-75'
+              }`}
               style={{ clipPath: bannerShape, WebkitClipPath: bannerShape }}
             >
               {/* Conteneur principal intérieur */}
@@ -125,6 +133,13 @@ export function PJList({ campaignId }: PJListProps) {
                   </div>
 
                 </div>
+
+                {/* Overlay verrou pour PJ inaccessible */}
+                {!canAccess && (
+                  <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/30">
+                    <Lock className="w-5 h-5 text-white/40" />
+                  </div>
+                )}
 
                 {/* 5. Losange décoratif du bas */}
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 drop-shadow-md">

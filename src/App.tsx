@@ -248,7 +248,7 @@ function App() {
                   activeCampaign ? (
                     <Personnages
                       campaignId={activeCampaign.id}
-                      readOnly={!canManageActiveCampaign}
+                      isMJ={canManageActiveCampaign}
                       onBack={() => navigate("/campaign")}
                     />
                   ) : (

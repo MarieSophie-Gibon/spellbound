@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
 import { BookLayout } from "@/components/layout/BookLayout";
 import { supabase } from "@/lib/supabase";
@@ -7,11 +6,13 @@ import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { PersonnageSidebar } from "@/components/personnage/PersonnageSidebar";
 import { PersonnageDetail } from "@/components/personnage/PersonnageDetail";
 import { AlertTriangle } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 interface PersonnagesProps {
   campaignId: string;
   onBack: () => void;
-  readOnly?: boolean;
+  isMJ?: boolean;
 }
 
 interface Character {
@@ -73,7 +74,9 @@ function DeleteCharacterModal({
   );
 }
 
-export function Personnages({ campaignId, onBack, readOnly = false }: PersonnagesProps) {
+export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesProps) {
+  const [searchParams] = useSearchParams();
+  const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const [pjs, setPjs] = useState<Character[]>([]);
   const [pnjs, setPnjs] = useState<Character[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -111,6 +114,29 @@ export function Personnages({ campaignId, onBack, readOnly = false }: Personnage
     ? pjs.find(p => p.id === selectedId) ?? null 
     : pnjs.find(p => p.id === selectedId) ?? null;
 
+  // Read-only: players can edit only their own PJ (explicit user_id match required).
+  // Any falsy value (no user assigned, no session) → read-only for players.
+  const effectiveReadOnly = !isMJ && (
+    selectedType === "pnj"
+    || !currentUserId
+    || !selectedCharacter?.user_id
+    || selectedCharacter.user_id !== currentUserId
+  );
+
+  const technicalSheetOnly = !isMJ
+    && selectedType === "pj"
+    && (
+      !currentUserId
+      || !selectedCharacter?.user_id
+      || selectedCharacter.user_id !== currentUserId
+    );
+
+  // Auto-select PJ from URL param (e.g. coming from PJList banner)
+  useEffect(() => {
+    const pjId = searchParams.get("pjId");
+    if (pjId) { setSelectedId(pjId); setSelectedType("pj"); }
+  }, [searchParams]);
+
   const handleDelete = async () => {
     if (!selectedId) return;
     setIsDeleting(true);
@@ -134,7 +160,7 @@ export function Personnages({ campaignId, onBack, readOnly = false }: Personnage
             pnjs={pnjs}
             isLoading={isLoading}
             selectedId={selectedId}
-            readOnly={readOnly}
+            readOnly={!isMJ}
             onSelect={(id, type) => {
               setSelectedId(id);
               if (type) setSelectedType(type);
@@ -150,7 +176,8 @@ export function Personnages({ campaignId, onBack, readOnly = false }: Personnage
           type={selectedType}
           campaignId={campaignId}
           isFullscreen={isFullscreen}
-          readOnly={readOnly}
+          readOnly={effectiveReadOnly}
+          technicalSheetOnly={technicalSheetOnly}
           onToggleFullscreen={() => setIsFullscreen((v) => !v)}
           onDeleteClick={() => setShowDeleteConfirm(true)}
           onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
