@@ -89,9 +89,7 @@ interface MapTokenMarkerProps {
   combatant: Combatant;
   isActive: boolean;
   tokenSize: number;
-  showNameTags: boolean;
   onPointerDown: (e: React.PointerEvent, token: MapToken) => void;
-  onRemove: (id: string) => void;
   setTokenEl: (id: string) => (el: HTMLDivElement | null) => void;
 }
 
@@ -100,13 +98,12 @@ const MapTokenMarker = memo(function MapTokenMarker({
   combatant,
   isActive,
   tokenSize,
-  showNameTags,
   onPointerDown,
-  onRemove,
   setTokenEl,
 }: MapTokenMarkerProps) {
   const activeConditions = CONDITION_OPTIONS.filter((o) => combatant.conditions.includes(o.key));
-  const tag = getTokenNameTagMetrics(tokenSize);
+  const instanceMatch = combatant.name.match(/^(.*?) #(\d+)$/);
+  const instanceNum = instanceMatch ? instanceMatch[2] : null;
 
   return (
     <div
@@ -123,27 +120,19 @@ const MapTokenMarker = memo(function MapTokenMarker({
         style={{ width: tokenSize, height: tokenSize, cursor: "grab" }}
       >
         <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+        {activeConditions.length > 0 && (
+          <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-wrap content-center gap-0.5 pointer-events-none" style={{ padding: tokenSize * 0.08 }}>
+            {activeConditions.map((opt) => (
+              <span key={opt.key} title={opt.label} style={{ fontSize: tokenSize * 0.28, lineHeight: 1 }}>{opt.icon}</span>
+            ))}
+          </div>
+        )}
       </div>
-      {activeConditions.length > 0 && (
-        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5 pointer-events-none">
-          {activeConditions.slice(0, 3).map((opt) => (
-            <span key={opt.key} className="text-base leading-none" title={opt.label}>{opt.icon}</span>
-          ))}
+      {instanceNum && (
+        <div className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full bg-black/80 border border-white/30 flex items-center justify-center z-30 pointer-events-none">
+          <span className="text-[8px] font-bold text-white leading-none">{instanceNum}</span>
         </div>
       )}
-      {showNameTags && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none" style={{ marginTop: tag.offset, fontSize: tag.fontSize }}>
-          <span className="text-white/90 bg-black/75 backdrop-blur rounded block text-center leading-tight" style={{ padding: `${tag.padY}px ${tag.padX}px` }}>{combatant.name}</span>
-        </div>
-      )}
-      <button
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => { e.stopPropagation(); onRemove(token.combatantId); }}
-        className="absolute rounded-full bg-black/80 border border-white/30 flex items-center justify-center text-white/70 hover:text-white hover:bg-red-600/90 transition-all opacity-0 group-hover/token:opacity-100 cursor-pointer"
-        style={{ width: 16, height: 16, top: -6, right: -6, zIndex: 31 }}
-      >
-        <X className="w-2 h-2" />
-      </button>
     </div>
   );
 });
@@ -657,7 +646,6 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
                       combatant={combatant}
                       isActive={isActive}
                       tokenSize={tokenSize}
-                      showNameTags={showNameTags}
                       onPointerDown={tokenPointerDown}
                       onRemove={removeToken}
                       setTokenEl={setTokenEl}
@@ -775,14 +763,29 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
           return (
             <div
               key={combatant.id}
-              draggable={!!imageUrl}
+              draggable={!isPlaced && !!imageUrl}
               onDragStart={(e) => { e.dataTransfer.setData("text/plain", JSON.stringify({ combatantId: combatant.id })); e.dataTransfer.effectAllowed = "move"; }}
-              className={`relative shrink-0 group/tt select-none ${imageUrl ? "cursor-grab active:cursor-grabbing" : "opacity-40 cursor-not-allowed"}`}
-              title={combatant.name}
+              onClick={() => { if (isPlaced) removeToken(combatant.id); }}
+              className={`relative shrink-0 group/tt select-none ${
+                isPlaced
+                  ? "cursor-pointer"
+                  : imageUrl ? "cursor-grab active:cursor-grabbing" : "opacity-40 cursor-not-allowed"
+              }`}
+              title={isPlaced ? `Retirer ${combatant.name} de la carte` : combatant.name}
             >
-              <div className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-transform group-hover/tt:scale-110 ${tokenRingClass(combatant.type)} ${isPlaced ? "opacity-50" : ""}`}>
+              <div className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-transform group-hover/tt:scale-110 ${tokenRingClass(combatant.type)} ${isPlaced ? "opacity-60" : ""}`}>
                 <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" />
+                {isPlaced && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/tt:opacity-100 transition-opacity">
+                    <X className="w-4 h-4 text-white" />
+                  </div>
+                )}
               </div>
+              {(() => { const m = combatant.name.match(/^(.*?) #(\d+)$/); return m ? (
+                <div className="absolute top-0 left-0 w-4 h-4 rounded-full bg-black/70 border border-white/25 flex items-center justify-center z-10">
+                  <span className="text-[7px] font-bold text-white/80 leading-none">{m[2]}</span>
+                </div>
+              ) : null; })()}
               {isPlaced && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-black flex items-center justify-center">
                   <span className="text-[6px] text-black font-bold leading-none">✓</span>
@@ -802,16 +805,6 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
               <ZoomIn className="w-3.5 h-3.5 text-white/30 shrink-0" />
               <input type="range" min={12} max={72} step={2} value={tokenSize} onChange={(e) => setTokenSize(Number(e.target.value))} className="w-20 accent-white/60 cursor-pointer" title="Taille des jetons" />
               <span className="text-[9px] text-white/30 w-6 text-right">{tokenSize}</span>
-            </div>
-            <div className="shrink-0 flex items-center gap-2 pl-2">
-              <button
-                onClick={() => setShowNameTags((v) => !v)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${showNameTags ? "bg-emerald-500/25 border-emerald-300/40 text-emerald-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
-                title={showNameTags ? "Masquer les noms" : "Afficher les noms"}
-              >
-                <span className="text-[10px] font-semibold leading-none">#</span>
-                {showNameTags ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-              </button>
             </div>
             <div className="shrink-0 flex items-center gap-2 pl-2">
               <span className="text-[9px] uppercase tracking-widest text-white/30 font-semibold">Fog</span>

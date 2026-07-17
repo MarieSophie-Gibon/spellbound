@@ -17,6 +17,9 @@ interface CombatantRowProps {
 
 export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMoveDown, onSelect, onRemove, onMoveUp, onMoveDown, onToggleHidden }: CombatantRowProps) {
   const fanionBg = FANION_BG[combatant.type];
+  const instanceMatch = combatant.name.match(/^(.*?) #(\d+)$/);
+  const displayName = instanceMatch ? instanceMatch[1] : combatant.name;
+  const instanceNum = instanceMatch ? instanceMatch[2] : null;
 
   return (
     <div
@@ -54,6 +57,13 @@ export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMo
             );
           })}
         </div>
+
+        {/* Badge numéro d'instance */}
+        {instanceNum && (
+          <div className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-black/70 border border-white/30 flex items-center justify-center z-40">
+            <span className="text-[8px] font-bold text-white/80 leading-none">{instanceNum}</span>
+          </div>
+        )}
       </div>
 
       {/* Boutons order + retrait — overlay sur l'avatar au hover */}
@@ -107,7 +117,7 @@ export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMo
             className="absolute inset-0.75 border border-white/20 pointer-events-none"
             style={{ clipPath: "polygon(0% 0%, 88% 0%, 100% 50%, 88% 100%, 0% 100%)" }}
           />
-          <span className="relative z-10 text-white font-medium text-sm truncate">{combatant.name}</span>
+          <span className="relative z-10 text-white font-medium text-sm truncate">{displayName}</span>
           {isActive && <div className="absolute right-[14%] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rotate-45 bg-white/70 shrink-0" />}
         </div>
       </div>

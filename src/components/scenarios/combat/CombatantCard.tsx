@@ -66,6 +66,9 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
     });
 
     const ribbonShape = "polygon(0 0, 100% 0, 100% 75%, 50% 100%, 0 75%)";
+    const instanceMatch = combatant.name.match(/^(.*?) #(\d+)$/);
+    const displayName = instanceMatch ? instanceMatch[1] : combatant.name;
+    const instanceNum = instanceMatch ? instanceMatch[2] : null;
     const isPJ = combatant.type === "pj";
     const isNPC = combatant.type === "npc";
     const isPJLike = isPJ || isNPC;
@@ -129,7 +132,7 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                 <div className="relative z-10 p-3 shrink-0" onClick={() => setEditOpen((v) => !v)}>
                     <MagicCard
                         size="compact"
-                        title={combatant.name}
+                        title={displayName}
                         imageUrl={combatant.imageUrl || "/default-avatar.png"}
                         badge={
                             <div className="inline-flex flex-col drop-shadow-md">
@@ -145,6 +148,12 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                             </div>
                         }
                     />
+                    {/* Badge numéro d'instance */}
+                    {instanceNum && (
+                        <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-black/70 border border-white/25 flex items-center justify-center z-40 pointer-events-none">
+                            <span className="text-[9px] font-bold text-white/75 leading-none">{instanceNum}</span>
+                        </div>
+                    )}
 
                     {/* Tiroir PV + États */}
                     {editOpen && (
@@ -265,7 +274,7 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                 <div className="relative z-10 flex flex-col p-3 w-64 gap-2 self-start">
                     {isNPC && (
                         <div className="flex items-start justify-between gap-2">
-                            <span className="font-serif text-sm text-[#E3CCCD] font-semibold leading-tight truncate flex-1">{combatant.name}</span>
+                            <span className="font-serif text-sm text-[#E3CCCD] font-semibold leading-tight truncate flex-1">{displayName}</span>
                             <span className="text-[9px] uppercase tracking-[0.15em] text-purple-300/60 border border-purple-400/25 rounded px-1.5 py-0.5 shrink-0">PNJ</span>
                         </div>
                     )}
