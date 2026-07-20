@@ -14,6 +14,7 @@ import { FamilleWizard } from "@/components/compendium/famille/FamilleWizard";
 import { ProfilWizard } from "@/components/compendium/profil/ProfilWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
+import { MonsterDetailMobile } from "@/components/compendium/bestiaire/MonsterDetailMobile";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
@@ -179,6 +180,22 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
     if (activeSection === 'objets') fetchEquipements();
     if (activeSection === 'voies_prestige') { fetchVoiesPrestige(); fetchFamillesArchetypes(); }
   }, [activeSection, campaignId]);
+
+  useEffect(() => {
+    if (isBestiaireOnly) {
+      if (activeSection !== 'bestiaire') {
+        setActiveSection('bestiaire');
+      }
+      if (!selectedMonstreId) {
+        fetchMonstres();
+      }
+      return;
+    }
+
+    if (activeSection === null) {
+      setActiveSection('peuples');
+    }
+  }, [isBestiaireOnly, activeSection, selectedMonstreId, campaignId]);
 
   useEffect(() => {
     if (selectedPeupleId) fetchVoieForPeuple(selectedPeupleId);
@@ -410,7 +427,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
               onDelete={() => setShowDeleteFamilleConfirm(true)}
             />
           ) : activeSection === 'bestiaire' && selectedMonstre ? (
-            <MonsterDetail
+            <MonsterDetailMobile
               monstre={selectedMonstre}
               isFullscreen={isFullscreen}
               readOnly={readOnly}
@@ -478,7 +495,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
             onDelete={() => setShowDeleteFamilleConfirm(true)}
           />
         ) : activeSection === 'bestiaire' && selectedMonstre ? (
-          <MonsterDetail
+          <MonsterDetailMobile
             monstre={selectedMonstre}
             isFullscreen={isFullscreen}
             readOnly={readOnly}

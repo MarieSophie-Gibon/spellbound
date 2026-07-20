@@ -1,4 +1,4 @@
-import { BookMarked, Skull, Telescope, ScrollText, Users, ArrowLeft, LayoutDashboard } from "lucide-react";
+import { BookMarked, Skull, Telescope, ScrollText, Users, ArrowLeft, LayoutDashboard, House } from "lucide-react";
 import { theme } from "@/lib/theme";
 import type { ElementType } from "react";
 import { useState } from "react";
@@ -18,6 +18,8 @@ interface SideNavMobileProps {
   onTabChange: (tab: NavTab) => void;
   onBackToLobby: () => void;
   showBackToLobbyButton?: boolean;
+  onGoHome?: () => void;
+  showHomeButton?: boolean;
   onGoToCampaignDashboard: () => void;
   showCampaignDashboardButton?: boolean;
   showProfileMenuButton?: boolean;
@@ -44,6 +46,8 @@ export function SideNavMobile({
   onTabChange,
   onBackToLobby,
   showBackToLobbyButton = false,
+  onGoHome,
+  showHomeButton = false,
   onGoToCampaignDashboard,
   showCampaignDashboardButton = false,
   showProfileMenuButton = false,
@@ -157,6 +161,24 @@ export function SideNavMobile({
             >
               <ArrowLeft className="w-4 h-4" />
               {showMenuTitles && <span className="text-[8px] uppercase tracking-wide leading-none">Lobby</span>}
+            </button>
+          )}
+
+          {showHomeButton && (
+            <button
+              onClick={onGoHome}
+              aria-label="Accueil"
+              title="Accueil"
+              className={`flex-1 rounded-xl border flex items-center justify-center ${
+                showMenuTitles ? "h-14 px-2.5 flex-col gap-1" : "h-12 px-2"
+              } ${
+                activeTab === "none"
+                  ? "border-[#E3CCCD]/35 bg-[#E3CCCD]/16 text-white"
+                  : "border-transparent bg-white/4 text-white/60 active:bg-white/10"
+              }`}
+            >
+              <House className="w-4 h-4" />
+              <span className="text-[8px] uppercase tracking-wide leading-none">LOBBY</span>
             </button>
           )}
 

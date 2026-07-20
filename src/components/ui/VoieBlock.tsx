@@ -17,7 +17,7 @@ export function VoieBlock({ voieNom, capacites, rangsAcquis, defaultOpen }: Voie
         className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-white/5 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <h3 className="font-serif text-lg text-white">{voieNom}</h3>
+          <h3 className="font-serif text-md text-white">{voieNom}</h3>
           <div className="flex gap-1">
             {[...rangsAcquis].sort((a, b) => a - b).map(r => (
               <span key={r} className="w-5 h-5 rounded-full bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 flex items-center justify-center text-[10px] text-[#E3CCCD]/80 font-bold">

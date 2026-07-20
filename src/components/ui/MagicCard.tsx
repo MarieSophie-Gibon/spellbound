@@ -5,7 +5,7 @@ import { theme } from '@/lib/theme'
 interface MagicCardProps {
   title?: ReactNode
   imageUrl?: string | null
-  size?: 'default' | 'compact'
+  size?: 'default' | 'compact' | 'fluid'
   onClick?: () => void
   children?: ReactNode
   badge?: ReactNode
@@ -13,19 +13,21 @@ interface MagicCardProps {
   onDelete?: (e: React.MouseEvent) => void
   onDuplicate?: (e: React.MouseEvent) => void
   onLeave?: (e: React.MouseEvent) => void
+  className?: string
 }
 
-export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onDuplicate, onLeave }: MagicCardProps) {
+export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onDuplicate, onLeave, className }: MagicCardProps) {
   const bgImage = imageUrl || '/default-bg.jpg'
   const isCompact = size === 'compact'
-  const cardSizeClass = isCompact ? 'w-48 h-72' : 'w-60 h-95'
-  const titleClass = isCompact ? 'text-lg' : 'text-xl'
-  const contentPositionClass = isCompact ? 'bottom-6 left-5 right-5' : 'bottom-10 left-8 right-8'
+  const isFluid = size === 'fluid'
+  const cardSizeClass = isFluid ? 'w-35 h-full' : isCompact ? 'w-48 h-72' : 'w-60 h-95'
+  const titleClass = (isCompact || isFluid) ? 'text-lg' : 'text-xl'
+  const contentPositionClass = (isCompact || isFluid) ? 'bottom-4 left-3 right-3' : 'bottom-10 left-8 right-8'
 
   return (
     <div 
       onClick={onClick}
-      className={`relative ${cardSizeClass} rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(55,42,132,0.6)]`}
+      className={`relative ${cardSizeClass} rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(55,42,132,0.6)] ${className ?? ''}`}
     >
       {/* Inner clipped layers */}
       <div className="absolute inset-0 rounded-lg overflow-hidden">
@@ -37,10 +39,10 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
         
         {/* Layer 2: Gradient sombre */}
         <div className="absolute inset-0" style={theme.gradientCard} />
-        
+
         {/* Layer 3: Overlay SVG (Le cadre) */}
         <div 
-          className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity" 
+          className="absolute inset-0 bg-contain bg-center bg-no-repeat pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity" 
           style={{ backgroundImage: "url('/card-overlay.svg')" }} 
         />
 

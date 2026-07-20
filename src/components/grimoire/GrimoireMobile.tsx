@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BookOpen, ChevronDown, FileText, Menu, Plus, Search, X } from "lucide-react";
+import { BookOpen, ChevronDown, FileText, X, Plus, Search } from "lucide-react";
 import type { Category, WikiPage } from "@/types/grimoire";
 
 interface GrimoireMobileProps {
@@ -144,33 +144,23 @@ export function GrimoireMobile({
     !normalizedQuery || pages.some(pageMatches) || categories.some((c) => c.name.toLowerCase().includes(normalizedQuery));
 
   return (
-    <div className="lg:hidden flex-1 min-h-0 flex flex-col">
-      <div className="sticky top-0 z-20 px-3 pt-3 pb-2 bg-linear-to-b from-[#100c2f]/95 via-[#100c2f]/85 to-transparent backdrop-blur-sm">
-        <div className="relative h-11 rounded-xl border border-[#E3CCCD]/20 bg-[#1E1941]/72 backdrop-blur-xl px-2.5 flex items-center justify-between shadow-[0_12px_28px_rgba(0,0,0,0.3)] overflow-hidden">
-          <div className="absolute inset-1 border border-[#E3CCCD]/14 rounded-[10px] pointer-events-none" />
-          <div className="w-8" />
+    <div className="lg:hidden flex-1 min-h-0 flex flex-col relative">
+      {/* Bouton retour flottant (vue article) */}
+      {selectedPageId && (
+        <button
+          type="button"
+          onClick={() => {
+            setIsSummaryOpen(false);
+            onBackToArticleList();
+          }}
+          className="fixed top-2 right-2 z-50 w-10 h-10 flex items-center justify-center rounded-full bg-[#29206A] border border-[#E3CCCD]/50 text-white shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-md transition-all hover:bg-[#3a2d8a] hover:scale-105"
+          aria-label="Fermer"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
 
-          <h2 className="relative z-10 font-serif text-base text-white tracking-[0.12em] uppercase">Grimoire</h2>
-
-          {selectedPageId ? (
-            <button
-              type="button"
-              onClick={() => {
-                setIsSummaryOpen(false);
-                onBackToArticleList();
-              }}
-              className="relative z-10 h-8 px-2.5 text-[#E3CCCD] hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5"
-              aria-label="Ouvrir le sommaire"
-            >
-              <Menu className="w-3.5 h-3.5" />
-            </button>
-          ) : (
-            <div className="w-8" />
-          )}
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-hidden px-2 pb-2">
+      <div className="flex-1 min-h-0 overflow-hidden p-2">
         <div className="relative h-full rounded-xl border border-[#E3CCCD]/18 bg-[#1E1941]/35 backdrop-blur-xl overflow-hidden">
           <div className="absolute inset-1 border border-[#E3CCCD]/12 rounded-[10px] pointer-events-none" />
           {showArticleListInView ? (

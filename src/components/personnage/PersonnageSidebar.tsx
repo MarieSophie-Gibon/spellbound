@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
-import { User, UserPlus, Loader2, ArrowLeft, Sword, Users } from "lucide-react";
+import { User, UserPlus, Loader2, ArrowLeft, ChevronDown, Search, Sword } from "lucide-react";
 
 interface PJ {
     id: string;
@@ -22,6 +22,7 @@ interface PersonnageSidebarProps {
     onCreateClick?: () => void; // Fallback (ancienne prop)
     onBack?: () => void;
     readOnly?: boolean;
+    mobileSummary?: boolean;
 }
 
 export function PersonnageSidebar({ 
@@ -35,131 +36,135 @@ export function PersonnageSidebar({
     onCreateClick, 
     onBack,
     readOnly,
+    mobileSummary = false,
 }: PersonnageSidebarProps) {
-    // État local pour savoir quel onglet est actif
-    const [activeTab, setActiveTab] = useState<"pj" | "pnj">("pj");
+    const [query, setQuery] = useState("");
+    const normalizedQuery = query.trim().toLowerCase();
+    const filteredPjs = pjs.filter((perso) => !normalizedQuery || perso.name.toLowerCase().includes(normalizedQuery));
+    const filteredPnjs = pnjs.filter((perso) => !normalizedQuery || perso.name.toLowerCase().includes(normalizedQuery));
+    const [openSection, setOpenSection] = useState<"pj" | "pnj" | null>("pj");
 
-    // Liste affichée en fonction de l'onglet
-    const displayedList = activeTab === "pj" ? pjs : pnjs;
-
-    const handleCreate = () => {
-        if (activeTab === "pj") {
+    const handleCreateForSection = (section: "pj" | "pnj") => {
+        if (section === "pj") {
             if (onCreatePJClick) onCreatePJClick();
-            else if (onCreateClick) onCreateClick(); // Rétrocompatibilité
-        } else {
-            if (onCreatePNJClick) onCreatePNJClick();
             else if (onCreateClick) onCreateClick();
+            return;
         }
+
+        if (onCreatePNJClick) onCreatePNJClick();
+        else if (onCreateClick) onCreateClick();
     };
 
+    const sections: Array<{ key: "pj" | "pnj"; label: string; items: PJ[] }> = [
+        { key: "pj", label: "Joueurs", items: filteredPjs },
+        { key: "pnj", label: "PNJ", items: filteredPnjs },
+    ];
+
     return (
-        <div className="flex flex-col h-full bg-linear-to-b from-[#1E1941]/30 via-transparent to-black/10">
-            {/* SÉLECTEUR D'ONGLETS */}
-            <div className="flex p-2 sm:p-3 gap-2 border-b border-white/10 shrink-0 bg-black/15 sticky top-0 z-10 backdrop-blur-md">
-                <button 
-                    onClick={() => setActiveTab("pj")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-all ${
-                        activeTab === "pj" 
-                        ? "bg-[#E3CCCD]/15 text-[#E3CCCD] border border-[#E3CCCD]/30" 
-                        : "text-white/40 hover:bg-white/5 hover:text-white/80 border border-transparent"
-                    }`}
-                >
-                    <User className="w-4 h-4" />
-                    Joueurs
-                </button>
-                <button 
-                    onClick={() => setActiveTab("pnj")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-xl transition-all ${
-                        activeTab === "pnj" 
-                        ? "bg-sky-500/15 text-sky-400 border border-sky-500/30" 
-                        : "text-white/40 hover:bg-white/5 hover:text-white/80 border border-transparent"
-                    }`}
-                >
-                    <Users className="w-4 h-4" />
-                    PNJ
-                </button>
+        <div className={`h-full min-h-0 flex flex-col ${mobileSummary ? "" : "bg-linear-to-b from-[#1E1941]/30 via-transparent to-black/10"}`}>
+            <div className="px-4 pt-4 pb-3 border-b border-[#E3CCCD]/14 space-y-3">
+                {!mobileSummary && (
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#E3CCCD]/70">Sommaire des personnages</p>
+                )}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/35" />
+                    <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Rechercher"
+                        className="w-full h-9 rounded-lg border border-[#E3CCCD]/20 bg-white/8 pl-9 pr-3 text-[12px] text-white placeholder:text-white/45 outline-none focus:border-[#E3CCCD]/55"
+                    />
+                </div>
             </div>
 
-            <div className="px-4 pt-3 pb-1 shrink-0">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">
-                    {displayedList.length} entr{displayedList.length > 1 ? "ées" : "ée"}
-                </p>
-            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 pt-3 space-y-2 scrollbar-thin scrollbar-thumb-white/20">
+                {sections.map((section) => {
+                    const isOpen = openSection === section.key;
 
-            {/* LISTE DES PERSONNAGES */}
-            <div className="flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin scrollbar-thumb-white/10">
-                {isLoading ? (
-                    <div className="flex justify-center py-10">
-                        <Loader2 className="w-6 h-6 animate-spin text-white/30" />
-                    </div>
-                ) : displayedList.length === 0 ? (
-                    <p className="text-[12px] text-white/25 italic text-center py-10 px-4">
-                        Aucun personnage dans cette catégorie.
-                    </p>
-                ) : (
-                    displayedList.map(perso => (
-                        <button
-                            key={perso.id}
-                            onClick={() => onSelect(perso.id, activeTab)}
-                            className={`w-full flex items-center gap-3.5 px-4 py-3.5 text-left transition-all rounded-2xl border mb-2.5 ${
-                                selectedId === perso.id 
-                                    ? activeTab === "pj" 
-                                        ? "bg-[#E3CCCD]/12 border-[#E3CCCD]/35 shadow-[0_6px_20px_rgba(227,204,205,0.08)]" 
-                                        : "bg-sky-500/12 border-sky-500/35 shadow-[0_6px_20px_rgba(14,165,233,0.08)]"
-                                    : "bg-white/3 border-white/8 hover:bg-white/6 hover:border-white/15"
-                            }`}
-                        >
-                            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border border-white/15 bg-white/5 flex items-center justify-center">
-                                {perso.image_url
-                                    ? <img src={perso.image_url} alt={perso.name} className="w-full h-full object-cover" />
-                                    : <User className="w-4 h-4 text-white/30" />}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className={`text-[14px] font-medium wrap-break-word min-w-0 ${
-                                        selectedId === perso.id 
-                                            ? activeTab === "pj" ? "text-[#E3CCCD]" : "text-sky-400"
-                                            : "text-white/70"
-                                    }`}>
-                                        {perso.name}
-                                    </p>
-                                    {/* Petit badge Épée pour les PNJ Combattants */}
-                                    {activeTab === "pnj" && perso.stats?.is_combatant && (
-                                        <Sword className="w-3 h-3 text-red-400/80 shrink-0" />
-                                    )}
+                    return (
+                        <div key={section.key} className="rounded-xl border border-[#E3CCCD]/16 bg-white/6 overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => setOpenSection(isOpen ? null : section.key)}
+                                className={`w-full px-3 py-2.5 text-left flex items-center justify-between transition-colors ${
+                                    isOpen ? "bg-[#29206A]/45 text-[#E3CCCD]" : "text-white/68 hover:bg-white/10 hover:text-white"
+                                }`}
+                            >
+                                <span className="text-[12px] font-medium truncate pr-2">{section.label}</span>
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                            </button>
+
+                            <div className={`grid transition-all duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-70"}`}>
+                                <div className="overflow-hidden">
+                                    <div className="px-2 pb-2 space-y-1">
+                                        {isLoading ? (
+                                            <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-white/30" />
+                                            </div>
+                                        ) : section.items.length === 0 ? (
+                                            <div className="px-3 py-2 text-[11px] text-white/40 italic">Aucun element dans cette categorie.</div>
+                                        ) : (
+                                            section.items.map((perso) => (
+                                                <button
+                                                    key={perso.id}
+                                                    type="button"
+                                                    onClick={() => onSelect(perso.id, section.key)}
+                                                    className={`w-full text-left rounded-xl px-3 py-2.5 border transition-colors ${
+                                                        selectedId === perso.id
+                                                            ? section.key === "pj"
+                                                                ? "bg-[#29206A]/50 border-[#E3CCCD]/30 text-white"
+                                                                : "bg-sky-500/14 border-sky-500/30 text-white"
+                                                            : "bg-white/4 border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+                                                    }`}
+                                                >
+                                                    <span className="flex items-center gap-2.5">
+                                                        <span className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-white/15 bg-white/5 flex items-center justify-center">
+                                                            {perso.image_url
+                                                                ? <img src={perso.image_url} alt={perso.name} className="w-full h-full object-cover" />
+                                                                : <User className="w-3.5 h-3.5 text-white/35" />}
+                                                        </span>
+                                                        <span className="min-w-0 flex-1">
+                                                            <span className="block text-[12px] leading-snug line-clamp-2">{perso.name}</span>
+                                                            {(perso.stats?.sexe || perso.stats?.age) && (
+                                                                <span className="block text-[10px] text-white/40 mt-0.5">
+                                                                    {[perso.stats.sexe, perso.stats.age].filter(Boolean).join(" · ")}
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                        {section.key === "pnj" && perso.stats?.is_combatant && (
+                                                            <Sword className="w-3 h-3 text-red-400/80 shrink-0" />
+                                                        )}
+                                                    </span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
                                 </div>
-                                {(perso.stats?.sexe || perso.stats?.age) && (
-                                    <p className="text-[11px] text-white/35 wrap-break-word min-w-0 mt-0.5">
-                                        {[perso.stats.sexe, perso.stats.age].filter(Boolean).join(" · ")}
-                                    </p>
-                                )}
                             </div>
-                        </button>
-                    ))
-                )}
+                        </div>
+                    );
+                })}
             </div>
 
-            {/* FOOTER : BOUTONS D'ACTION */}
-                        <div className="p-4 space-y-3 shrink-0 bg-black/20 border-t border-white/10 backdrop-blur-md">
-                {!readOnly && (
-                  <button
-                    onClick={handleCreate}
-                                        className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl border transition-all text-[12px] font-bold uppercase tracking-wider ${
-                        activeTab === "pj"
-                        ? "bg-[#E3CCCD]/10 border-[#E3CCCD]/25 text-[#E3CCCD]/80 hover:bg-[#E3CCCD]/20 hover:text-[#E3CCCD]"
-                        : "bg-sky-500/10 border-sky-500/25 text-sky-400/80 hover:bg-sky-500/20 hover:text-sky-400"
-                    }`}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Créer un {activeTab === "pj" ? "PJ" : "PNJ"}
-                  </button>
-                )}
-                {onBack && (
+            <div className="px-4 pb-4 space-y-2">
+                {!readOnly && openSection && (
                     <button
-                        onClick={onBack}
-                        className="w-full flex items-center justify-start px-3 gap-3 py-2 text-white/60 hover:text-white text-[13px] transition-colors"
+                        type="button"
+                        onClick={() => handleCreateForSection(openSection)}
+                        className="w-full h-10 rounded-xl border border-[#E3CCCD]/35 bg-[#29206A]/55 text-white text-[12px] font-medium hover:bg-[#29206A]/70 transition-colors flex items-center justify-center gap-2"
                     >
-                        <ArrowLeft className="w-4 h-4" /> Retour
+                        <UserPlus className="w-3.5 h-3.5" />
+                        Ajouter
+                    </button>
+                )}
+                {!mobileSummary && onBack && (
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        className="w-full h-9 rounded-lg border border-white/15 text-white/70 hover:text-white hover:bg-white/10 transition-colors text-[11px] flex items-center justify-center gap-2"
+                    >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        Retour
                     </button>
                 )}
             </div>

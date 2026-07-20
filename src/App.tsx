@@ -134,7 +134,7 @@ function App() {
           />
         )}
 
-        <main className={`flex-1 overflow-hidden flex flex-col ${isMobile && shouldShowNav ? "pb-24" : ""}`}>
+        <main className={`flex-1 overflow-hidden flex flex-col ${isMobile && shouldShowNav ? "pb-19" : ""}`}>
           {!session ? (
             <Login />
           ) : (
@@ -189,6 +189,7 @@ function App() {
                 path="/compendium"
                 element={
                   <Compendium
+                    key="global-compendium"
                     readOnly={!isGlobalEditor}
                     onBack={() => navigate("/")}
                   />
@@ -198,6 +199,7 @@ function App() {
                 path="/bestiaire"
                 element={
                   <Compendium
+                    key="global-bestiaire"
                     readOnly={!isGlobalEditor}
                     mode="bestiaire"
                     onBack={() => navigate("/")}
@@ -219,6 +221,7 @@ function App() {
                 path="/campaign/compendium"
                 element={
                   <Compendium
+                    key={`campaign-compendium-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
                     readOnly={!canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
@@ -229,6 +232,7 @@ function App() {
                 path="/campaign/bestiaire"
                 element={
                   <Compendium
+                    key={`campaign-bestiaire-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
                     readOnly={!canManageActiveCampaign}
                     mode="bestiaire"
@@ -291,6 +295,11 @@ function App() {
             navigate("/");
           }}
           showBackToLobbyButton={isCampaignRoute}
+          onGoHome={() => {
+            setActiveCampaign(null);
+            navigate("/");
+          }}
+          showHomeButton={!isCampaignRoute}
           onGoToCampaignDashboard={() => {
             if (isCampaignRoute) navigate("/campaign");
           }}

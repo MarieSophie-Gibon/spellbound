@@ -22,6 +22,7 @@ import {
   Package,
   Maximize2,
   Minimize2,
+  PawPrint,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -29,6 +30,7 @@ import { PvBadge } from "@/components/ui/PvBadge";
 import { VoieBlock } from "@/components/ui/VoieBlock";
 import { CombatStatCard } from "@/components/ui/CombatStatCard";
 import { EditNumField } from "@/components/ui/EditNumField";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 // Imports des sous-composants
 import InventoryTab from "@/components/personnage/InventoryTab";
@@ -120,6 +122,7 @@ export function PersonnageDetail({
   onDeleteClick,
   onEditSuccess,
 }: PersonnageDetailProps) {
+  const isMobile = useIsMobile();
   const [voieDetails, setVoieDetails] = useState<VoieDetail[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -457,8 +460,28 @@ export function PersonnageDetail({
   }, 0);
   const pointsRemaining = 2 - pointsSpent;
 
+  const mobileNavItems: Array<{
+    key: "stats" | "inventory" | "lore" | "familiers";
+    label: string;
+    icon: typeof Shield;
+  }> = [];
+
+  if (!isNonCombatantPNJ) {
+    mobileNavItems.push(
+      { key: "stats", label: "Technique", icon: Shield },
+      { key: "inventory", label: "Equipement", icon: Package },
+    );
+
+    if (!technicalSheetOnly) {
+      mobileNavItems.push(
+        { key: "lore", label: type === "pnj" ? "Description" : "Lore", icon: BookOpen },
+        { key: "familiers", label: "Familiers", icon: PawPrint },
+      );
+    }
+  }
+
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0 p-3 md:p-5 pb-24 md:pb-5 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative">
+    <div className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
       {isLevelingUp && !readOnly && !technicalSheetOnly && (
         <LevelUpOverlay
@@ -474,10 +497,36 @@ export function PersonnageDetail({
         />
       )}
 
+      {mobileNavItems.length > 0 && (
+        <div className="md:hidden sticky top-0 z-20 mb-3">
+          <div className={`grid gap-1 rounded-xl border border-[#E3CCCD]/20 bg-[#1E1941]/85 backdrop-blur-xl p-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.35)] ${mobileNavItems.length >= 4 ? "grid-cols-4" : "grid-cols-2"}`}>
+            {mobileNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveTab(item.key)}
+                  className={`h-10 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 ${
+                    isActive
+                      ? "bg-[#29206A]/45 text-[#EFDCC8] border border-[#E3CCCD]/35"
+                      : "text-white/55 border border-transparent"
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* HEADER BAR */}
-      <div className="flex flex-col mb-4 shrink-0 gap-4 mt-1">
+      <div className={`flex flex-col mb-4 shrink-0 gap-3 ${isMobile ? "rounded-xl border border-[#E3CCCD]/16 bg-[#1E1941]/38 backdrop-blur-md p-2" : "gap-4 mt-1"}`}>
         {/* Titre et Boutons d'édition */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-1 gap-2">
+        <div className={`flex justify-between px-1 gap-2 ${isMobile ? "items-start" : "flex-col sm:flex-row sm:items-center"}`}>
           <div className="flex items-center sm:items-baseline flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
             {isEditing ? (
               <>
@@ -506,7 +555,7 @@ export function PersonnageDetail({
               </>
             ) : (
               <>
-                <h1 className="font-serif text-2xl sm:text-3xl text-white tracking-wider truncate">
+                <h1 className={`font-serif text-white tracking-wider truncate ${isMobile ? "text-xl" : "text-2xl sm:text-3xl"}`}>
                   {pj.name}
                 </h1>
                 {!isNonCombatantPNJ && (
@@ -526,7 +575,7 @@ export function PersonnageDetail({
               </>
             )}
           </div>
-          <div className="self-end sm:self-auto flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1 backdrop-blur-md shadow-xl shrink-0">
+          <div className={`${isMobile ? "self-auto w-auto" : "self-end sm:self-auto"} flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1 backdrop-blur-md shadow-xl shrink-0`}>
             {showFullscreenToggle && (
               <>
                 <button
@@ -1244,60 +1293,6 @@ export function PersonnageDetail({
         )}
       </div>
 
-      {!isNonCombatantPNJ && (
-        <div className="md:hidden sticky bottom-0 mt-4 -mx-3 px-3 pb-3 z-20 bg-linear-to-t from-[#100c2f] via-[#100c2f]/92 to-transparent">
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-[#E3CCCD]/20 bg-[#1E1941]/85 backdrop-blur-xl p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)]">
-            <button
-              onClick={() => setActiveTab("stats")}
-              className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
-                activeTab === "stats"
-                  ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
-                  : "text-white/55 border border-transparent"
-              }`}
-            >
-              Technique
-            </button>
-            <button
-              onClick={() => setActiveTab("inventory")}
-              className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
-                activeTab === "inventory"
-                  ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
-                  : "text-white/55 border border-transparent"
-              }`}
-            >
-              Equipement
-            </button>
-            {!technicalSheetOnly ? (
-              <>
-                <button
-                  onClick={() => setActiveTab("lore")}
-                  className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
-                    activeTab === "lore"
-                      ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
-                      : "text-white/55 border border-transparent"
-                  }`}
-                >
-                  {type === "pnj" ? "Description" : "Lore"}
-                </button>
-                <button
-                  onClick={() => setActiveTab("familiers")}
-                  className={`h-11 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all ${
-                    activeTab === "familiers"
-                      ? "bg-[#E3CCCD]/18 text-[#E3CCCD] border border-[#E3CCCD]/35"
-                      : "text-white/55 border border-transparent"
-                  }`}
-                >
-                  Familiers
-                </button>
-              </>
-            ) : (
-              <div className="h-11 rounded-xl border border-white/8 flex items-center justify-center text-[10px] uppercase tracking-widest text-white/35">
-                Acces technique
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
