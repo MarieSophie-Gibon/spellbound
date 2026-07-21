@@ -32,7 +32,7 @@ import { VoieBlock } from "@/components/ui/VoieBlock";
 import { EditNumField } from "@/components/ui/EditNumField";
 
 import InventoryTabMobile from "@/components/personnage/InventoryTabMobile";
-import LoreTab from "@/components/personnage/LoreTab";
+import LoreTabMobile from "@/components/personnage/LoreTabMobile";
 import LevelUpOverlayMobile from "@/components/personnage/LevelUpOverlayMobile";
 import FamilierTab from "@/components/personnage/FamilierTab";
 import VoieEditModal from "@/components/personnage/VoieEditModal";
@@ -156,9 +156,6 @@ export function PersonnageDetailMobile({
   const [editPc, setEditPc] = useState(0);
   const [editPm, setEditPm] = useState(0);
 
-  const [editIdeal, setEditIdeal] = useState("");
-  const [editTravers, setEditTravers] = useState("");
-  const [editHistorique, setEditHistorique] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [showPvModal, setShowPvModal] = useState(false);
@@ -260,9 +257,6 @@ export function PersonnageDetailMobile({
     setEditDrDe(pj.stats?.dr_de ?? "d6");
     setEditPc(pj.stats?.pc ?? 0);
     setEditPm(pj.stats?.pm ?? 0);
-    setEditIdeal(pj.stats?.ideal ?? "");
-    setEditTravers(pj.stats?.travers ?? "");
-    setEditHistorique(pj.stats?.historique ?? "");
     setEditDescription(pj.stats?.description ?? "");
     setEditNotes(pj.stats?.notes ?? "");
     setIsEditing(false);
@@ -1373,19 +1367,12 @@ export function PersonnageDetailMobile({
               </div>
             </div>
           ) : (
-            <LoreTab
+            <LoreTabMobile
+              pjId={pj.id}
+              type={type}
               stats={pj.stats}
-              isEditing={isEditing}
-              editSexe={editSexe}
-              setEditSexe={setEditSexe}
-              editAge={editAge}
-              setEditAge={setEditAge}
-              editIdeal={editIdeal}
-              setEditIdeal={setEditIdeal}
-              editTravers={editTravers}
-              setEditTravers={setEditTravers}
-              editHistorique={editHistorique}
-              setEditHistorique={setEditHistorique}
+              readOnly={readOnly}
+              onSaved={onEditSuccess}
             />
           ))}
 
