@@ -36,6 +36,8 @@ interface VoieEditModalProps {
   allVoies: VoieDetail[];
   onSaved: () => void;
   onClose: () => void;
+  /** Desktop mode: position absolute inside article container instead of fixed fullscreen */
+  positionAbsolute?: boolean;
 }
 
 const MAGE_VOIE_ID = "81bff689-433b-4de1-9146-7c70ab428614";
@@ -139,6 +141,7 @@ export default function VoieEditModal({
   allVoies,
   onSaved,
   onClose,
+  positionAbsolute = false,
 }: VoieEditModalProps) {
   const [editablePathways, setEditablePathways] = useState<EditablePathway[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -365,7 +368,7 @@ export default function VoieEditModal({
   }, [editablePathways, pj.pathways]);
 
   return (
-    <div className="fixed inset-0 z-9999 bg-linear-to-b from-[#3A2F72]/90 to-[#201A47]/88 backdrop-blur-lg flex flex-col animate-in fade-in">
+    <div className={`${positionAbsolute ? "absolute inset-0 z-50" : "fixed inset-0 z-9999"} bg-linear-to-b from-[#3A2F72]/90 to-[#201A47]/88 backdrop-blur-lg flex flex-col animate-in fade-in`}>
       {/* ── En-tête ── */}
       <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/16 bg-white/8 shrink-0">
         <div>

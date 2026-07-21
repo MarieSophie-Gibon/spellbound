@@ -483,7 +483,7 @@ export function PersonnageDetail({
   }
 
   return (
-    <div className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
+    <div className={`flex-1 flex flex-col h-full min-h-0 scrollbar-thin scrollbar-thumb-white/10 relative ${isEditingVoies ? "overflow-hidden" : "overflow-y-auto"} ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
       {isEditingVoies && !readOnly && (
         <VoieEditModal
@@ -493,6 +493,7 @@ export function PersonnageDetail({
           allVoies={allVoies}
           onSaved={onEditSuccess}
           onClose={() => setIsEditingVoies(false)}
+          positionAbsolute
         />
       )}
 
