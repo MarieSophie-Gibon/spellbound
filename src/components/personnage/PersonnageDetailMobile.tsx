@@ -31,7 +31,7 @@ import { MagicCard } from "@/components/ui/MagicCard";
 import { VoieBlock } from "@/components/ui/VoieBlock";
 import { EditNumField } from "@/components/ui/EditNumField";
 
-import InventoryTab from "@/components/personnage/InventoryTab";
+import InventoryTabMobile from "@/components/personnage/InventoryTabMobile";
 import LoreTab from "@/components/personnage/LoreTab";
 import LevelUpOverlayMobile from "@/components/personnage/LevelUpOverlayMobile";
 import FamilierTab from "@/components/personnage/FamilierTab";
@@ -1248,7 +1248,7 @@ export function PersonnageDetailMobile({
 
         {/* ONGLET 2 : INVENTAIRE */}
         {!isNonCombatantPNJ && activeTab === "inventory" && (
-          <InventoryTab
+          <InventoryTabMobile
             pjId={type === "pj" ? pj.id : ""}
             pnjId={type === "pnj" ? pj.id : null}
             profilId={

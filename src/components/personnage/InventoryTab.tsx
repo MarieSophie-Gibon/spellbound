@@ -96,7 +96,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
       try {
         const { data } = await supabase.from(tableMap[formData.item_type]).select("*").order("nom");
         setCompendiumItems(data || []);
-      } catch (e) {
+      } catch {
         setCompendiumItems([]);
       }
       setIsFetchingCompendium(false);
