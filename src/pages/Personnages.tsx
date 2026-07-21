@@ -139,10 +139,10 @@ export function Personnages({ campaignId, onBack: _onBack, isMJ = false }: Perso
     : pnjs.find(p => p.id === selectedId) ?? null;
 
   useEffect(() => {
-    if (!selectedCharacter && mobileView === "detail") {
+    if (!isLoading && !selectedCharacter && mobileView === "detail") {
       setMobileView("list");
     }
-  }, [selectedCharacter, mobileView]);
+  }, [isLoading, selectedCharacter, mobileView]);
 
   // Read-only: players can edit only their own PJ (explicit user_id match required).
   // Any falsy value (no user assigned, no session) → read-only for players.
@@ -164,7 +164,11 @@ export function Personnages({ campaignId, onBack: _onBack, isMJ = false }: Perso
   // Auto-select PJ from URL param (e.g. coming from PJList banner)
   useEffect(() => {
     const pjId = searchParams.get("pjId");
-    if (pjId) { setSelectedId(pjId); setSelectedType("pj"); }
+    if (pjId) {
+      setSelectedId(pjId);
+      setSelectedType("pj");
+      setMobileView("detail");
+    }
   }, [searchParams]);
 
   const handleDelete = async () => {

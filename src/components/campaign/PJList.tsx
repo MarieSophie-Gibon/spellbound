@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Peuple } from '@/types/compendium';
 import { fetchPlayers } from '@/hooks/usePJs';
 import { supabase } from '@/lib/supabase';
-import { Lock, User } from 'lucide-react';
+import { Lock, Star, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -51,13 +51,10 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
   });
 
   if (isMobile) {
-    const mobileRibbonShape = "polygon(14px 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 14px 100%, 0 50%)";
-
     return (
-      <div className="flex flex-col gap-2 w-full">
+      <div className="flex flex-col gap-2.5 w-full">
         {sortedPjs.map((pj) => {
           const peuple = peuples.find((p) => p.id === pj.peuple_id);
-          const player = players.find((pl) => pl.id === pj.player_id);
 
           let profilId = pj.profils_id || pj.stats?.profils_id;
           if (!profilId && Array.isArray(pj.pathways)) {
@@ -74,46 +71,49 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
               key={pj.id}
               type="button"
               onClick={() => navigate(`/campaign/personnages?pjId=${pj.id}`)}
-              className={`relative w-full p-px text-left overflow-hidden transition-all ${
+              className={`group relative w-full text-left rounded-xl overflow-hidden border transition-all ${
                 canAccess
-                  ? 'bg-white/75 hover:bg-white'
-                  : 'bg-white/40 opacity-85'
+                  ? 'border-white/28 bg-[#4A4588]/52 hover:border-[#E3CCCD]/55 hover:bg-[#59529A]/58'
+                  : 'border-white/18 bg-[#45407B]/42 opacity-90'
               }`}
-              style={{ clipPath: mobileRibbonShape, WebkitClipPath: mobileRibbonShape }}
             >
-              <div
-                className="relative w-full bg-[#1E1941]/92"
-                style={{ clipPath: mobileRibbonShape, WebkitClipPath: mobileRibbonShape }}
-              >
-                <div className="absolute inset-0 z-0">
-                  <img src={pj.image_url || '/default-avatar.png'} alt={pj.name} className="w-full h-full object-cover" style={{ objectPosition: 'center 18%' }} />
+              <div className="absolute inset-0 z-0">
+                <img
+                  src={pj.image_url || '/default-avatar.png'}
+                  alt={pj.name}
+                  className="w-full h-full object-cover opacity-72 group-hover:opacity-78 transition-opacity"
+                  style={{ objectPosition: 'center 20%' }}
+                />
+              </div>
+              <div className="absolute inset-0 z-10 bg-linear-to-r from-[#1E1941]/68 via-[#1E1941]/34 to-[#1E1941]/52" />
+
+              <div className="relative z-20 flex items-center gap-3 p-2">
+                <div className="w-12 h-12 rounded-md overflow-hidden border border-[#E3CCCD]/45 bg-white/18 shrink-0">
+                  <img
+                    src={pj.image_url || '/default-avatar.png'}
+                    alt={pj.name}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-                <div className="absolute inset-0 z-10 bg-linear-to-r from-[#1E1941]/95 via-[#1E1941]/70 to-[#1E1941]/85" />
 
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rotate-45 bg-white/70" />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rotate-45 bg-white/70" />
-
-                <div className="relative z-20 flex items-center gap-3 px-4 py-2.5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="font-serif text-[14px] text-white truncate">{pj.name}</h4>
-                      {isOwnPJ && (
-                        <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-[#E3CCCD]/35 bg-[#E3CCCD]/15 text-[#E3CCCD] uppercase tracking-[0.08em]">Associe</span>
-                      )}
-                    </div>
-                    <p className="text-[9px] text-[#E3CCCD]/80 uppercase tracking-[0.14em] truncate mt-0.5">{peuple?.nom || 'Inconnu'}</p>
-                    <p className="text-[10px] text-white/75 truncate">{profil?.nom || 'Profil'}</p>
-                    <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-black/25 px-2 py-0.5 max-w-full">
-                      <User className="w-2.5 h-2.5 text-[#E3CCCD] shrink-0" />
-                      <span className="text-[8px] text-white/80 truncate">{player?.pseudo || 'Joueur'}</span>
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 justify-between">
+                    <h4 className="font-serif text-[14px] text-white truncate">{pj.name}</h4>
+                    {isOwnPJ && (
+                      <Star className="w-3 h-3 text-[#E3CCCD]" />
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 min-w-0 text-[10px]">
+                    <span className="uppercase tracking-[0.12em] text-[#E3CCCD]/85 truncate">{peuple?.nom || 'Inconnu'}</span>
+                    <span className="text-white/45">•</span>
+                    <span className="text-white/92 truncate">{profil?.nom || 'Profil'}</span>
                   </div>
                 </div>
               </div>
 
               {!canAccess && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/35">
-                  <Lock className="w-4 h-4 text-white/45" />
+                <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/32">
+                  <Lock className="w-4 h-4 text-white" />
                 </div>
               )}
             </button>

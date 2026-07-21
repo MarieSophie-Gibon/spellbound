@@ -69,11 +69,11 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
           </div>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="p-2 space-y-2">
           {createdAt && (
             <div className="flex items-center gap-2 text-white/45">
               <CalendarDays className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[11px]">Creee le {createdAt}</span>
+              <span className="text-[11px]">Créée le {createdAt}</span>
             </div>
           )}
 
@@ -167,7 +167,7 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
         </section>
       )}
 
-      <section>        
+      <section >
         <div className="space-y-2">
           <PJList campaignId={campaign.id} isMJ={isMJ} />
         </div>
