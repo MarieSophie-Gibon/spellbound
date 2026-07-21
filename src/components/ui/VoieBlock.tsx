@@ -47,9 +47,6 @@ export function VoieBlock({ voieNom, capacites, rangsAcquis, defaultOpen }: Voie
                         {rang.type}
                       </span>
                     )}
-                    {isAcquired && (
-                      <span className="ml-auto text-[10px] text-emerald-400/70 font-medium">✓ Acquis</span>
-                    )}
                   </div>
                   <p className="font-light text-white/80 leading-relaxed">{rang.description}</p>
                 </div>

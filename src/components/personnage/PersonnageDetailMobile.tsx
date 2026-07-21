@@ -33,7 +33,7 @@ import { EditNumField } from "@/components/ui/EditNumField";
 
 import InventoryTab from "@/components/personnage/InventoryTab";
 import LoreTab from "@/components/personnage/LoreTab";
-import LevelUpOverlay from "@/components/personnage/LevelUpOverlay";
+import LevelUpOverlayMobile from "@/components/personnage/LevelUpOverlayMobile";
 import FamilierTab from "@/components/personnage/FamilierTab";
 import VoieEditModal from "@/components/personnage/VoieEditModal";
 
@@ -366,6 +366,31 @@ export function PersonnageDetailMobile({
     }
   };
 
+  const handleLongRest = async () => {
+    if (!pj) return;
+    const currentStats = pj.stats ?? {};
+    const pvMax = Math.max(
+      Number(currentStats.pv_max ?? 0),
+      Number(currentStats.pv ?? 0),
+    );
+    const pcMax = Math.max(
+      Number(currentStats.pc_max ?? currentStats.pc ?? 0),
+      Number(currentStats.pc ?? 0),
+    );
+    const pmMax = Number(currentStats.pm_max ?? currentStats.pm ?? 0);
+
+    await saveQuickStats({
+      pv: pvMax,
+      pc: pcMax,
+      pm: pmMax,
+      pc_max: pcMax,
+    });
+
+    if (restToastTimer.current) clearTimeout(restToastTimer.current);
+    setShowRestToast(true);
+    restToastTimer.current = setTimeout(() => setShowRestToast(false), 2500);
+  };
+
   const handleSaveLevelUp = async () => {
     if (!pj) return;
     setIsInlineSaving(true);
@@ -516,8 +541,8 @@ export function PersonnageDetailMobile({
       )}
 
       {/* OVERLAY DE NIVEAU */}
-      {isLevelingUp && !readOnly && !technicalSheetOnly && (
-        <LevelUpOverlay
+      {isLevelingUp && !readOnly && !technicalSheetOnly && createPortal(
+        <LevelUpOverlayMobile
           pj={pj}
           targetLevel={targetLevel}
           pointsRemaining={pointsRemaining}
@@ -527,7 +552,8 @@ export function PersonnageDetailMobile({
           allVoies={allVoies}
           handleSaveLevelUp={handleSaveLevelUp}
           setIsLevelingUp={setIsLevelingUp}
-        />
+        />,
+        document.body,
       )}
 
       {/* NAV MOBILE */}
@@ -559,8 +585,8 @@ export function PersonnageDetailMobile({
       )}
 
       {/* HEADER */}
-      <div className="flex flex-col mb-2 shrink-0 gap-1 rounded-xl border border-[#E3CCCD]/30 bg-linear-to-r from-[#E3CCCD]/20 via-[#CDB7E3]/16 to-[#E3CCCD]/14 backdrop-blur-md p-2">
-        <div className="flex justify-between px-1 gap-2 items-center">
+      <div className="relative z-40 flex flex-col mb-1 shrink-0 gap-0.5 rounded-lg border border-[#E3CCCD]/28 bg-linear-to-r from-[#E3CCCD]/20 via-[#CDB7E3]/16 to-[#E3CCCD]/14 backdrop-blur-md p-1.5">
+        <div className="flex justify-between px-0.5 gap-1 items-center">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {isEditingName ? (
               <>
@@ -569,22 +595,22 @@ export function PersonnageDetailMobile({
                   onChange={(e) => setEditNameDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setIsEditingName(false); }}
                   autoFocus
-                  className="font-serif text-xl text-white tracking-wider bg-transparent border-b border-[#E3CCCD]/60 outline-none focus:border-[#E3CCCD] w-full"
+                  className="font-serif text-lg text-white tracking-wide bg-transparent border-b border-[#E3CCCD]/60 outline-none focus:border-[#E3CCCD] w-full"
                 />
                 <button onClick={() => setIsEditingName(false)} className="p-1 text-white/50 hover:text-white shrink-0">
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                 </button>
                 <button onClick={handleSaveName} disabled={isInlineSaving} className="p-1 text-emerald-400 hover:text-emerald-300 shrink-0 disabled:opacity-50">
-                  <Save className="w-3.5 h-3.5" />
+                  <Save className="w-3 h-3" />
                 </button>
               </>
             ) : (
               <>
-                <h1 className="font-serif text-xl text-white tracking-wider truncate">
+                <h1 className="font-serif text-lg text-white tracking-wide truncate">
                   {pj.name}
                 </h1>
                 {!isNonCombatantPNJ && (
-                  <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-2 py-0.5 shrink-0">
+                  <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/70 border border-[#E3CCCD]/30 rounded-full px-1.5 py-0 shrink-0">
                     Niv. {currentLevel}
                   </span>
                 )}
@@ -596,27 +622,27 @@ export function PersonnageDetailMobile({
             {showFullscreenToggle && (
               <button
                 onClick={onToggleFullscreen}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                 title="Retour à la liste"
               >
-                <Package className="w-4 h-4" />
+                <Package className="w-3.5 h-3.5" />
               </button>
             )}
 
             {!readOnly && (
-              <div className="relative" ref={headerMenuRef}>
+              <div className="relative z-50" ref={headerMenuRef}>
                 <button
                   onClick={() => setShowHeaderMenu((v) => !v)}
-                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                  className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                   aria-label="Options"
                 >
-                  <MoreHorizontal className="w-4 h-4" />
+                  <MoreHorizontal className="w-3.5 h-3.5" />
                 </button>
 
                 {showHeaderMenu && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowHeaderMenu(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-50 w-52 rounded-xl border border-[#E3CCCD]/25 bg-[#1E1941]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+                    <div className="fixed inset-0 z-50" onClick={() => setShowHeaderMenu(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-9999 w-52 rounded-xl border border-[#E3CCCD]/25 bg-[#1E1941]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
                       <button
                         onClick={() => {
                           setEditNameDraft(pj.name);
@@ -628,6 +654,18 @@ export function PersonnageDetailMobile({
                         <Pencil className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
                         Éditer le nom
                       </button>
+                      {type === "pj" && canQuickEdit && (
+                        <button
+                          onClick={async () => {
+                            setShowHeaderMenu(false);
+                            await handleLongRest();
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-emerald-300/90 hover:bg-emerald-400/10 transition-colors text-left border-t border-white/8"
+                        >
+                          <RefreshCw className="w-4 h-4 shrink-0" />
+                          Repos long
+                        </button>
+                      )}
                       {!isNonCombatantPNJ && !technicalSheetOnly && (
                         <button
                           onClick={() => {
@@ -650,6 +688,14 @@ export function PersonnageDetailMobile({
                         <Trash2 className="w-4 h-4 shrink-0" />
                         Supprimer
                       </button>
+                      {type === "pj" && (
+                        <div className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-[#E3CCCD]/80 border-t border-white/8 bg-white/5">
+                          <User className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
+                          <span className="truncate">
+                            Joueur: {assignedPlayer?.pseudo ?? "Non assigné"}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -658,42 +704,34 @@ export function PersonnageDetailMobile({
           </div>
         </div>
 
-        {type === "pj" && (
-          <div>
-            {isEditing ? (
-              <div className="max-w-sm space-y-1.5">
-                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
-                  Joueur rattaché
-                </label>
-                <select
-                  value={editUserId}
-                  onChange={(e) => setEditUserId(e.target.value)}
-                  className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+        {type === "pj" && isEditing && (
+          <div className="max-w-sm space-y-1">
+            <label className="text-[9px] uppercase tracking-[0.12em] text-white/60">
+              Joueur rattaché
+            </label>
+            <select
+              value={editUserId}
+              onChange={(e) => setEditUserId(e.target.value)}
+              className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-lg px-3 py-1.5 text-white text-xs outline-none transition-colors appearance-none cursor-pointer"
+            >
+              <option value="" className="bg-[#1E1941] text-white/50">
+                — Aucun joueur assigné —
+              </option>
+              {players.map((p) => (
+                <option
+                  key={p.id}
+                  value={p.id}
+                  className="bg-[#1E1941] text-white"
                 >
-                  <option value="" className="bg-[#1E1941] text-white/50">
-                    — Aucun joueur assigné —
-                  </option>
-                  {players.map((p) => (
-                    <option
-                      key={p.id}
-                      value={p.id}
-                      className="bg-[#1E1941] text-white"
-                    >
-                      {p.pseudo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <p className="text-[8.5px] text-[#E3CCCD]/60 uppercase tracking-widest">
-                Joueur : {assignedPlayer?.pseudo ?? "Non assigné"}
-              </p>
-            )}
+                  {p.pseudo}
+                </option>
+              ))}
+            </select>
           </div>
         )}
       </div>
 
-      <div className="space-y-4 flex-1">
+      <div className="relative z-0 space-y-4 flex-1">
 
         {/* ========================================================= */}
         {/* VUE UNIQUE : PNJ NON COMBATTANT                           */}
@@ -847,10 +885,11 @@ export function PersonnageDetailMobile({
             {/* Card gauche + infos droite */}
             <div className="flex gap-2 items-stretch animate-in fade-in duration-200 mb-2">
               {/* LEFT : carte image */}
-              <div className="relative shrink-0 self-stretch">
+              <div className="relative shrink-0 self-start w-35 h-55">
                 <MagicCard
                   imageUrl={displayImageUrl}
                   size="fluid"
+                  className="w-full! h-full!"
                 />
                 {canQuickEdit && (
                   <>
@@ -860,8 +899,8 @@ export function PersonnageDetailMobile({
                       className="absolute inset-0 z-10 rounded-lg border border-transparent hover:border-[#E3CCCD]/40 bg-black/0 hover:bg-black/35 transition-all"
                       aria-label="Modifier l'image"
                     />
-                    <div className="absolute bottom-2 right-2 z-20 pointer-events-none rounded-md bg-black/55 border border-white/20 px-2 py-1 text-[9px] text-white/90 uppercase tracking-wider">
-                      Image
+                    <div className="absolute bottom-1 right-1 z-20 pointer-events-none rounded-xl bg-black/55 px-1.5 py-1.5">
+                      <Pencil className="w-3 h-3" />
                     </div>
                     <input
                       ref={quickImageInputRef}
@@ -996,30 +1035,6 @@ export function PersonnageDetailMobile({
                         </div>
                       </button>
 
-                      {canQuickEdit && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const currentStats = pj.stats ?? {};
-                            const pvMax = Math.max(Number(currentStats.pv_max ?? 0), Number(currentStats.pv ?? 0));
-                            const pcMax = Math.max(Number(currentStats.pc_max ?? currentStats.pc ?? 0), Number(currentStats.pc ?? 0));
-                            const pmMax = Number(currentStats.pm_max ?? currentStats.pm ?? 0);
-                            await saveQuickStats({
-                              pv: pvMax,
-                              pc: pcMax,
-                              pm: pmMax,
-                              pc_max: pcMax,
-                            });
-                            if (restToastTimer.current) clearTimeout(restToastTimer.current);
-                            setShowRestToast(true);
-                            restToastTimer.current = setTimeout(() => setShowRestToast(false), 2500);
-                          }}
-                          disabled={isInlineSaving}
-                          className="h-7 rounded-lg border border-emerald-300/35 bg-emerald-400/10 text-emerald-200 text-[9px] uppercase tracking-widest font-bold hover:bg-emerald-400/20 transition-colors disabled:opacity-60"
-                        >
-                          Repos long
-                        </button>
-                      )}
                       {/* PC + PM */}
                       <div className="flex items-stretch gap-1.5">
                         <button

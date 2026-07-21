@@ -27,7 +27,7 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
   return (
     <div 
       onClick={onClick}
-      className={`relative ${cardSizeClass} rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_20px_40px_rgba(55,42,132,0.6)] ${className ?? ''}`}
+      className={`relative ${cardSizeClass} rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_10px_30px_rgba(55,42,132,0.6)] ${className ?? ''}`}
     >
       {/* Inner clipped layers */}
       <div className="absolute inset-0 rounded-lg overflow-hidden">
