@@ -75,7 +75,7 @@ function DeleteCharacterModal({
   );
 }
 
-export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesProps) {
+export function Personnages({ campaignId, onBack: _onBack, isMJ = false }: PersonnagesProps) {
   const [searchParams] = useSearchParams();
   const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const [pjs, setPjs] = useState<Character[]>([]);

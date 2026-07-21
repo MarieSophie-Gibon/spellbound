@@ -57,7 +57,6 @@ function SmoothPanel({ open, children }: { open: boolean; children: React.ReactN
 }
 
 export function CompendiumMobile({
-  title,
   sections,
   showListInView,
   readOnly,

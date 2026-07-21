@@ -13,7 +13,6 @@ import { PeupleWizard } from "@/components/compendium/peuple/PeupleWizard";
 import { FamilleWizard } from "@/components/compendium/famille/FamilleWizard";
 import { ProfilWizard } from "@/components/compendium/profil/ProfilWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
-import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
 import { MonsterDetailMobile } from "@/components/compendium/bestiaire/MonsterDetailMobile";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
