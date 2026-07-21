@@ -21,6 +21,8 @@ interface Character {
   name: string;
   image_url: string | null;
   user_id?: string | null;
+  profil_id?: string | null;
+  profils_id?: string | null;
   stats: any;
   pathways: any;
   inventory: any;
@@ -96,12 +98,32 @@ export function Personnages({ campaignId, onBack: _onBack, isMJ = false }: Perso
   // Récupère les PJ ET les PNJ
   const fetchData = useCallback(async () => {
     const [pjRes, pnjRes] = await Promise.all([
-      supabase.from("pj").select("id, name, image_url, user_id, stats, pathways, inventory").eq("campaign_id", campaignId).order("name"),
-      supabase.from("pnj").select("id, name, image_url, stats, pathways, inventory").eq("campaign_id", campaignId).order("name")
+      supabase
+        .from("pj")
+        .select("id, name, image_url, user_id, profils_id, stats, pathways, inventory")
+        .eq("campaign_id", campaignId)
+        .order("name"),
+      supabase
+        .from("pnj")
+        .select("id, name, image_url, stats, pathways, inventory")
+        .eq("campaign_id", campaignId)
+        .order("name"),
     ]);
-    
-    if (pjRes.data) setPjs(pjRes.data);
-    if (pnjRes.data) setPnjs(pnjRes.data);
+
+    if (pjRes.error) {
+      console.error("Erreur fetch PJ:", pjRes.error.message);
+      setPjs([]);
+    } else if (pjRes.data) {
+      setPjs(pjRes.data as Character[]);
+    }
+
+    if (pnjRes.error) {
+      console.error("Erreur fetch PNJ:", pnjRes.error.message);
+      setPnjs([]);
+    } else if (pnjRes.data) {
+      setPnjs(pnjRes.data as Character[]);
+    }
+
     setIsLoading(false);
   }, [campaignId]);
 

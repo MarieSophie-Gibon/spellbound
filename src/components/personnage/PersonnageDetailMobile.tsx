@@ -35,6 +35,7 @@ import InventoryTab from "@/components/personnage/InventoryTab";
 import LoreTab from "@/components/personnage/LoreTab";
 import LevelUpOverlay from "@/components/personnage/LevelUpOverlay";
 import FamilierTab from "@/components/personnage/FamilierTab";
+import VoieEditModal from "@/components/personnage/VoieEditModal";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];
@@ -130,6 +131,7 @@ export function PersonnageDetailMobile({
   >("stats");
 
   const [isLevelingUp, setIsLevelingUp] = useState(false);
+  const [isEditingVoies, setIsEditingVoies] = useState(false);
   const [pendingRanks, setPendingRanks] = useState<
     { voie_id: string; rang: number }[]
   >([]);
@@ -209,7 +211,7 @@ export function PersonnageDetailMobile({
   }, [pj?.id, pj?.pathways]);
 
   useEffect(() => {
-    if (isLevelingUp) {
+    if (isLevelingUp || isEditingVoies) {
       supabase
         .from("voies")
         .select("id, nom, type, peuple_id, profil_id, capacites")
@@ -218,7 +220,7 @@ export function PersonnageDetailMobile({
           if (data) setAllVoies(data as VoieDetail[]);
         });
     }
-  }, [isLevelingUp]);
+  }, [isLevelingUp, isEditingVoies]);
 
   useEffect(() => {
     if (type !== "pj") return;
@@ -501,6 +503,18 @@ export function PersonnageDetailMobile({
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative p-2 pb-5">
+      {isEditingVoies && !readOnly && createPortal(
+        <VoieEditModal
+          pj={pj}
+          type={type}
+          voieDetails={voieDetails}
+          allVoies={allVoies}
+          onSaved={onEditSuccess}
+          onClose={() => setIsEditingVoies(false)}
+        />,
+        document.body,
+      )}
+
       {/* OVERLAY DE NIVEAU */}
       {isLevelingUp && !readOnly && !technicalSheetOnly && (
         <LevelUpOverlay
@@ -836,7 +850,6 @@ export function PersonnageDetailMobile({
               <div className="relative shrink-0 self-stretch">
                 <MagicCard
                   imageUrl={displayImageUrl}
-                  title={pj.name}
                   size="fluid"
                 />
                 {canQuickEdit && (
@@ -1173,6 +1186,21 @@ export function PersonnageDetailMobile({
             {/* Voies */}
             {pj.pathways?.length > 0 && (
               <div className="space-y-2 mt-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">
+                    Voies
+                  </span>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingVoies(true)}
+                      className="flex items-center gap-1 text-[8px] uppercase tracking-widest font-bold px-2 py-0.5 rounded-lg border border-[#E3CCCD]/25 text-white/45 hover:text-white/75 hover:bg-white/5 transition-colors"
+                    >
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      Modifier
+                    </button>
+                  )}
+                </div>
                 {(pj.pathways as any[]).map((pathway, i) => {
                   const voie = voieDetails.find((v) => v.id === pathway.voie_id);
                   const maxRang = Math.max(...(pathway.rangs_acquis || [1]));

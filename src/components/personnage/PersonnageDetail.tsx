@@ -37,6 +37,7 @@ import InventoryTab from "@/components/personnage/InventoryTab";
 import LoreTab from "@/components/personnage/LoreTab";
 import LevelUpOverlay from "@/components/personnage/LevelUpOverlay";
 import FamilierTab from "@/components/personnage/FamilierTab";
+import VoieEditModal from "@/components/personnage/VoieEditModal";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];
@@ -133,6 +134,7 @@ export function PersonnageDetail({
 
   // Level Up States
   const [isLevelingUp, setIsLevelingUp] = useState(false);
+  const [isEditingVoies, setIsEditingVoies] = useState(false);
   const [pendingRanks, setPendingRanks] = useState<{ voie_id: string; rang: number }[]>([]);
   const [allVoies, setAllVoies] = useState<VoieDetail[]>([]);
 
@@ -187,7 +189,7 @@ export function PersonnageDetail({
   }, [pj?.id, pj?.pathways]);
 
   useEffect(() => {
-    if (isLevelingUp) {
+    if (isLevelingUp || isEditingVoies) {
       supabase
         .from("voies")
         .select("id, nom, type, peuple_id, profil_id, capacites")
@@ -196,7 +198,7 @@ export function PersonnageDetail({
           if (data) setAllVoies(data as VoieDetail[]);
         });
     }
-  }, [isLevelingUp]);
+  }, [isLevelingUp, isEditingVoies]);
 
   useEffect(() => {
     if (type !== "pj") return;
@@ -483,6 +485,17 @@ export function PersonnageDetail({
   return (
     <div className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
+      {isEditingVoies && !readOnly && (
+        <VoieEditModal
+          pj={pj}
+          type={type}
+          voieDetails={voieDetails}
+          allVoies={allVoies}
+          onSaved={onEditSuccess}
+          onClose={() => setIsEditingVoies(false)}
+        />
+      )}
+
       {isLevelingUp && !readOnly && !technicalSheetOnly && (
         <LevelUpOverlay
           pj={pj}
@@ -1133,9 +1146,21 @@ export function PersonnageDetail({
             {/* Voies actives */}
             {pj.pathways?.length > 0 && (
               <div className="space-y-2 mt-2">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
-                  Voies Apprises
-                </p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50">
+                    Voies Apprises
+                  </p>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingVoies(true)}
+                      className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded-lg border border-[#E3CCCD]/25 text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Modifier
+                    </button>
+                  )}
+                </div>
                 {(pj.pathways as any[]).map((pathway, i) => {
                   const voie = voieDetails.find(
                     (v) => v.id === pathway.voie_id,
