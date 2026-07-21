@@ -1,5 +1,6 @@
 import { Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
 import type { Famille, FamilleArchetype, FamilleVoie } from "@/types/compendium";
+import { MagicCard } from "@/components/ui/MagicCard";
 
 interface ProfilDetailMobileProps {
   profil: Famille;
@@ -72,7 +73,20 @@ export function ProfilDetailMobile({
 
       <div className="space-y-3 flex-1">
         <div className="flex gap-3 items-start">
-          <ProfilCardMobile profil={profil} />
+          <div className="h-66 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
+      {profil.image_url ? (
+        <MagicCard
+          imageUrl={profil.image_url}
+          title={profil.nom}
+          size="fluid"
+          className="w-full! h-full!"
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+          <ImageIcon className="w-10 h-10 text-white/10" />
+        </div>
+      )}
+    </div>
 
           {quickStats.length > 0 && (
             <div className="flex-1 min-h-[13.6rem] max-h-[13.6rem] overflow-y-auto border border-dashed border-[#E3CCCD]/25 rounded-2xl p-2 text-[11px] text-white/90 space-y-1.5">
@@ -181,40 +195,6 @@ export function ProfilDetailMobile({
   );
 }
 
-function ProfilCardMobile({ profil }: { profil: Famille }) {
-  return (
-    <div className="w-36 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
-      {profil.image_url ? (
-        <img
-          src={profil.image_url}
-          alt={profil.nom}
-          className="absolute inset-0 w-full h-full object-cover opacity-90"
-        />
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-          <ImageIcon className="w-10 h-10 text-white/10" />
-        </div>
-      )}
-      <div
-        className="absolute inset-0 z-10 pointer-events-none"
-        style={{
-          background:
-            "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)",
-        }}
-      />
-      <img
-        src="/card-overlay.svg"
-        alt=""
-        className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80"
-      />
-      <div className="absolute bottom-5 inset-x-0 z-30 pb-4 text-center">
-        <h3 className="font-serif text-base text-white tracking-widest">
-          {profil.nom}
-        </h3>
-      </div>
-    </div>
-  );
-}
 
 function CompactStatRow({ label, value }: { label: string; value: string }) {
   return (

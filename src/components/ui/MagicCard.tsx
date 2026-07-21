@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Pencil, Trash2, Copy, LogOut } from 'lucide-react'
-import { theme } from '@/lib/theme'
 
 interface MagicCardProps {
   title?: ReactNode
@@ -23,6 +22,9 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
   const cardSizeClass = isFluid ? 'w-35 h-full' : isCompact ? 'w-48 h-72' : 'w-60 h-95'
   const titleClass = (isCompact || isFluid) ? 'text-lg' : 'text-xl'
   const contentPositionClass = (isCompact || isFluid) ? 'bottom-4 left-3 right-3' : 'bottom-10 left-8 right-8'
+  const softerGradientCard = {
+    background: 'linear-gradient(to bottom, rgba(255,255,255,0) 20%, rgba(62,50,126,0.18) 48%, rgba(34,26,84,0.34) 68%, rgba(18,13,49,0.58) 100%)'
+  }
 
   return (
     <div 
@@ -33,12 +35,12 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
       <div className="absolute inset-0 rounded-lg overflow-hidden">
         {/* Layer 1: Background Image */}
         <div 
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105" 
+          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
           style={{ backgroundImage: `url('${bgImage}')` }} 
         />
         
-        {/* Layer 2: Gradient sombre */}
-        <div className="absolute inset-0" style={theme.gradientCard} />
+        {/* Layer 2: Gradient atténué pour mieux révéler l'image */}
+        <div className="absolute inset-0" style={softerGradientCard} />
 
         {/* Layer 3: Overlay SVG (Le cadre) */}
         <div 
@@ -87,7 +89,7 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
         {/* Layer 4: Contenu */}
         <div className={`absolute ${contentPositionClass} flex flex-col justify-end`}>
           {title && (
-            <h3 className={`${titleClass} font-serif text-white leading-snug tracking-wideb text-center`}>
+            <h3 className={`${titleClass} font-serif text-white leading-snug tracking-wideb text-center drop-shadow-[0_2px_8px_rgba(0,0,0,0.65)]`}>
               {title}
             </h3>
           )}
