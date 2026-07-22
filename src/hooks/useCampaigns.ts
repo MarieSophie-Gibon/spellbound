@@ -30,11 +30,6 @@ function createInviteCode(length = 8): string {
   return code
 }
 
-function isMobileReadOnlyViewport(breakpoint = 1024): boolean {
-  if (typeof window === 'undefined') return false
-  return window.innerWidth < breakpoint
-}
-
 export function useCampaigns(role?: 'mj' | 'player') {
   return useQuery({
     queryKey: ['campaigns', role],

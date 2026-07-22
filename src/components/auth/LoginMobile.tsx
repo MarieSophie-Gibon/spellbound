@@ -243,7 +243,7 @@ export function LoginMobile({
             <Button
               type="submit"
               variant="outline"
-              className="w-full h-11 bg-white/5 border-white/25 hover:bg-white/20 text-white text-[12px] font-medium tracking-[0.1em] uppercase rounded-xl"
+              className="w-full h-11 bg-white/5 border-white/25 hover:bg-white/20 text-white text-[12px] font-medium tracking-widest uppercase rounded-xl"
               disabled={loading || (mode === "forgot" && cooldownSeconds > 0)}
             >
               <Zap className="w-4 h-4 mr-2" />

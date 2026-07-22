@@ -4,7 +4,7 @@ import { Pencil, Trash2, Copy, LogOut } from 'lucide-react'
 interface MagicCardProps {
   title?: ReactNode
   imageUrl?: string | null
-  size?: 'default' | 'compact' | 'fluid'
+  size?: 'default' | 'compact' | 'fluid' | 'medium'
   onClick?: () => void
   children?: ReactNode
   badge?: ReactNode
@@ -19,9 +19,10 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
   const bgImage = imageUrl || '/default-bg.jpg'
   const isCompact = size === 'compact'
   const isFluid = size === 'fluid'
-  const cardSizeClass = isFluid ? 'w-35 h-full' : isCompact ? 'w-48 h-72' : 'w-60 h-95'
-  const titleClass = (isCompact || isFluid) ? 'text-lg' : 'text-xl'
-  const contentPositionClass = (isCompact || isFluid) ? 'bottom-4 left-3 right-3' : 'bottom-10 left-8 right-8'
+  const isMedium = size === 'medium'
+  const cardSizeClass = isFluid ? 'w-35 h-full' : isCompact ? 'w-48 h-72' : isMedium ? 'w-56 h-80' : 'w-60 h-95'
+  const titleClass = (isCompact || isFluid) ? 'text-md' : isMedium ? 'text-lg' : 'text-lg'
+  const contentPositionClass = (isCompact || isFluid) ? 'bottom-8 left-3 right-3' : isMedium ? 'bottom-8 left-6 right-6' : 'bottom-10 left-8 right-8'
   const softerGradientCard = {
     background: 'linear-gradient(to bottom, rgba(255,255,255,0) 20%, rgba(62,50,126,0.18) 48%, rgba(34,26,84,0.34) 68%, rgba(18,13,49,0.58) 100%)'
   }

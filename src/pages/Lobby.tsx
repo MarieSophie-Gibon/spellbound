@@ -5,6 +5,7 @@ import { MagicCard } from "@/components/ui/MagicCard";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { Loader2, Copy, Ticket } from "lucide-react";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -55,13 +56,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-indigo-400" />
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingScreen />;
 
   return (
     <>

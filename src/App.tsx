@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Copy, Loader2 } from "lucide-react";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { useProfile } from "@/hooks/useProfile";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -55,7 +56,7 @@ function App() {
   if (isBattlemapRoute) return <PlayerView />;
 
   // Redirect to login if not authenticated
-  if (isLoading) return <div className="min-h-screen bg-slate-950" />;
+  if (isLoading) return <LoadingScreen />;
 
   // Determine active tab from route
   // Détermine les onglets visibles selon la route

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2, CheckCircle2 } from "lucide-react";
 
 interface Chapitre {
@@ -89,7 +88,7 @@ export function ScenarioSidebar({
                       }`}
                     />
                     <BookOpen className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
-                    <span className="text-[13px] font-medium text-white/80 break-words min-w-0">
+                    <span className="text-[13px] font-medium text-white/80 wrap-break-word min-w-0">
                       {scenario.title}
                     </span>
                   </div>
@@ -134,7 +133,7 @@ export function ScenarioSidebar({
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
-                            <span className={`break-words min-w-0 ${chapitre.completed ? "line-through text-white/30" : ""}`}>{chapitre.title}</span>
+                            <span className={`wrap-break-word min-w-0 ${chapitre.completed ? "line-through text-white/30" : ""}`}>{chapitre.title}</span>
                           </div>
                           
                           <div className="flex items-center gap-0.5 shrink-0">

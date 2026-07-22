@@ -1,13 +1,13 @@
-import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
 import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch } from "lucide-react";
-import { PJList } from "@/components/campaign/PJList";
 import { CampaignHomeMobile } from "@/components/campaign/CampaignHomeMobile";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { MagicCard } from "@/components/ui/MagicCard";
 
 interface CampaignProps {
     campaign: Campaign;
@@ -17,7 +17,6 @@ export function CampaignHome({ campaign }: CampaignProps) {
     const isMobile = useIsMobile();
     const role = useAuthStore((s) => s.role);
     const isMJ = role === "mj";
-    const bgImage = campaign.image_url || '/default-bg.jpg';
     const { data: progress } = useCampaignProgress(campaign.id);
     const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
     const createInvitation = useCreateCampaignInvitation();
@@ -72,27 +71,17 @@ export function CampaignHome({ campaign }: CampaignProps) {
             {/* Campaign card + stats — top right */}
             <div className="absolute top-6 right-8 flex flex-col gap-3 w-56">
                 {/* Card */}
-                <div className="relative w-56 h-80 rounded-xl overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.5)] group">
-                    <div
-                        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                        style={{ backgroundImage: `url('${bgImage}')` }}
-                    />
-                    <div className="absolute inset-0" style={theme.gradientCard} />
-                    <div
-                        className="absolute inset-0 bg-cover bg-center pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity"
-                        style={{ backgroundImage: "url('/card-overlay.svg')" }}
-                    />
-                    <div className="absolute bottom-8 left-6 right-6 flex flex-col gap-1.5">
-                        <h2 className="text-lg font-serif text-white leading-snug tracking-wide">
-                            {campaign.nom}
-                        </h2>
-                        {campaign.description && (
-                            <p className="text-[11px] text-white/60 leading-relaxed">
-                                {campaign.description}
-                            </p>
-                        )}
-                    </div>
-                </div>
+                <MagicCard
+                    size="medium"
+                    imageUrl={campaign.image_url}
+                    title={campaign.nom}
+                >
+                    {campaign.description && (
+                        <p className="text-[11px] text-white/80 leading-relaxed px-2">
+                            {campaign.description}
+                        </p>
+                    )}
+                </MagicCard>
 
                 {/* Stats block */}
                 <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
