@@ -46,10 +46,16 @@ export function MonsterDetailMobile({
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 p-3 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
-      {/* Actions */}
-      {hasActions && (
-        <div className="flex items-center justify-end border-b border-[#E3CCCD]/20 pb-3 mb-3 shrink-0">
-          <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[#E3CCCD]/20 pb-3 mb-3 shrink-0">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <h1 className="font-serif text-2xl text-white tracking-wider truncate">{monstre.nom}</h1>
+          <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/50 border border-[#E3CCCD]/20 rounded-full px-2.5 py-0.5 shrink-0">
+            {monstre.type_creature}
+          </span>
+        </div>
+        {hasActions && (
+          <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl shrink-0">
             <button
               onClick={onEdit}
               className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
@@ -63,8 +69,8 @@ export function MonsterDetailMobile({
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="space-y-3 flex-1">
         {/* Carte + stats rapides */}

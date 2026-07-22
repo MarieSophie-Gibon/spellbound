@@ -82,6 +82,7 @@ function App() {
       if (!isMobile && canManageActiveCampaign) campaignTabs.splice(3, 0, "scenarios"); // Owner seulement (desktop)
       return campaignTabs;
     }
+    if (isLobbyRoute) return ["grimoire", "compendium"];
     return ["grimoire", "compendium", "bestiaire"];
   };
 

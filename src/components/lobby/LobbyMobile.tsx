@@ -424,7 +424,7 @@ export function LobbyMobile({
         <button
           type="button"
           onClick={() => setIsJoinOpen(true)}
-          className="w-full h-11 rounded-2xl border border-white/20 bg-[#1a1640]/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.10)] text-amber-100 flex items-center justify-center gap-2 hover:bg-[#1a1640]/75 hover:border-white/30 transition-all duration-200"
+          className="w-full h-11 rounded-xl border border-white/20 bg-[#1a1640]/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.10)] text-amber-100 flex items-center justify-center gap-2 hover:bg-[#1a1640]/75 hover:border-white/30 transition-all duration-200"
         >
           <Ticket className="w-4 h-4 drop-shadow-sm" />
           <span className="text-[12px] font-semibold tracking-wide drop-shadow-sm">Invitation</span>

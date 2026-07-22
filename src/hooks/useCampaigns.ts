@@ -264,16 +264,46 @@ export function useLeaveCampaign() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Utilisateur non connecté')
 
-      const { error } = await supabase
-        .from('campaign_members')
+      // Supprimer les PJ liés à ce joueur (nouveau + ancien schéma)
+      const { error: pjErrorByUserId } = await supabase
+        .from('pj')
         .delete()
         .eq('campaign_id', campaignId)
         .eq('user_id', user.id)
 
+      if (pjErrorByUserId) throw pjErrorByUserId
+
+      const { error: pjErrorByPlayerId } = await supabase
+        .from('pj')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .eq('player_id', user.id)
+
+      if (pjErrorByPlayerId) throw pjErrorByPlayerId
+
+      // Supprimer la membership
+      const { data: removedMembers, error } = await supabase
+        .from('campaign_members')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .eq('user_id', user.id)
+        .select('campaign_id')
+
       if (error) throw error
+
+      // Si aucune ligne n'a été supprimée, on évite un faux positif UI.
+      if (!removedMembers || removedMembers.length === 0) {
+        throw new Error('Impossible de quitter cette campagne (membre introuvable).')
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_data, campaignId) => {
+      // Retirer la campagne du cache immédiatement pour toutes les variantes de clé.
+      queryClient.setQueriesData<unknown[]>({ queryKey: ['campaigns'] }, (old) =>
+        Array.isArray(old) ? old.filter((c: any) => c.id !== campaignId) : old
+      )
+
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+      queryClient.invalidateQueries({ queryKey: ['pjs', campaignId] })
     }
   })
 }
