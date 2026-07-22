@@ -190,6 +190,20 @@ export function PersonnageDetailMobile({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameDraft, setEditNameDraft] = useState("");
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignUserId, setAssignUserId] = useState("");
+
+  // Fermer le header menu si clic en dehors
+  useEffect(() => {
+    if (!showHeaderMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setShowHeaderMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showHeaderMenu]);
 
   useEffect(() => {
     if (!pj?.pathways?.length) {
@@ -521,7 +535,7 @@ export function PersonnageDetailMobile({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative p-2 pb-5">
+    <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative p-2 pb-5 [scrollbar-gutter:stable]">
       {isEditingVoies && !readOnly && createPortal(
         <VoieEditModal
           pj={pj}
@@ -635,7 +649,6 @@ export function PersonnageDetailMobile({
 
                 {showHeaderMenu && (
                   <>
-                    <div className="fixed inset-0 z-50" onClick={() => setShowHeaderMenu(false)} />
                     <div className="absolute right-0 top-full mt-1 z-9999 w-52 rounded-xl border border-[#E3CCCD]/25 bg-[#1E1941]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
                       <button
                         onClick={() => {
@@ -682,7 +695,20 @@ export function PersonnageDetailMobile({
                         <Trash2 className="w-4 h-4 shrink-0" />
                         Supprimer
                       </button>
-                      {type === "pj" && (
+                      {type === "pj" && isMJ && (
+                        <button
+                          onClick={() => {
+                            setAssignUserId(pj.user_id ?? "");
+                            setShowHeaderMenu(false);
+                            setShowAssignModal(true);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-[#E3CCCD]/80 hover:bg-white/10 transition-colors text-left border-t border-white/8"
+                        >
+                          <User className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
+                          Assigner un joueur
+                        </button>
+                      )}
+                      {type === "pj" && !isMJ && (
                         <div className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] text-[#E3CCCD]/80 border-t border-white/8 bg-white/5">
                           <User className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
                           <span className="truncate">
@@ -1696,6 +1722,74 @@ export function PersonnageDetailMobile({
                   setShowPvModal(false);
                 }}
                 className="flex-2 py-2.5 rounded-xl border border-emerald-400/40 bg-emerald-400/20 text-emerald-100 text-[12px] font-semibold hover:bg-emerald-400/30 transition-colors disabled:opacity-60"
+              >
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL ASSIGNATION JOUEUR */}
+      {showAssignModal && isMJ && type === "pj" && createPortal(
+        <div className="fixed inset-0 z-9999 bg-black/60 backdrop-blur-sm flex items-end justify-center p-4 pb-8" onClick={() => setShowAssignModal(false)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-[#E3CCCD]/20 shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden"
+            style={{ background: "linear-gradient(160deg,rgba(30,25,65,0.97) 0%,rgba(36,27,89,0.97) 100%)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-white/8">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-[#E3CCCD]/70" />
+                <span className="text-sm font-semibold text-white tracking-wide">Assigner un joueur</span>
+              </div>
+              <button onClick={() => setShowAssignModal(false)} className="p-1 text-white/40 hover:text-white rounded-full">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/50">
+                Joueur rattaché à {pj.name}
+              </p>
+              <select
+                value={assignUserId}
+                onChange={(e) => setAssignUserId(e.target.value)}
+                className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+              >
+                <option value="" className="bg-[#1E1941] text-white/50">— Aucun joueur assigné —</option>
+                {players.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">
+                    {p.pseudo}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 px-4 pb-4">
+              <button
+                type="button"
+                onClick={() => setShowAssignModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-white/20 text-white/60 text-[12px] font-semibold hover:bg-white/8 transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={isInlineSaving}
+                onClick={async () => {
+                  if (!pj) return;
+                  setIsInlineSaving(true);
+                  try {
+                    await supabase.from("pj").update({ user_id: assignUserId || null }).eq("id", pj.id);
+                    setShowAssignModal(false);
+                    onEditSuccess();
+                  } catch (err: any) {
+                    alert(err.message || "Erreur lors de l'assignation");
+                  } finally {
+                    setIsInlineSaving(false);
+                  }
+                }}
+                className="flex-2 py-2.5 rounded-xl border border-[#E3CCCD]/30 bg-[#E3CCCD]/15 text-[#E3CCCD] text-[12px] font-semibold hover:bg-[#E3CCCD]/25 transition-colors disabled:opacity-60"
               >
                 Sauvegarder
               </button>
