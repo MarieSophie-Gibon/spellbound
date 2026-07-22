@@ -51,13 +51,17 @@ export function LoginMobile({
   clearMessages,
 }: LoginMobileProps) {
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-6 pb-8">
-      <div className="mx-auto w-full max-w-md">
-        <div className="rounded-3xl border border-white/10 bg-[#1E1941]/70 backdrop-blur-xl p-4 shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-          <div className="mb-4 px-1">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/60">Spellbound</p>
-            <h1 className="font-serif text-2xl text-white">Connexion</h1>
-            <p className="text-[12px] text-white/45 mt-1">Version mobile optimisee pour un usage tactile.</p>
+    <div className="flex-1 min-h-0 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm">
+        {/* Glass card */}
+        <div className="rounded-2xl border border-[#F0EAD6]/22 bg-[#1a1640]/60 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.55),inset_0_0_0_1px_rgba(240,234,214,0.10)] p-5">
+          <div className="flex items-center justify-center mb-2">
+            {/* Logo */}
+            <img
+              src="/spellbound.svg"
+              alt="Spellbound"
+              className="h-20 w-auto"
+            />
           </div>
 
           <form onSubmit={onSubmit} className="space-y-4">
@@ -80,7 +84,7 @@ export function LoginMobile({
                   setMode("login");
                   clearMessages();
                 }}
-                className={`h-10 rounded-lg text-[11px] uppercase tracking-wider transition-colors ${
+                className={`rounded-lg text-[10px] uppercase tracking-wider transition-colors ${
                   mode === "login" || mode === "forgot" || mode === "reset"
                     ? "bg-white/15 text-white"
                     : "text-white/50"
@@ -148,9 +152,17 @@ export function LoginMobile({
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="px-3 py-3 text-slate-300"
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                aria-label={
+                  showPassword
+                    ? "Masquer le mot de passe"
+                    : "Afficher le mot de passe"
+                }
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
 
@@ -171,9 +183,17 @@ export function LoginMobile({
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="px-3 py-3 text-slate-300"
-                  aria-label={showConfirmPassword ? "Masquer la confirmation du mot de passe" : "Afficher la confirmation du mot de passe"}
+                  aria-label={
+                    showConfirmPassword
+                      ? "Masquer la confirmation du mot de passe"
+                      : "Afficher la confirmation du mot de passe"
+                  }
                 >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             )}
@@ -234,7 +254,9 @@ export function LoginMobile({
                   : mode === "signup"
                     ? "Inscription"
                     : mode === "forgot"
-                      ? (cooldownSeconds > 0 ? `Attendre ${cooldownSeconds}s` : "Envoyer le lien")
+                      ? cooldownSeconds > 0
+                        ? `Attendre ${cooldownSeconds}s`
+                        : "Envoyer le lien"
                       : "Reinitialiser"}
             </Button>
           </form>
