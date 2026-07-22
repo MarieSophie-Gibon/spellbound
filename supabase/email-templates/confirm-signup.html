@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Confirme ton compte – Spellbound</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0714;font-family:'Georgia',serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0714;padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <img src="https://ton-app.vercel.app/logo-circle.svg"
+                   alt="Spellbound"
+                   width="96" height="96"
+                   style="display:block;filter:drop-shadow(0 0 16px rgba(180,120,255,0.7));" />
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:40px 36px;">
+
+              <p style="margin:0 0 8px;font-size:11px;letter-spacing:4px;text-transform:uppercase;color:rgba(200,150,255,0.7);">Bienvenue</p>
+              <h1 style="margin:0 0 20px;font-size:26px;color:#f0e6ff;font-weight:normal;line-height:1.3;">
+                Confirme ton compte
+              </h1>
+              <p style="margin:0 0 32px;font-size:14px;color:rgba(240,230,255,0.6);line-height:1.7;">
+                Ton aventure commence ici. Clique sur le bouton ci-dessous pour activer ton compte Spellbound et rejoindre la table.
+              </p>
+
+              <!-- CTA Button -->
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto 32px;">
+                <tr>
+                  <td align="center" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);border-radius:10px;padding:1px;">
+                    <a href="{{ .ConfirmationURL }}"
+                       style="display:block;padding:14px 36px;background:linear-gradient(135deg,#6d28d9,#4338ca);border-radius:9px;color:#fff;font-size:14px;text-decoration:none;letter-spacing:1px;font-family:Georgia,serif;">
+                      Confirmer mon compte
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:11px;color:rgba(240,230,255,0.3);text-align:center;line-height:1.6;">
+                Ce lien expire dans 24h.<br/>
+                Si tu n'as pas créé de compte, ignore cet email.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.2);letter-spacing:2px;text-transform:uppercase;">
+                Spellbound · TTRPG
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
