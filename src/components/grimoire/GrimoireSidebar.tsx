@@ -20,6 +20,7 @@ interface GrimoireSidebarProps {
   draggedItem: DraggedItem;
   dragOverTarget: string | null;
   readOnly?: boolean;
+  canCreate?: boolean;
   onSelectPage: (id: string) => void;
   onCreatePage: () => void;
   onBack: () => void;
@@ -32,7 +33,7 @@ interface GrimoireSidebarProps {
 
 export function GrimoireSidebar({
   pages, categories, selectedPageId, expandedCats, draggedItem, dragOverTarget,
-  readOnly, onSelectPage, onCreatePage, onBack, onToggleCat,
+  readOnly, canCreate, onSelectPage, onCreatePage, onBack, onToggleCat,
   onDragStart, onDragOver, onDragEnd, onDrop,
 }: GrimoireSidebarProps) {
   const mainCategories = categories
@@ -169,7 +170,7 @@ export function GrimoireSidebar({
       </div>
 
       <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5">
-        {!readOnly && (
+        {(canCreate ?? !readOnly) && (
           <button
             onClick={onCreatePage}
             className="w-full flex items-center justify-start px-4 gap-3 py-2.5 rounded-xl border border-[#E3CCCD]/30 bg-[#29206A]/40 text-white hover:bg-white/10 text-[13px] transition-all shadow-lg"

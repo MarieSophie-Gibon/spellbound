@@ -118,7 +118,7 @@ function App() {
         <div className="absolute inset-0 backdrop-blur-md" />
         <div className="absolute inset-0 bg-[#d9d9d9]/20 mix-blend-overlay" />
         <div
-          className="absolute inset-0 bg-cover lg:bg-contain bg-right pointer-events-none opacity-80 bg-no-repeat"
+          className="absolute inset-0 overlay-bg pointer-events-none opacity-80 bg-no-repeat"
           style={{ backgroundImage: "url('/overlay.svg')" }}
         />
       </div>

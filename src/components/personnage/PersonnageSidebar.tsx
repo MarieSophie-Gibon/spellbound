@@ -22,6 +22,7 @@ interface PersonnageSidebarProps {
     onCreateClick?: () => void; // Fallback (ancienne prop)
     onBack?: () => void;
     readOnly?: boolean;
+    canCreateOwnPJ?: boolean;
     mobileSummary?: boolean;
 }
 
@@ -36,6 +37,7 @@ export function PersonnageSidebar({
     onCreateClick, 
     onBack,
     readOnly,
+    canCreateOwnPJ,
     mobileSummary = false,
 }: PersonnageSidebarProps) {
     const [query, setQuery] = useState("");
@@ -180,7 +182,7 @@ export function PersonnageSidebar({
 
             {!mobileSummary && (
             <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5">
-                {!readOnly && openSection && (
+                {(!readOnly || (canCreateOwnPJ && openSection === 'pj')) && openSection && (
                     <button
                         type="button"
                         onClick={() => handleCreateForSection(openSection)}

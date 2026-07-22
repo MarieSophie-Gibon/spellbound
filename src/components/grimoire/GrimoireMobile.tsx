@@ -9,6 +9,7 @@ interface GrimoireMobileProps {
   expandedCats: Record<string, boolean>;
   showArticleListInView?: boolean;
   readOnly?: boolean;
+  canCreate?: boolean;
   onSelectPage: (id: string) => void;
   onBackToArticleList: () => void;
   onCreatePage: () => void;
@@ -31,6 +32,7 @@ export function GrimoireMobile({
   expandedCats,
   showArticleListInView,
   readOnly,
+  canCreate,
   onSelectPage,
   onBackToArticleList,
   onCreatePage,
@@ -336,7 +338,7 @@ export function GrimoireMobile({
               </div>
 
               <div className="relative z-10 shrink-0 pl-5 pr-3 py-3 border-t border-[#E3CCCD]/18 bg-black/8 space-y-2">
-                {!readOnly && (
+                {(canCreate ?? !readOnly) && (
                   <button
                     type="button"
                     onClick={() => {

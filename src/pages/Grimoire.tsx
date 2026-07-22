@@ -20,6 +20,7 @@ interface GrimoireProps {
 
 export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false }: GrimoireProps) {
   const isMobile = useIsMobile();
+  const [userId, setUserId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [editingPageData, setEditingPageData] = useState<InitialPageData | null>(null);
   const [pages, setPages] = useState<WikiPage[]>([]);
@@ -28,6 +29,10 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+
+  // PJs peuvent créer/éditer leurs propres articles dans une campagne
+  const canCreatePage = !readOnly || (!isGlobal && !!campaignId);
+  const canEditPage = (page: WikiPage) => !readOnly || (!isGlobal && page.created_by === userId);
   const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
@@ -48,6 +53,10 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
     const { data: pagesData } = await query;
     if (pagesData) setPages(pagesData);
   };
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+  }, []);
 
   useEffect(() => { fetchData(); }, [isGlobal, campaignId]);
 
@@ -170,7 +179,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
       expandedCats={expandedCats}
       draggedItem={draggedItem}
       dragOverTarget={dragOverTarget}
-      readOnly={readOnly}
+      canCreate={canCreatePage}
       onSelectPage={(id) => { handleCancel(); setSelectedPageId(id); }}
       onCreatePage={() => { handleCancel(); setIsCreating(true); setSelectedPageId(null); }}
       onBack={onBack}
@@ -182,13 +191,14 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
     />
   ) : undefined;
 
-  const content = isCreating && !readOnly ? (
+  const content = isCreating && canCreatePage ? (
     <PageEditor
       initialData={editingPageData ?? undefined}
       categories={categories}
       pages={pages}
       campaignId={campaignId}
       isGlobal={isGlobal}
+      isMJ={!readOnly}
       onSaveSuccess={handleSaveSuccess}
       onCancel={handleCancel}
       onCategoriesChanged={fetchData}
@@ -198,7 +208,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
       page={selectedPage}
       isFullscreen={isFullscreen}
       hideFullscreenToggle={isMobile}
-      readOnly={readOnly}
+      readOnly={!canEditPage(selectedPage)}
       onEdit={handleEdit}
       onDelete={() => setDeleteTarget(selectedPageId!)}
       onToggleFullscreen={() => setIsFullscreen((f) => !f)}
@@ -236,6 +246,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
           selectedPageId={selectedPageId}
           expandedCats={expandedCats}
           showArticleListInView={!isCreating && !selectedPageId}
+          canCreate={canCreatePage}
           readOnly={readOnly}
           onSelectPage={(id) => {
             setIsCreating(false);

@@ -252,6 +252,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
               isLoading={isLoading}
               selectedId={selectedId}
               readOnly={!isMJ}
+              canCreateOwnPJ={!isMJ}
               onSelect={(id, type) => {
                 setSelectedId(id);
                 if (type) setSelectedType(type);
@@ -281,6 +282,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
       {showPJWizard && (
         <PJWizard
           campaignId={campaignId}
+          playerMode={!isMJ}
           onClose={() => setShowPJWizard(false)}
           onSuccess={() => { fetchData(); setShowPJWizard(false); }}
         />

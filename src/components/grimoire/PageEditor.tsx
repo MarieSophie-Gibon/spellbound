@@ -46,6 +46,7 @@ interface PageEditorProps {
   pages: WikiPage[];
   campaignId?: string;
   isGlobal: boolean;
+  isMJ?: boolean;
   onSaveSuccess: (expandCatId?: string, expandSubCatId?: string) => void;
   onCancel: () => void;
   onCategoriesChanged: () => void;
@@ -146,7 +147,7 @@ const ToolbarButton = ({ onClick, isActive, disabled, icon: Icon, title }: any) 
 // --- Main component ---
 
 export function PageEditor({
-  initialData, categories, pages, campaignId, isGlobal,
+  initialData, categories, pages, campaignId, isGlobal, isMJ,
   onSaveSuccess, onCancel, onCategoriesChanged,
 }: PageEditorProps) {
   const [title, setTitle] = useState(initialData?.title ?? "");
@@ -535,7 +536,7 @@ export function PageEditor({
           </div>
 
           <div className="flex justify-between items-center gap-3 shrink-0 pt-1">
-            {campaignId && (
+            {campaignId && isMJ && (
               <div className="flex items-center gap-2">
                 <input
                   id="page-private"

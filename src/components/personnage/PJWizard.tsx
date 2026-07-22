@@ -39,6 +39,7 @@ interface PJWizardProps {
   campaignId: string;
   onClose: () => void;
   onSuccess: () => void;
+  playerMode?: boolean; // true = création par le joueur lui-même
 }
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
@@ -109,9 +110,16 @@ function computeDerived(stats: StatsMap, famille: FamilleRef | null) {
 // Composant
 // ─────────────────────────────────────────────
 
-export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
+export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }: PJWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (playerMode) {
+      supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    }
+  }, [playerMode]);
 
   // ── Step 1 ──────────────────────────────────
   const [nom, setNom] = useState("");
@@ -465,7 +473,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
         .from("pj")
         .insert({
           campaign_id: campaignId,
-          user_id: selectedPlayerId || null,
+          user_id: playerMode ? currentUserId : (selectedPlayerId || null),
           name: nom.trim(),
           image_url: imageUrl,
           peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,
@@ -634,6 +642,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                   className="w-full bg-transparent border-b border-white/30 focus:border-[#E3CCCD]/80 py-2.5 text-white text-lg outline-none transition-colors placeholder:text-white/35"
                 />
               </div>
+              {!playerMode && (
               <div className="w-[30%] space-y-1.5">
                 <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
                   Joueur rattaché
@@ -657,6 +666,7 @@ export function PJWizard({ campaignId, onClose, onSuccess }: PJWizardProps) {
                   ))}
                 </select>
               </div>
+              )}
             </div>
 
             {/* Sexe & Âge */}
