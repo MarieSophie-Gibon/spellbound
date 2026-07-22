@@ -77,7 +77,7 @@ function DeleteCharacterModal({
   );
 }
 
-export function Personnages({ campaignId, onBack: _onBack, isMJ = false }: PersonnagesProps) {
+export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesProps) {
   const [searchParams] = useSearchParams();
   const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const [pjs, setPjs] = useState<Character[]>([]);
@@ -252,13 +252,13 @@ export function Personnages({ campaignId, onBack: _onBack, isMJ = false }: Perso
               isLoading={isLoading}
               selectedId={selectedId}
               readOnly={!isMJ}
-              mobileSummary={true}
               onSelect={(id, type) => {
                 setSelectedId(id);
                 if (type) setSelectedType(type);
               }}
               onCreatePJClick={() => setShowPJWizard(true)}
               onCreatePNJClick={() => setShowPNJWizard(true)}
+              onBack={onBack}
             />
           }
         >

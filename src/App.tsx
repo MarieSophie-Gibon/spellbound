@@ -28,6 +28,7 @@ function App() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const isBattlemapRoute = location.pathname === "/battlemap";
+  const isLobbyRoute = location.pathname === "/";
 
   const { session, isLoading, initializeAuth } = useAuthStore();
   const role = useAuthStore((s) => s.role);
@@ -77,7 +78,7 @@ function App() {
   const getTabs = () => {
     if (isCampaignRoute) {
       const campaignTabs = ["grimoire", "compendium", "bestiaire", "personnages"];
-      if (canManageActiveCampaign) campaignTabs.splice(3, 0, "scenarios"); // Owner seulement
+      if (!isMobile && canManageActiveCampaign) campaignTabs.splice(3, 0, "scenarios"); // Owner seulement (desktop)
       return campaignTabs;
     }
     return ["grimoire", "compendium", "bestiaire"];
@@ -134,7 +135,7 @@ function App() {
           />
         )}
 
-        <main className={`flex-1 overflow-hidden flex flex-col ${isMobile && shouldShowNav ? "pb-19" : ""}`}>
+        <main className={`flex-1 overflow-hidden flex flex-col ${isMobile && shouldShowNav && !isLobbyRoute ? "pb-19" : ""}`}>
           {!session ? (
             <Login />
           ) : (
@@ -180,7 +181,7 @@ function App() {
                 element={
                   <Grimoire
                     isGlobal={true}
-                    readOnly={!isGlobalEditor}
+                    readOnly={isMobile || !isGlobalEditor}
                     onBack={() => navigate("/")}
                   />
                 }
@@ -190,7 +191,7 @@ function App() {
                 element={
                   <Compendium
                     key="global-compendium"
-                    readOnly={!isGlobalEditor}
+                    readOnly={isMobile || !isGlobalEditor}
                     onBack={() => navigate("/")}
                   />
                 }
@@ -200,7 +201,7 @@ function App() {
                 element={
                   <Compendium
                     key="global-bestiaire"
-                    readOnly={!isGlobalEditor}
+                    readOnly={isMobile || !isGlobalEditor}
                     mode="bestiaire"
                     onBack={() => navigate("/")}
                   />
@@ -212,7 +213,7 @@ function App() {
                   <Grimoire
                     isGlobal={false}
                     campaignId={activeCampaign?.id}
-                    readOnly={!canManageActiveCampaign}
+                    readOnly={isMobile || !canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
                   />
                 }
@@ -223,7 +224,7 @@ function App() {
                   <Compendium
                     key={`campaign-compendium-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
-                    readOnly={!canManageActiveCampaign}
+                    readOnly={isMobile || !canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
                   />
                 }
@@ -234,7 +235,7 @@ function App() {
                   <Compendium
                     key={`campaign-bestiaire-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
-                    readOnly={!canManageActiveCampaign}
+                    readOnly={isMobile || !canManageActiveCampaign}
                     mode="bestiaire"
                     onBack={() => navigate("/campaign")}
                   />
@@ -246,6 +247,7 @@ function App() {
                 path="/campaign/scenarios"
                 element={
                   !activeCampaign ? <Navigate to="/" /> :
+                  isMobile ? <Navigate to="/campaign" /> :
                   !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
                     <Scenarios
                       campaignId={activeCampaign.id}
@@ -274,6 +276,7 @@ function App() {
                 path="/campaign/combat"
                 element={
                   !activeCampaign ? <Navigate to="/" /> :
+                  isMobile ? <Navigate to="/campaign" /> :
                   !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
                     <Combat campaignId={activeCampaign.id} />
                   )
@@ -286,7 +289,7 @@ function App() {
         </main>
       </div>
 
-      {isMobile && shouldShowNav && (
+      {isMobile && shouldShowNav && !isLobbyRoute && (
         <SideNavMobile
           activeTab={getActiveTab()}
           onTabChange={handleTabChange}

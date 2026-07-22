@@ -78,10 +78,10 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
           )}
 
           {(progress?.totalChapitres ?? 0) > 0 && (
-            <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/5 p-3">
+            <div className="space-y-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase tracking-widest text-white/45">Progression</span>
-                <span className="text-[11px] font-semibold text-white/70 tabular-nums">
+                <span className="text-[9px] uppercase tracking-widest text-white/45">Progression</span>
+                <span className="text-[10px] font-semibold text-white/70 tabular-nums">
                   {progress!.completedChapitres}/{progress!.totalChapitres}
                 </span>
               </div>
@@ -94,17 +94,14 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
                   }}
                 />
               </div>
-              <span className="text-[10px] text-white/35">
-                {progress!.totalScenarios} scenario{progress!.totalScenarios > 1 ? "s" : ""}
-              </span>
             </div>
           )}
 
           {isMJ && (
-            <div className="rounded-xl border border-amber-300/25 bg-amber-500/7 p-3 space-y-2.5">
-              <div className="flex items-center gap-2 text-amber-200/90">
-                <Ticket className="w-3.5 h-3.5" />
-                <span className="text-[10px] uppercase tracking-widest">Invitation joueurs</span>
+            <div className="rounded-lg border border-amber-300/25 bg-amber-500/7 px-2.5 py-2 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-amber-200/90">
+                <Ticket className="w-3 h-3" />
+                <span className="text-[9px] uppercase tracking-widest">Invitation joueurs</span>
               </div>
 
               <button
@@ -118,9 +115,9 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
                     }
                   );
                 }}
-                className="w-full h-9 rounded-lg border border-amber-200/20 bg-amber-400/10 hover:bg-amber-400/20 text-amber-100 text-[11px] transition-colors"
+                className="w-full h-7 rounded-md border border-amber-200/20 bg-amber-400/10 hover:bg-amber-400/20 text-amber-100 text-[10px] transition-colors"
               >
-                {createInvitation.isPending ? <Loader2 className="w-3.5 h-3.5 mx-auto animate-spin" /> : "Generer un code"}
+                {createInvitation.isPending ? <Loader2 className="w-3 h-3 mx-auto animate-spin" /> : "Generer un code"}
               </button>
 
               {inviteCode && (
@@ -130,13 +127,13 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
                     setCopied(true);
                     setTimeout(() => setCopied(false), 2000);
                   }}
-                  className={`w-full h-9 flex items-center justify-center gap-1.5 rounded-lg border text-[11px] transition-colors ${
+                  className={`w-full h-7 flex items-center justify-center gap-1.5 rounded-md border text-[10px] transition-colors ${
                     copied
                       ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
                       : "border-white/15 bg-white/5 hover:bg-white/10 text-white"
                   }`}
                 >
-                  {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                   {copied ? "Copie !" : inviteCode}
                 </button>
               )}

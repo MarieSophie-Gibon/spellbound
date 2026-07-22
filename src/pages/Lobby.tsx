@@ -21,6 +21,7 @@ interface LobbyProps {
 
 export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const isMobile = useIsMobile();
+  const isMobileReadOnly = isMobile;
   const session = useAuthStore((s) => s.session);
   const currentUserId = session?.user?.id;
   const { data: campaigns, isLoading } = useCampaigns();
@@ -87,20 +88,34 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         <LobbyMobile
           campaigns={[...(campaigns ?? [])].sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())}
           currentUserId={currentUserId}
+          readOnly={isMobileReadOnly}
           inviteCode={inviteCode}
           joinError={joinError}
           isJoining={joinByCode.isPending}
           onInviteCodeChange={setInviteCode}
           onJoin={handleJoinByCode}
           onSelectCampaign={onSelectCampaign}
-          onCreateCampaign={onCreateCampaign}
-          onEditCampaign={setEditingCampaign}
+          onCreateCampaign={() => {
+            if (isMobileReadOnly) return;
+            onCreateCampaign();
+          }}
+          onEditCampaign={(campaign) => {
+            if (isMobileReadOnly) return;
+            setEditingCampaign(campaign);
+          }}
           onDuplicateCampaign={(campaign) => {
+            if (isMobileReadOnly) return;
             setDuplicateName(`Copie de ${campaign.nom}`);
             setDuplicatingCampaign(campaign);
           }}
-          onDeleteCampaign={setDeletingCampaign}
-          onLeaveCampaign={setLeavingCampaign}
+          onDeleteCampaign={(campaign) => {
+            if (isMobileReadOnly) return;
+            setDeletingCampaign(campaign);
+          }}
+          onLeaveCampaign={(campaign) => {
+            if (isMobileReadOnly) return;
+            setLeavingCampaign(campaign);
+          }}
         />
       ) : (
         <>
@@ -232,7 +247,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         </DialogContent>
       </Dialog>
 
-      {editingCampaign && (
+      {!isMobileReadOnly && editingCampaign && (
         <CreateCampaign
           open={true}
           onOpenChange={(open) => { if (!open) setEditingCampaign(null); }}
@@ -241,7 +256,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         />
       )}
 
-      {deletingCampaign && (
+      {!isMobileReadOnly && deletingCampaign && (
         <DeleteConfirmModal
           name={deletingCampaign.nom}
           isDeleting={deleteCampaign.isPending}
@@ -256,7 +271,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         />
       )}
 
-      {leavingCampaign && (
+      {!isMobileReadOnly && leavingCampaign && (
         <DeleteConfirmModal
           name={leavingCampaign.nom}
           isDeleting={leaveCampaign.isPending}
@@ -271,7 +286,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
         />
       )}
 
-      <Dialog open={!!duplicatingCampaign} onOpenChange={(open) => { if (!open) setDuplicatingCampaign(null); }}>
+      <Dialog open={!isMobileReadOnly && !!duplicatingCampaign} onOpenChange={(open) => { if (!open) setDuplicatingCampaign(null); }}>
         <DialogContent className="bg-[#1E1941] border-white/10 text-white max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-serif text-lg flex items-center gap-2">
