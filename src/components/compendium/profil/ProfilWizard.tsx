@@ -16,10 +16,12 @@ import {
   Target,
   Shield,
   Check,
+  Copy,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { FamilleArchetype, FamilleVoie, ProfilWizardProps, RangsState, VoieRangCapacite } from "@/types/compendium";
-import { EMPTY_RANGS, TYPE_OPTIONS } from "@/types/compendium";
+import type { FamilleArchetype, FamilleVoie, ProfilWizardProps, RangsState, VoieRang } from "@/types/compendium";
+import { EMPTY_RANGS, RANG_ACTION_TYPES, RANG_BONUS_TYPES } from "@/types/compendium";
+import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";
 
 
 // --- Helpers ---
@@ -123,7 +125,7 @@ export function ProfilWizard({
   // Step 3 – Voies
   const [voies, setVoies] = useState<(FamilleVoie & { _rangs: RangsState })[]>(
     initialData?.voies?.length
-      ? initialData.voies.map((v) => ({ ...v, type: v.type || "profil", _rangs: v.capacites as RangsState }))
+      ? initialData.voies.map((v) => ({ ...v, type: v.type || "profil", _rangs: normalizeRangsState(v.capacites) }))
       : [makeEmptyVoie()],
   );
   const [expandedVoie, setExpandedVoie] = useState<number>(0);
@@ -142,11 +144,140 @@ export function ProfilWizard({
     setVoies((prev) => prev.map((v, i) => (i === idx ? { ...v, [field]: value } : v)));
   };
 
-  const updateRang = (voieIdx: number, rangKey: keyof RangsState, field: keyof VoieRangCapacite, value: string) => {
+  const updateRangField = (
+    voieIdx: number,
+    rangKey: keyof RangsState,
+    field: keyof VoieRang,
+    value: string,
+  ) => {
     setVoies((prev) =>
       prev.map((v, i) => {
         if (i !== voieIdx) return v;
         return { ...v, _rangs: { ...v._rangs, [rangKey]: { ...v._rangs[rangKey], [field]: value } } };
+      }),
+    );
+  };
+
+  const updateRangItem = (
+    voieIdx: number,
+    rangKey: keyof RangsState,
+    section: "bonus" | "capacites" | "actions",
+    itemIdx: number,
+    field: string,
+    value: string | boolean,
+  ) => {
+    setVoies((prev) =>
+      prev.map((v, i) => {
+        if (i !== voieIdx) return v;
+        const current = v._rangs[rangKey];
+        const items = Array.isArray(current[section]) ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)] : [];
+        const item = { ...(items[itemIdx] || {}) };
+        item[field] = value;
+        items[itemIdx] = item;
+        return {
+          ...v,
+          _rangs: {
+            ...v._rangs,
+            [rangKey]: {
+              ...current,
+              [section]: items,
+            },
+          },
+        };
+      }),
+    );
+  };
+
+  const addRangItem = (
+    voieIdx: number,
+    rangKey: keyof RangsState,
+    section: "bonus" | "capacites" | "actions",
+  ) => {
+    const emptyBySection = {
+      bonus: { titre: "", type: "", valeur: "", condition: "" },
+      capacites: { titre: "", description: "" },
+      actions: {
+        titre: "",
+        type: "",
+        sort: false,
+        cout_mana: "",
+        dm: "",
+        test_oppose: false,
+        test_type: "",
+        resultat_si_reussi: "",
+        description: "",
+      },
+    } as const;
+
+    setVoies((prev) =>
+      prev.map((v, i) => {
+        if (i !== voieIdx) return v;
+        const current = v._rangs[rangKey];
+        const items = Array.isArray(current[section]) ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)] : [];
+        items.push({ ...emptyBySection[section] });
+        return {
+          ...v,
+          _rangs: {
+            ...v._rangs,
+            [rangKey]: {
+              ...current,
+              [section]: items,
+            },
+          },
+        };
+      }),
+    );
+  };
+
+  const removeRangItem = (
+    voieIdx: number,
+    rangKey: keyof RangsState,
+    section: "bonus" | "capacites" | "actions",
+    itemIdx: number,
+  ) => {
+    setVoies((prev) =>
+      prev.map((v, i) => {
+        if (i !== voieIdx) return v;
+        const current = v._rangs[rangKey];
+        const items = Array.isArray(current[section]) ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)] : [];
+        items.splice(itemIdx, 1);
+        return {
+          ...v,
+          _rangs: {
+            ...v._rangs,
+            [rangKey]: {
+              ...current,
+              [section]: items,
+            },
+          },
+        };
+      }),
+    );
+  };
+
+  const [openRangItems, setOpenRangItems] = useState<Set<string>>(new Set());
+  const toggleRangItem = (ikey: string) =>
+    setOpenRangItems((prev) => {
+      const n = new Set(prev);
+      n.has(ikey) ? n.delete(ikey) : n.add(ikey);
+      return n;
+    });
+
+  const duplicateRangItem = (
+    voieIdx: number,
+    rangKey: keyof RangsState,
+    section: "bonus" | "capacites" | "actions",
+    itemIdx: number,
+  ) => {
+    setVoies((prev) =>
+      prev.map((v, i) => {
+        if (i !== voieIdx) return v;
+        const current = v._rangs[rangKey];
+        const items = Array.isArray(current[section])
+          ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)]
+          : [];
+        items.splice(itemIdx + 1, 0, { ...items[itemIdx] });
+        return { ...v, _rangs: { ...v._rangs, [rangKey]: { ...current, [section]: items } } };
       }),
     );
   };
@@ -202,7 +333,7 @@ export function ProfilWizard({
         const profilCampaignId = initialData.campaign_id !== undefined ? initialData.campaign_id : campaignId || null;
         const profilIsCustom = profilCampaignId !== null;
         for (const v of voies) {
-          const capacites = v._rangs;
+          const capacites = cleanupRangsForSave(v._rangs);
           const voieType = v.type?.trim() || "profil";
           if (v.id) {
             const { error: updErr } = await supabase.from("voies").update({ nom: v.nom.trim(), type: voieType, capacites }).eq("id", v.id);
@@ -253,7 +384,7 @@ export function ProfilWizard({
             profil_id: newProfil.id,
             campaign_id: publicMode ? null : campaignId || null,
             is_custom: !!(campaignId && isPrivate),
-            capacites: v._rangs,
+            capacites: cleanupRangsForSave(v._rangs),
           });
           if (voieErr) throw voieErr;
         }
@@ -518,33 +649,128 @@ export function ProfilWizard({
                     {([1, 2, 3, 4, 5] as const).map((rangNum) => {
                       const key = `rang${rangNum}` as keyof RangsState;
                       const rangData = voie._rangs[key];
+                      const bonuses = Array.isArray(rangData.bonus) ? rangData.bonus : [];
+                      const capacites = Array.isArray(rangData.capacites) ? rangData.capacites : [];
+                      const actions = Array.isArray(rangData.actions) ? rangData.actions : [];
                       return (
-                        <div key={key} className="flex gap-4 items-start py-3 border-b border-white/6 last:border-0">
-                          <span className="w-5 h-5 mt-2.5 rounded-full border border-white/30 flex items-center justify-center text-[11px] text-white/60 font-medium shrink-0">{rangNum}</span>
-                          <div className="flex-1 space-y-2.5">
-                            <div className="flex gap-3">
-                              <input
-                                type="text"
-                                value={rangData.nom}
-                                onChange={(e) => updateRang(voieIdx, key, "nom", e.target.value)}
-                                placeholder="Nom de la capacité"
-                                className="flex-1 bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35"
-                              />
-                              <div className="w-40">
-                                <ThemedSelect
-                                  value={rangData.type}
-                                  onValueChange={(v) => updateRang(voieIdx, key, "type", v || "passif")}
-                                  options={TYPE_OPTIONS}
-                                  placeholder="Type"
-                                />
-                              </div>
-                            </div>
-                            <textarea
-                              value={rangData.description}
-                              onChange={(e) => updateRang(voieIdx, key, "description", e.target.value)}
-                              placeholder="Description et effet mécanique..."
-                              className="w-full h-16 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35"
+                        <div key={key} className="rounded-xl border border-white/8 overflow-hidden">
+                          {/* Rang header */}
+                          <div className="flex items-center gap-3 px-3 py-2.5 bg-black/10">
+                            <span className="w-5 h-5 rounded-full border border-white/25 flex items-center justify-center text-[11px] text-white/50 font-medium shrink-0">{rangNum}</span>
+                            <input
+                              type="text"
+                              value={rangData.titre || ""}
+                              onChange={(e) => updateRangField(voieIdx, key, "titre", e.target.value)}
+                              placeholder={`Rang ${rangNum}`}
+                              className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-white/25 border-b border-transparent focus:border-white/20 py-0.5 transition-colors"
                             />
+                          </div>
+                          {/* Items */}
+                          {(bonuses.length > 0 || capacites.length > 0 || actions.length > 0) && (
+                            <div className="px-3 pt-1 pb-0.5 space-y-1">
+                              {bonuses.map((bonus, idx) => {
+                                const ikey = `v${voieIdx}-${key}-bonus-${idx}`;
+                                const isOpen = openRangItems.has(ikey);
+                                return (
+                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
+                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
+                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/25 text-amber-300/60 shrink-0">bonus</span>
+                                      <span className="flex-1 text-[12px] text-white/75 truncate">{bonus.titre || <span className="text-white/25 italic">sans titre</span>}</span>
+                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "bonus", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
+                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "bonus", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
+                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+                                    </div>
+                                    {isOpen && (
+                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                          <input type="text" value={bonus.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "titre", e.target.value)} placeholder="Titre du bonus" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                          <ThemedSelect value={bonus.type || ""} onValueChange={(v) => updateRangItem(voieIdx, key, "bonus", idx, "type", v || "")} options={[...RANG_BONUS_TYPES]} placeholder="Type de bonus" />
+                                          <input type="text" value={bonus.valeur || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "valeur", e.target.value)} placeholder="Valeur (ex: +2)" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                        </div>
+                                        <textarea value={bonus.condition || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "condition", e.target.value)} placeholder="Description / condition (optionnel)" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {capacites.map((capacite, idx) => {
+                                const ikey = `v${voieIdx}-${key}-capacites-${idx}`;
+                                const isOpen = openRangItems.has(ikey);
+                                return (
+                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
+                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
+                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-900/25 text-blue-300/60 shrink-0">cap.</span>
+                                      <span className="flex-1 text-[12px] text-white/75 truncate">{capacite.titre || <span className="text-white/25 italic">sans titre</span>}</span>
+                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "capacites", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
+                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "capacites", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
+                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+                                    </div>
+                                    {isOpen && (
+                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
+                                        <input type="text" value={capacite.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "capacites", idx, "titre", e.target.value)} placeholder="Titre de la capacité" className="w-full bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                        <textarea value={capacite.description || ""} onChange={(e) => updateRangItem(voieIdx, key, "capacites", idx, "description", e.target.value)} placeholder="Description de la capacité" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {actions.map((action, idx) => {
+                                const ikey = `v${voieIdx}-${key}-actions-${idx}`;
+                                const isOpen = openRangItems.has(ikey);
+                                return (
+                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
+                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
+                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-900/25 text-emerald-300/60 shrink-0">action</span>
+                                      <span className="flex-1 text-[12px] text-white/75 truncate">{action.titre || <span className="text-white/25 italic">sans titre</span>}</span>
+                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "actions", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
+                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "actions", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
+                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
+                                    </div>
+                                    {isOpen && (
+                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                          <input type="text" value={action.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "titre", e.target.value)} placeholder="Titre de l'action" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                          <ThemedSelect value={action.type || ""} onValueChange={(v) => updateRangItem(voieIdx, key, "actions", idx, "type", v || "")} options={[...RANG_ACTION_TYPES]} placeholder="Type (A/M/L/G)" />
+                                          <input type="text" value={action.dm || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "dm", e.target.value)} placeholder="DM" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                          <label className="flex items-center gap-2 text-[12px] text-white/75">
+                                            <input type="checkbox" checked={!!action.sort} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "sort", e.target.checked)} className="accent-indigo-500 w-4 h-4 rounded" />
+                                            Sort
+                                          </label>
+                                          <input type="text" value={action.cout_mana || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "cout_mana", e.target.value)} placeholder="Coût en PM" disabled={!action.sort} className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35 disabled:opacity-40" />
+                                        </div>
+                                        <label className="flex items-center gap-2 text-[12px] text-white/75">
+                                          <input type="checkbox" checked={!!action.test_oppose} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "test_oppose", e.target.checked)} className="accent-indigo-500 w-4 h-4 rounded" />
+                                          Test opposé
+                                        </label>
+                                        {action.test_oppose && (
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                            <input type="text" value={action.test_type || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "test_type", e.target.value)} placeholder="Type de test" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                            <input type="text" value={action.resultat_si_reussi || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "resultat_si_reussi", e.target.value)} placeholder="Résultat si réussi" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
+                                          </div>
+                                        )}
+                                        <textarea value={action.description || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "description", e.target.value)} placeholder="Description de l'action" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {/* Add buttons + legacy */}
+                          <div className="px-3 pb-2.5 pt-1.5 flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={() => addRangItem(voieIdx, key, "bonus")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-amber-300/70 hover:border-amber-900/40 transition-colors">+ Bonus</button>
+                            <button type="button" onClick={() => addRangItem(voieIdx, key, "capacites")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-blue-300/70 hover:border-blue-900/40 transition-colors">+ Capacité</button>
+                            <button type="button" onClick={() => addRangItem(voieIdx, key, "actions")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-emerald-300/70 hover:border-emerald-900/40 transition-colors">+ Action</button>
+                            <details className="ml-auto">
+                              <summary className="cursor-pointer text-[10px] text-white/25 hover:text-white/45 transition-colors">legacy</summary>
+                              <div className="mt-1 grid grid-cols-1 md:grid-cols-3 gap-2 pt-1">
+                                <input type="text" value={rangData.nom || ""} onChange={(e) => updateRangField(voieIdx, key, "nom", e.target.value)} placeholder="Nom legacy" className="bg-transparent border-b border-white/15 py-1 text-white/50 text-xs outline-none placeholder:text-white/25" />
+                                <input type="text" value={rangData.type || ""} onChange={(e) => updateRangField(voieIdx, key, "type", e.target.value)} placeholder="Type legacy" className="bg-transparent border-b border-white/15 py-1 text-white/50 text-xs outline-none placeholder:text-white/25" />
+                                <input type="text" value={rangData.description || ""} onChange={(e) => updateRangField(voieIdx, key, "description", e.target.value)} placeholder="Description legacy" className="bg-transparent border-b border-white/15 py-1 text-white/50 text-xs outline-none placeholder:text-white/25" />
+                              </div>
+                            </details>
                           </div>
                         </div>
                       );

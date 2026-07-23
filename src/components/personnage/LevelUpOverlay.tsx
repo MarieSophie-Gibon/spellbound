@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { ArrowUpCircle, X, Star, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { getRankPrimaryDescription, getRankTitle, hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 
 interface VoieDetail {
   id: string;
@@ -74,9 +75,13 @@ const getCapacitesObject = (voie: VoieDetail): Record<string, VoieCapacite> => {
 
 const getRankCapacite = (voie: VoieDetail, rang: number): VoieCapacite | null => {
   const caps = getCapacitesObject(voie);
-  const cap = caps[`rang${rang}`];
-  if (!cap || (!cap.nom && !cap.description)) return null;
-  return cap;
+  const normalized = normalizeVoieRang(caps[`rang${rang}`]);
+  if (!hasRangContent(normalized)) return null;
+  return {
+    nom: getRankTitle(normalized, `Rang ${rang}`),
+    type: normalized.actions[0]?.type || normalized.type || "",
+    description: getRankPrimaryDescription(normalized),
+  };
 };
 
 // Fonction utilitaire pour identifier si une voie est la "Voie de la Magie"

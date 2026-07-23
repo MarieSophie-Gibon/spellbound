@@ -50,7 +50,7 @@ export interface VoieEntry {
   id: string;
   nom: string;
   type?: string;
-  capacites: Record<string, VoieCapacite>; // rang1…rang5
+  capacites: Record<string, unknown>; // rang1…rang5
   rangsAcquis: number[];
 }
 

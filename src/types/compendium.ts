@@ -22,15 +22,53 @@ export interface VoieRangCapacite {
   description: string;
 }
 
+export interface VoieRangBonus {
+  titre: string;
+  type: string;
+  valeur: string;
+  condition: string;
+}
+
+export interface VoieRangCapaciteDetail {
+  titre: string;
+  description: string;
+}
+
+export interface VoieRangAction {
+  titre: string;
+  type: "A" | "M" | "L" | "G" | "";
+  sort: boolean;
+  cout_mana: string;
+  dm: string;
+  test_oppose: boolean;
+  test_type: string;
+  resultat_si_reussi: string;
+  description: string;
+}
+
+export interface VoieRang {
+  // Legacy fields kept for backward compatibility with existing JSON payloads.
+  titre?: string;
+  nom?: string;
+  type?: string;
+  description?: string;
+  bonus?: VoieRangBonus[] | VoieRangBonus | null;
+  capacites?: VoieRangCapaciteDetail[] | VoieRangCapaciteDetail | null;
+  actions?: VoieRangAction[] | VoieRangAction | null;
+  // Transitional fields for intermediate payloads.
+  capacite?: VoieRangCapaciteDetail | null;
+  action?: VoieRangAction | null;
+}
+
 export interface Voie {
   id: string;
   nom: string;
   capacites: {
-    rang1: VoieRangCapacite;
-    rang2: VoieRangCapacite;
-    rang3: VoieRangCapacite;
-    rang4: VoieRangCapacite;
-    rang5: VoieRangCapacite;
+    rang1: VoieRang;
+    rang2: VoieRang;
+    rang3: VoieRang;
+    rang4: VoieRang;
+    rang5: VoieRang;
   };
 }
 
@@ -72,11 +110,11 @@ export interface FamilleVoie {
   famille_nom?: string;
   notes?: string | null;
   capacites: {
-    rang1: VoieRangCapacite;
-    rang2: VoieRangCapacite;
-    rang3: VoieRangCapacite;
-    rang4: VoieRangCapacite;
-    rang5: VoieRangCapacite;
+    rang1: VoieRang;
+    rang2: VoieRang;
+    rang3: VoieRang;
+    rang4: VoieRang;
+    rang5: VoieRang;
   };
 }
 
@@ -160,6 +198,8 @@ export interface Equipement {
 }
 
 export const TYPE_OPTIONS = ["Action d'attaque", "Action limitée", "Action de mouvement", "Action Gratuite", "Bonus de caractéristique", "Autre"];
+export const RANG_ACTION_TYPES = ["A", "M", "L", "G"] as const;
+export const RANG_BONUS_TYPES = ["caractéristique", "compétence", "DEF", "PV", "initiative", "attaque", "autre"] as const;
 
 export interface VoiePrestigeWizardProps {
   onClose: () => void;
@@ -170,19 +210,109 @@ export interface VoiePrestigeWizardProps {
 }
 
 export type RangsState = {
-  rang1: VoieRangCapacite;
-  rang2: VoieRangCapacite;
-  rang3: VoieRangCapacite;
-  rang4: VoieRangCapacite;
-  rang5: VoieRangCapacite;
+  rang1: VoieRang;
+  rang2: VoieRang;
+  rang3: VoieRang;
+  rang4: VoieRang;
+  rang5: VoieRang;
 };
 
 export const EMPTY_RANGS: RangsState = {
-  rang1: { nom: "", type: "", description: "" },
-  rang2: { nom: "", type: "", description: "" },
-  rang3: { nom: "", type: "", description: "" },
-  rang4: { nom: "", type: "", description: "" },
-  rang5: { nom: "", type: "", description: "" },
+  rang1: {
+    titre: "",
+    nom: "",
+    type: "",
+    description: "",
+    bonus: [{ titre: "", type: "", valeur: "", condition: "" }],
+    capacites: [{ titre: "", description: "" }],
+    actions: [{
+      titre: "",
+      type: "",
+      sort: false,
+      cout_mana: "",
+      dm: "",
+      test_oppose: false,
+      test_type: "",
+      resultat_si_reussi: "",
+      description: "",
+    }],
+  },
+  rang2: {
+    titre: "",
+    nom: "",
+    type: "",
+    description: "",
+    bonus: [{ titre: "", type: "", valeur: "", condition: "" }],
+    capacites: [{ titre: "", description: "" }],
+    actions: [{
+      titre: "",
+      type: "",
+      sort: false,
+      cout_mana: "",
+      dm: "",
+      test_oppose: false,
+      test_type: "",
+      resultat_si_reussi: "",
+      description: "",
+    }],
+  },
+  rang3: {
+    titre: "",
+    nom: "",
+    type: "",
+    description: "",
+    bonus: [{ titre: "", type: "", valeur: "", condition: "" }],
+    capacites: [{ titre: "", description: "" }],
+    actions: [{
+      titre: "",
+      type: "",
+      sort: false,
+      cout_mana: "",
+      dm: "",
+      test_oppose: false,
+      test_type: "",
+      resultat_si_reussi: "",
+      description: "",
+    }],
+  },
+  rang4: {
+    titre: "",
+    nom: "",
+    type: "",
+    description: "",
+    bonus: [{ titre: "", type: "", valeur: "", condition: "" }],
+    capacites: [{ titre: "", description: "" }],
+    actions: [{
+      titre: "",
+      type: "",
+      sort: false,
+      cout_mana: "",
+      dm: "",
+      test_oppose: false,
+      test_type: "",
+      resultat_si_reussi: "",
+      description: "",
+    }],
+  },
+  rang5: {
+    titre: "",
+    nom: "",
+    type: "",
+    description: "",
+    bonus: [{ titre: "", type: "", valeur: "", condition: "" }],
+    capacites: [{ titre: "", description: "" }],
+    actions: [{
+      titre: "",
+      type: "",
+      sort: false,
+      cout_mana: "",
+      dm: "",
+      test_oppose: false,
+      test_type: "",
+      resultat_si_reussi: "",
+      description: "",
+    }],
+  },
 };
 
 export interface FamilleWizardProps {

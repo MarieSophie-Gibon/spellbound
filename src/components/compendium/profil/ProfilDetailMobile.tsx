@@ -1,6 +1,7 @@
 import { Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
 import type { Famille, FamilleArchetype, FamilleVoie } from "@/types/compendium";
 import { MagicCard } from "@/components/ui/MagicCard";
+import { getRankTitle, hasAction, hasBonus, hasCapacite, hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 
 interface ProfilDetailMobileProps {
   profil: Famille;
@@ -224,18 +225,74 @@ function MobileVoieBlock({ voie, defaultOpen }: { voie: FamilleVoie; defaultOpen
 
       <div className="mt-4 space-y-3 border-t border-white/10 pt-3">
         {[1, 2, 3, 4, 5].map((rangNum) => {
-          const rang = voie.capacites[`rang${rangNum}` as keyof typeof voie.capacites];
-          if (!rang?.nom) return null;
+          const rang = normalizeVoieRang(voie.capacites[`rang${rangNum}` as keyof typeof voie.capacites]);
+          if (!hasRangContent(rang)) return null;
+
+          const rankTitle = getRankTitle(rang, `Rang ${rangNum}`);
+          const showBonus = hasBonus(rang);
+          const showCapacite = hasCapacite(rang);
+          const showAction = hasAction(rang);
+          const bonuses = rang.bonus || [];
+          const capacites = rang.capacites || [];
+          const actions = rang.actions || [];
 
           return (
-            <div key={rangNum} className="text-[13px]">
-              <span className="font-bold text-white">{rangNum}. {rang.nom}</span>
-              {rang.type && rang.type !== "passif" && (
-                <span className="ml-1.5 text-[9px] uppercase tracking-widest text-[#E3CCCD]/55 border border-[#E3CCCD]/15 rounded-full px-1.5 py-0.5">
-                  {rang.type}
-                </span>
+            <div key={rangNum} className="text-[12px] rounded-lg border border-white/10 bg-black/10 p-2.5">
+              <p className="font-bold text-white mb-1">{rangNum}. {rankTitle}</p>
+
+              {showBonus && bonuses.length > 0 && (
+                <div className="mb-1.5">
+                  <p className="text-[9px] uppercase tracking-wider text-[#E3CCCD]/65">Bonus</p>
+                  {bonuses.map((bonus, idx) => (
+                    <div key={`bonus-${idx}`}>
+                      <p className="text-white/75">
+                        <span className="font-medium">{bonus.titre || "Bonus"}</span>
+                        {(bonus.type || bonus.valeur) && (
+                          <span className="text-white/60"> - {[bonus.type, bonus.valeur].filter(Boolean).join(" ")}</span>
+                        )}
+                      </p>
+                      {bonus.condition && <p className="text-white/60">{bonus.condition}</p>}
+                    </div>
+                  ))}
+                </div>
               )}
-              <span className="font-light text-white/80 leading-relaxed">: {rang.description}</span>
+
+              {showCapacite && capacites.length > 0 && (
+                <div className="mb-1.5">
+                  <p className="text-[9px] uppercase tracking-wider text-[#E3CCCD]/65">Capacité</p>
+                  {capacites.map((capacite, idx) => (
+                    <div key={`capacite-${idx}`}>
+                      <p className="text-white/75 font-medium">{capacite.titre || "Capacité"}</p>
+                      {capacite.description && <p className="text-white/60">{capacite.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showAction && actions.length > 0 && (
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-[#E3CCCD]/65">Action</p>
+                  {actions.map((action, idx) => (
+                    <div key={`action-${idx}`}>
+                      <p className="text-white/75 font-medium flex flex-wrap gap-1.5 items-center">
+                        <span>{action.titre || "Action"}</span>
+                        {action.type && <span className="text-[9px] border border-[#E3CCCD]/20 rounded-full px-1 py-0.5 text-[#E3CCCD]/70">{action.type}</span>}
+                        {action.sort && <span className="text-[9px] border border-sky-300/30 rounded-full px-1 py-0.5 text-sky-200/70">Sort</span>}
+                        {action.sort && action.cout_mana && <span className="text-[9px] text-sky-200/70">PM {action.cout_mana}</span>}
+                        {action.dm && <span className="text-[9px] text-amber-200/80">DM {action.dm}</span>}
+                      </p>
+                      {action.test_oppose && (
+                        <p className="text-white/60">Test opposé{action.test_type ? ` (${action.test_type})` : ""}{action.resultat_si_reussi ? ` - Si réussi: ${action.resultat_si_reussi}` : ""}</p>
+                      )}
+                      {action.description && <p className="text-white/60">{action.description}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!showBonus && !showCapacite && !showAction && rang.description && (
+                <p className="font-light text-white/75 leading-relaxed">{rang.description}</p>
+              )}
             </div>
           );
         })}

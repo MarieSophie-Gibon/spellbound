@@ -167,7 +167,7 @@ export function VoiePrestigeWizard({
                       />
                       <div className="w-40">
                         <ThemedSelect
-                          value={rangData.type}
+                          value={rangData.type || ""}
                           onValueChange={(v) => updateRang(key, "type", v || "passif")}
                           options={TYPE_OPTIONS}
                           placeholder="Type"

@@ -3,6 +3,7 @@ import { ChevronDown, Crosshair, Minus, Plus, Shield, Swords, Wand2, Zap, Heart,
 import { MagicCard } from "@/components/ui/MagicCard";
 import { CONDITION_OPTIONS, STAT_ORDER, toNumber } from "./types";
 import type { Combatant, ConditionKey, MonsterStatsMap, VoieEntry } from "./types";
+import { getRankPrimaryDescription, getRankTitle, hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 
 interface CombatantCardProps {
     combatant: Combatant;
@@ -32,19 +33,22 @@ function VoieAccordion({ voie, expanded, onToggle }: { voie: VoieEntry; expanded
             {expanded && (
                 <div className="px-2.5 pb-2 border-t border-white/8 pt-2 space-y-1.5">
                     {[1, 2, 3, 4, 5].map((rang) => {
-                        const cap = voie.capacites[`rang${rang}`];
-                        if (!cap?.nom) return null;
+                        const cap = normalizeVoieRang(voie.capacites[`rang${rang}`]);
+                        if (!hasRangContent(cap)) return null;
                         const acquired = voie.rangsAcquis.includes(rang);
+                        const capTitle = getRankTitle(cap, `Rang ${rang}`);
+                        const capType = cap.actions[0]?.type || cap.type || "";
+                        const capDescription = getRankPrimaryDescription(cap);
                         return (
                             <div key={rang} className={`text-[10px] ${acquired ? "" : "opacity-30"}`}>
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-white">{rang}. {cap.nom}</span>
-                                    {cap.type && cap.type !== "passif" && (
-                                        <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded px-1 py-0.5">{cap.type}</span>
+                                    <span className="font-bold text-white">{rang}. {capTitle}</span>
+                                    {capType && (
+                                        <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded px-1 py-0.5">{capType}</span>
                                     )}
                                     {acquired && <span className="ml-auto text-[8px] text-emerald-400/70">✓</span>}
                                 </div>
-                                <p className="text-white/55 leading-relaxed mt-0.5 line-clamp-3">{cap.description}</p>
+                                <p className="text-white/55 leading-relaxed mt-0.5 line-clamp-3">{capDescription}</p>
                             </div>
                         );
                     })}
@@ -284,8 +288,15 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                             {(() => {
                                 const acquired = combatant.voies?.flatMap((voie) =>
                                     voie.rangsAcquis.map((r) => {
-                                        const cap = voie.capacites[`rang${r}`];
-                                        return cap ? { voieNom: voie.nom, rang: r, ...cap } : null;
+                                                                                const cap = normalizeVoieRang(voie.capacites[`rang${r}`]);
+                                                                                if (!hasRangContent(cap)) return null;
+                                                                                return {
+                                                                                    voieNom: voie.nom,
+                                                                                    rang: r,
+                                                                                    nom: getRankTitle(cap, `Rang ${r}`),
+                                                                                    type: cap.actions[0]?.type || cap.type || "",
+                                                                                    description: getRankPrimaryDescription(cap),
+                                                                                };
                                     }).filter(Boolean)
                                 ) ?? [];
                                 return acquired.length
