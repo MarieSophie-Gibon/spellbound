@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from "react";
-import { X, Save, RefreshCw, ChevronDown, ChevronUp, Trash2, Check, Plus } from "lucide-react";
+import { X, Save, RefreshCw, ChevronDown, ChevronUp, Trash2, Check, Plus, Star } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface VoieDetail {
@@ -367,6 +367,85 @@ export default function VoieEditModal({
     });
   }, [editablePathways, pj.pathways]);
 
+  // ── Ajout de nouvelles voies ──
+  const [addUnlockType, setAddUnlockType] = useState<"ownProfile" | "profile" | "hybrid" | "prestige" | "">("")
+  const [addSearchQuery, setAddSearchQuery] = useState("");
+  const [expandedAddVoieId, setExpandedAddVoieId] = useState<string | null>(null);;
+
+
+  const currentProfileId = useMemo(() => {
+    return pj.stats?.profil_id || pj.profil_id || characterProfileIds[0] || null;
+  }, [pj.stats?.profil_id, pj.profil_id, characterProfileIds]);
+
+  const relatedFamilyProfileIds = useMemo(() => {
+    return Array.from(new Set(
+      Object.entries(profileFamilyById)
+        .filter(([, meta]) => !!meta.famille_id && characterFamilyIds.includes(meta.famille_id))
+        .map(([id]) => id),
+    ));
+  }, [profileFamilyById, characterFamilyIds]);
+
+  const otherFamilyProfileIds = useMemo(() => {
+    return relatedFamilyProfileIds.filter((id) => !characterProfileIds.includes(id));
+  }, [relatedFamilyProfileIds, characterProfileIds]);
+
+  const hybridProfileIds = useMemo(() => {
+    return Array.from(new Set(
+      Object.entries(profileFamilyById)
+        .filter(([profileId, meta]) => {
+          if (characterProfileIds.includes(profileId)) return false;
+          if (!meta.famille_id) return true;
+          return !characterFamilyIds.includes(meta.famille_id);
+        })
+        .map(([id]) => id),
+    ));
+  }, [profileFamilyById, characterProfileIds, characterFamilyIds]);
+
+  const filteredAddVoies = useMemo(() => {
+    const ownedIds = new Set(editablePathways.map((p) => p.voie_id));
+    const q = addSearchQuery.trim().toLowerCase();
+    return allVoies.filter((v) => {
+      if (ownedIds.has(v.id)) return false;
+      if ((v.type || "").toLowerCase() === "peuple") return false;
+      if (q && !v.nom.toLowerCase().includes(q)) return false;
+      const vType = (v.type || "").toLowerCase();
+      if (addUnlockType === "ownProfile") return !!currentProfileId && v.profil_id === currentProfileId;
+      if (addUnlockType === "profile") return !!v.profil_id && otherFamilyProfileIds.includes(v.profil_id);
+      if (addUnlockType === "hybrid") return !!v.profil_id && hybridProfileIds.includes(v.profil_id);
+      if (addUnlockType === "prestige") return vType === "prestige";
+      return false;
+    });
+  }, [allVoies, editablePathways, addUnlockType, addSearchQuery, currentProfileId, otherFamilyProfileIds, hybridProfileIds]);
+
+  const groupedAddVoies = useMemo(() => {
+    return filteredAddVoies.reduce<Record<string, VoieDetail[]>>((acc, v) => {
+      const profileName = v.profil_id
+        ? (profileFamilyById[v.profil_id]?.profil_nom || "Sans profil")
+        : "Sans profil";
+      if (!acc[profileName]) acc[profileName] = [];
+      acc[profileName].push(v);
+      return acc;
+    }, {});
+  }, [filteredAddVoies, profileFamilyById]);
+
+  const addNewPathway = (voieId: string) => {
+    setEditablePathways((prev) => {
+      if (prev.some((p) => p.voie_id === voieId)) return prev;
+      return [...prev, { originalVoieId: voieId, voie_id: voieId, rangs_acquis: [1], isReplacing: false }];
+    });
+    setAddUnlockType("");
+    setAddSearchQuery("");
+  };
+
+  const characterLevel = pj.stats?.niveau ?? 1;
+
+  const addUnlockOptions: Array<{ key: string; label: string; disabled?: boolean }> = [
+    { key: "ownProfile", label: "Profil", disabled: !currentProfileId },
+    { key: "profile", label: "Famille", disabled: otherFamilyProfileIds.length === 0 },
+    { key: "hybrid", label: "Hybride" },
+    ...(characterLevel > 5 ? [{ key: "prestige", label: "Prestige" }] : []),
+  ];
+
   return (
     <div className={`${positionAbsolute ? "absolute inset-0 z-50" : "fixed inset-0 z-9999"} bg-linear-to-b from-[#3A2F72]/90 to-[#201A47]/88 backdrop-blur-lg flex flex-col animate-in fade-in`}>
       {/* ── En-tête ── */}
@@ -630,6 +709,99 @@ export default function VoieEditModal({
             </div>
           );
         })}
+
+        {/* ── Ajouter une nouvelle Voie ── */}
+        <div className="pt-3 mt-1 border-t border-white/10 space-y-2">
+          <h3 className="text-sm font-serif text-white/90 flex items-center gap-2">
+            <Star className="w-4 h-4 text-[#E3CCCD]" />
+            Ajouter une nouvelle Voie
+          </h3>
+
+          <div className={`grid gap-1.5 ${addUnlockOptions.length >= 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+            {addUnlockOptions.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                disabled={opt.disabled}
+                onClick={() => setAddUnlockType((prev) => (prev === opt.key ? "" : opt.key as typeof addUnlockType))}
+                className={`py-1.5 rounded-lg text-[10px] font-semibold border transition-all disabled:opacity-35 disabled:cursor-not-allowed ${
+                  addUnlockType === opt.key
+                    ? "bg-[#E3CCCD]/18 border-[#E3CCCD]/40 text-[#E3CCCD]"
+                    : "bg-white/6 border-white/12 text-white/65 hover:bg-white/10"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {addUnlockType && (
+            <div>
+              <input
+                type="text"
+                value={addSearchQuery}
+                onChange={(e) => setAddSearchQuery(e.target.value)}
+                placeholder="Rechercher une voie..."
+                className="w-full bg-white/8 border border-white/20 rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-[#E3CCCD]/50 mb-2 placeholder:text-white/30"
+              />
+              <div className="max-h-52 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 space-y-1 rounded-lg border border-white/14 bg-black/20 p-2">
+                {filteredAddVoies.length === 0 ? (
+                  <p className="text-white/30 text-xs italic py-2 text-center">Aucune voie disponible.</p>
+                ) : (
+                  Object.entries(groupedAddVoies).map(([profileName, voies]) => (
+                    <div key={profileName} className="space-y-1">
+                      {addUnlockType !== "prestige" && (
+                        <p className="text-[9px] uppercase tracking-widest text-white/45 px-1 pt-1">{profileName}</p>
+                      )}
+                      {voies.map((v) => {
+                        const ranks = Object.entries(v.capacites || {}).sort(([a], [b]) => Number(a) - Number(b));
+                        const isExpanded = expandedAddVoieId === v.id;
+                        return (
+                          <div key={v.id} className="rounded-lg border border-white/18 overflow-hidden">
+                            <div className="flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => setExpandedAddVoieId(isExpanded ? null : v.id)}
+                                className="flex items-center gap-1.5 flex-1 px-3 py-2 text-left hover:bg-white/5 transition-colors"
+                              >
+                                {isExpanded
+                                  ? <ChevronUp className="w-3 h-3 text-white/40 shrink-0" />
+                                  : <ChevronDown className="w-3 h-3 text-white/40 shrink-0" />}
+                                <span className="text-white/80 text-xs font-medium">{v.nom}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => addNewPathway(v.id)}
+                                className="px-3 py-2 hover:bg-emerald-400/12 border-l border-white/12 transition-colors"
+                                aria-label="Ajouter"
+                              >
+                                <Plus className="w-3.5 h-3.5 text-emerald-400/60" />
+                              </button>
+                            </div>
+                            {isExpanded && (
+                              <div className="border-t border-white/10 bg-black/20 px-3 py-2 space-y-1.5">
+                                {ranks.length === 0 ? (
+                                  <p className="text-white/30 text-[10px] italic">Aucune capacité renseignée.</p>
+                                ) : (
+                                  ranks.map(([rang, cap]) => (
+                                    <div key={rang} className="flex items-start gap-2">
+                                      <span className="text-[9px] font-bold text-[#E3CCCD]/70 bg-[#E3CCCD]/10 rounded px-1.5 py-0.5 shrink-0">R{rang}</span>
+                                      <span className="text-[10px] text-white/60 leading-relaxed">{cap.nom || "—"}</span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Pied de page ── */}
