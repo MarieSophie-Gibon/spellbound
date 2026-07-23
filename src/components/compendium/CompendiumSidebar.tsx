@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package, Award } from "lucide-react";
+import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package, Award, Loader2 } from "lucide-react";
 import type { Peuple, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
@@ -44,6 +44,16 @@ interface CompendiumSidebarProps {
   onCreateVoiePrestige: () => void;
   onBack: () => void;
   readOnly?: boolean;
+  loadingSections?: Partial<Record<Section, boolean>>;
+}
+
+function SidebarListLoader() {
+  return (
+    <div className="flex items-center gap-2 py-2 px-2 text-white/40 text-[11px]">
+      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      Chargement...
+    </div>
+  );
 }
 
 export function CompendiumSidebar({
@@ -77,6 +87,7 @@ export function CompendiumSidebar({
   onCreateVoiePrestige,
   onBack,
   readOnly,
+  loadingSections,
 }: CompendiumSidebarProps) {
   const showSection = (section: Section) => sections.includes(section);
   const isBestiaireOnlyView = actionsMode === 'bestiaire';
@@ -153,7 +164,7 @@ export function CompendiumSidebar({
           <SectionPanel open={activeSection === 'peuples'}>
             <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
               {peuples.length === 0 ? (
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun peuple.</div>
+                loadingSections?.peuples ? <SidebarListLoader /> : <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun peuple.</div>
               ) : (
                 peuples.map(peuple => (
                   <button
@@ -182,7 +193,7 @@ export function CompendiumSidebar({
           <SectionPanel open={activeSection === 'familles'}>
             <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
               {famillesArchetypes.length === 0 ? (
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune famille.</div>
+                loadingSections?.familles ? <SidebarListLoader /> : <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune famille.</div>
               ) : (
                 famillesArchetypes.map(fa => (
                   <button
@@ -211,7 +222,7 @@ export function CompendiumSidebar({
           <SectionPanel open={activeSection === 'profils'}>
             <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
               {profils.length === 0 ? (
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun profil.</div>
+                loadingSections?.profils ? <SidebarListLoader /> : <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucun profil.</div>
               ) : (
                 groupesOrdonnes.map(groupe => {
                   const isOpen = expandedGroupes.has(groupe);
@@ -251,7 +262,7 @@ export function CompendiumSidebar({
           isBestiaireOnlyView ? (
             <div className="w-full mt-1 space-y-0.5">
               {monstres.length === 0 ? (
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
+                loadingSections?.bestiaire ? <SidebarListLoader /> : <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
               ) : (
                 typesOrdonnes.map(type => {
                   const isOpen = expandedTypes.has(type);
@@ -296,7 +307,7 @@ export function CompendiumSidebar({
               <SectionPanel open={activeSection === 'bestiaire'}>
                 <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
                   {monstres.length === 0 ? (
-                    <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
+                    loadingSections?.bestiaire ? <SidebarListLoader /> : <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
                   ) : (
                     typesOrdonnes.map(type => {
                       const isOpen = expandedTypes.has(type);
@@ -375,7 +386,7 @@ export function CompendiumSidebar({
           <SectionPanel open={activeSection === 'voies_prestige'}>
             <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
               {voiesPrestige.length === 0 ? (
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune voie de prestige.</div>
+                loadingSections?.voies_prestige ? <SidebarListLoader /> : <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune voie de prestige.</div>
               ) : (
                 famillesOrdonnees.map(cat => {
                   const isOpen = expandedCategories.has(cat);

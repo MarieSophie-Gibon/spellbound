@@ -1,5 +1,5 @@
 import React from "react";
-import { FileText, Plus, ArrowLeft, GripVertical, ChevronDown } from "lucide-react";
+import { FileText, Plus, ArrowLeft, GripVertical, ChevronDown, Loader2 } from "lucide-react";
 import type { Category, WikiPage, DraggedItem } from "@/types/grimoire";
 
 function SectionPanel({ open, children }: { open: boolean; children: React.ReactNode }) {
@@ -15,6 +15,7 @@ function SectionPanel({ open, children }: { open: boolean; children: React.React
 interface GrimoireSidebarProps {
   pages: WikiPage[];
   categories: Category[];
+  isLoading?: boolean;
   selectedPageId: string | null;
   expandedCats: Record<string, boolean>;
   draggedItem: DraggedItem;
@@ -32,7 +33,7 @@ interface GrimoireSidebarProps {
 }
 
 export function GrimoireSidebar({
-  pages, categories, selectedPageId, expandedCats, draggedItem, dragOverTarget,
+  pages, categories, isLoading, selectedPageId, expandedCats, draggedItem, dragOverTarget,
   readOnly, canCreate, onSelectPage, onCreatePage, onBack, onToggleCat,
   onDragStart, onDragOver, onDragEnd, onDrop,
 }: GrimoireSidebarProps) {
@@ -78,7 +79,12 @@ export function GrimoireSidebar({
   return (
     <>
       <div className="flex-1 overflow-y-auto py-2 px-3 scrollbar-thin scrollbar-thumb-white/5">
-        {pages.length === 0 && categories.length === 0 ? (
+        {isLoading ? (
+          <div className="h-full flex flex-col items-center justify-center opacity-40 px-4 text-center gap-2">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <p className="text-[11px] italic font-light">Chargement...</p>
+          </div>
+        ) : pages.length === 0 && categories.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center opacity-30 px-4 text-center">
             <FileText className="w-8 h-8 mb-2" />
             <p className="text-[11px] italic font-light">Aucun contenu.</p>

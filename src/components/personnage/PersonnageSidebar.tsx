@@ -24,6 +24,7 @@ interface PersonnageSidebarProps {
     readOnly?: boolean;
     canCreateOwnPJ?: boolean;
     mobileSummary?: boolean;
+    defaultOpenSection?: "pj" | "pnj";
 }
 
 export function PersonnageSidebar({ 
@@ -39,12 +40,13 @@ export function PersonnageSidebar({
     readOnly,
     canCreateOwnPJ,
     mobileSummary = false,
+    defaultOpenSection,
 }: PersonnageSidebarProps) {
     const [query, setQuery] = useState("");
     const normalizedQuery = query.trim().toLowerCase();
     const filteredPjs = pjs.filter((perso) => !normalizedQuery || perso.name.toLowerCase().includes(normalizedQuery));
     const filteredPnjs = pnjs.filter((perso) => !normalizedQuery || perso.name.toLowerCase().includes(normalizedQuery));
-    const [openSection, setOpenSection] = useState<"pj" | "pnj" | null>("pj");
+    const [openSection, setOpenSection] = useState<"pj" | "pnj" | null>(defaultOpenSection ?? "pj");
 
     const handleCreateForSection = (section: "pj" | "pnj") => {
         if (section === "pj") {

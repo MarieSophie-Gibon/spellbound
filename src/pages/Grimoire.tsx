@@ -24,34 +24,41 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
   const [isCreating, setIsCreating] = useState(false);
   const [editingPageData, setEditingPageData] = useState<InitialPageData | null>(null);
   const [pages, setPages] = useState<WikiPage[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
 
-  // PJs peuvent créer/éditer leurs propres articles dans une campagne
+  // PJs peuvent creer/editer leurs propres articles dans une campagne
   const canCreatePage = !readOnly || (!isGlobal && !!campaignId);
   const canEditPage = (page: WikiPage) => !readOnly || (!isGlobal && page.created_by === userId);
   const [draggedItem, setDraggedItem] = useState<DraggedItem>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
   const fetchData = async () => {
-    const { data: catData } = await supabase
-      .from("categories").select("*")
-      .order("position_index", { ascending: true }).order("name");
-    if (catData) {
-      if (!isGlobal && campaignId) {
-        setCategories(catData.filter((c) => c.campaign_id === campaignId || c.campaign_id === null));
-      } else {
-        setCategories(catData.filter((c) => c.campaign_id === null));
+    setIsLoading(true);
+    try {
+      const { data: catData } = await supabase
+        .from("categories").select("*")
+        .order("position_index", { ascending: true }).order("name");
+      if (catData) {
+        if (!isGlobal && campaignId) {
+          setCategories(catData.filter((c) => c.campaign_id === campaignId || c.campaign_id === null));
+        } else {
+          setCategories(catData.filter((c) => c.campaign_id === null));
+        }
       }
+
+      let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
+      if (isGlobal) query = query.is("campaign_id", null);
+      else if (campaignId) query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+      const { data: pagesData } = await query;
+      if (pagesData) setPages(pagesData);
+    } finally {
+      setIsLoading(false);
     }
-    let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
-    if (isGlobal) query = query.is("campaign_id", null);
-    else if (campaignId) query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
-    const { data: pagesData } = await query;
-    if (pagesData) setPages(pagesData);
   };
 
   useEffect(() => {
@@ -175,6 +182,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
     <GrimoireSidebar
       pages={pages}
       categories={categories}
+      isLoading={isLoading}
       selectedPageId={selectedPageId}
       expandedCats={expandedCats}
       draggedItem={draggedItem}
@@ -230,7 +238,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
               <AlertTriangle className="w-6 h-6" />
               <h3 className="text-xl font-serif">Supprimer ?</h3>
             </div>
-            <p className="text-white/70 text-sm mb-6 font-light">Cette action est définitive.</p>
+            <p className="text-white/70 text-sm mb-6 font-light">Cette action est definitive.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-white/60 text-sm hover:text-white">Annuler</button>
               <button onClick={confirmDelete} className="px-5 py-2 bg-[#ff6b6b]/20 hover:bg-[#ff6b6b]/40 text-[#ff6b6b] border border-[#ff6b6b]/30 rounded-lg text-sm">Supprimer</button>
@@ -252,6 +260,9 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
             setIsCreating(false);
             setEditingPageData(null);
             setSelectedPageId(id);
+            const page = pages.find((p) => p.id === id);
+            if (page?.category_id) setExpandedCats((prev) => ({ ...prev, [page.category_id!]: true }));
+            if (page?.subcategory_id) setExpandedCats((prev) => ({ ...prev, [page.subcategory_id!]: true }));
           }}
           onBackToArticleList={() => {
             setIsCreating(false);

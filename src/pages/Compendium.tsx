@@ -32,7 +32,9 @@ interface CompendiumProps {
 export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full' }: CompendiumProps) {
   const isMobile = useIsMobile();
   const isBestiaireOnly = mode === 'bestiaire';
-  const [activeSection, setActiveSection] = useState<Section | null>(isBestiaireOnly ? 'bestiaire' : 'peuples');
+  const [activeSection, setActiveSection] = useState<Section | null>(
+    isBestiaireOnly ? 'bestiaire' : (isMobile ? 'peuples' : null),
+  );
   const [peuples, setPeuples] = useState<Peuple[]>([]);
   const [selectedPeupleId, setSelectedPeupleId] = useState<string | null>(null);
   const [selectedVoie, setSelectedVoie] = useState<Voie | null>(null);
@@ -81,71 +83,108 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
   const [editingVoiePrestige, setEditingVoiePrestige] = useState<FamilleVoie | null>(null);
   const [showDeleteVoiePrestigeConfirm, setShowDeleteVoiePrestigeConfirm] = useState(false);
   const [isDeletingVoiePrestige, setIsDeletingVoiePrestige] = useState(false);
+  const [loadingSections, setLoadingSections] = useState<Record<Section, boolean>>({
+    peuples: false,
+    familles: false,
+    profils: false,
+    bestiaire: false,
+    objets: false,
+    voies_prestige: false,
+  });
+
+  const setSectionLoading = (section: Section, isLoading: boolean) => {
+    setLoadingSections((prev) => ({ ...prev, [section]: isLoading }));
+  };
 
   const fetchPeuples = async () => {
+    setSectionLoading('peuples', true);
     let query = supabase.from('peuples').select('*').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
       query = query.is('campaign_id', null);
     }
-    const { data } = await query;
-    if (data) setPeuples(data as Peuple[]);
+    try {
+      const { data } = await query;
+      if (data) setPeuples(data as Peuple[]);
+    } finally {
+      setSectionLoading('peuples', false);
+    }
   };
 
   const fetchFamillesArchetypes = async () => {
+    setSectionLoading('familles', true);
     let query = supabase.from('familles').select('*').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
       query = query.is('campaign_id', null);
     }
-    const { data } = await query;
-    if (data) setFamillesArchetypes(data as FamilleArchetype[]);
+    try {
+      const { data } = await query;
+      if (data) setFamillesArchetypes(data as FamilleArchetype[]);
+    } finally {
+      setSectionLoading('familles', false);
+    }
   };
 
   const fetchProfils = async () => {
+    setSectionLoading('profils', true);
     let query = supabase.from('profils').select('*, familles(nom)').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
       query = query.is('campaign_id', null);
     }
-    const { data } = await query;
-    if (data) setProfils(data.map((p: Famille & { familles?: { nom: string } | null }) => ({ ...p, famille_nom: p.familles?.nom ?? null })) as Famille[]);
+    try {
+      const { data } = await query;
+      if (data) setProfils(data.map((p: Famille & { familles?: { nom: string } | null }) => ({ ...p, famille_nom: p.familles?.nom ?? null })) as Famille[]);
+    } finally {
+      setSectionLoading('profils', false);
+    }
   };
 
   const fetchMonstres = async () => {
+    setSectionLoading('bestiaire', true);
     let query = supabase.from('bestiaire').select('*').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
       query = query.is('campaign_id', null);
     }
-    const { data } = await query;
-    if (data) setMonstres(data as Monstre[]);
+    try {
+      const { data } = await query;
+      if (data) setMonstres(data as Monstre[]);
+    } finally {
+      setSectionLoading('bestiaire', false);
+    }
   };
 
   const fetchEquipements = async () => {
+    setSectionLoading('objets', true);
     const applyFilter = <T extends { or: (f: string) => T; is: (col: string, val: null) => T }>(q: T): T =>
       campaignId ? q.or(`campaign_id.eq.${campaignId},campaign_id.is.null`) : q.is('campaign_id', null);
 
-    const [r1, r2, r3, r4] = await Promise.all([
-      applyFilter(supabase.from('armes_contact').select('*').order('nom')),
-      applyFilter(supabase.from('armes_distance').select('*').order('nom')),
-      applyFilter(supabase.from('armures').select('*').order('nom')),
-      applyFilter(supabase.from('equipements').select('*').order('nom')),
-    ]);
+    try {
+      const [r1, r2, r3, r4] = await Promise.all([
+        applyFilter(supabase.from('armes_contact').select('*').order('nom')),
+        applyFilter(supabase.from('armes_distance').select('*').order('nom')),
+        applyFilter(supabase.from('armures').select('*').order('nom')),
+        applyFilter(supabase.from('equipements').select('*').order('nom')),
+      ]);
 
-    const all: Equipement[] = [
-      ...(r1.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'arme_contact' as const, categorie: (e.categorie as string) || 'Arme contact', data: {} })),
-      ...(r2.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'arme_distance' as const, categorie: (e.categorie as string) || 'Arme distance', data: {} })),
-      ...(r3.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'armure' as const, categorie: 'Armure', data: {} })),
-      ...(r4.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'equipement' as const })),
-    ] as Equipement[];
+      const all: Equipement[] = [
+        ...(r1.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'arme_contact' as const, categorie: (e.categorie as string) || 'Arme contact', data: {} })),
+        ...(r2.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'arme_distance' as const, categorie: (e.categorie as string) || 'Arme distance', data: {} })),
+        ...(r3.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'armure' as const, categorie: 'Armure', data: {} })),
+        ...(r4.data ?? []).map((e: Record<string, unknown>) => ({ ...e, table_source: 'equipement' as const })),
+      ] as Equipement[];
 
-    all.sort((a, b) => a.nom.localeCompare(b.nom));
-    setEquipements(all);
+      all.sort((a, b) => a.nom.localeCompare(b.nom));
+      setEquipements(all);
+    } finally {
+      setSectionLoading('objets', false);
+    }
   };
 
   const fetchVoieForPeuple = async (peupleId: string) => {
@@ -155,14 +194,19 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
   };
 
   const fetchVoiesPrestige = async () => {
+    setSectionLoading('voies_prestige', true);
     let query = supabase.from('voies').select('*, familles(nom)').eq('type', 'prestige').order('nom');
     if (campaignId) {
       query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
       query = query.is('campaign_id', null);
     }
-    const { data } = await query;
-    if (data) setVoiesPrestige(data.map((v: FamilleVoie & { familles?: { nom: string } | null }) => ({ ...v, famille_nom: v.familles?.nom ?? null })) as FamilleVoie[]);
+    try {
+      const { data } = await query;
+      if (data) setVoiesPrestige(data.map((v: FamilleVoie & { familles?: { nom: string } | null }) => ({ ...v, famille_nom: v.familles?.nom ?? null })) as FamilleVoie[]);
+    } finally {
+      setSectionLoading('voies_prestige', false);
+    }
   };
 
   const fetchVoiesForProfil = async (profilId: string) => {
@@ -191,10 +235,10 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
       return;
     }
 
-    if (activeSection === null) {
+    if (isMobile && activeSection === null) {
       setActiveSection('peuples');
     }
-  }, [isBestiaireOnly, activeSection, selectedMonstreId, campaignId]);
+  }, [isBestiaireOnly, isMobile, activeSection, selectedMonstreId, campaignId]);
 
   useEffect(() => {
     if (selectedPeupleId) fetchVoieForPeuple(selectedPeupleId);
@@ -353,6 +397,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
       onCreateVoiePrestige={() => setShowVoiePrestigeWizard(true)}
       onBack={onBack}
       readOnly={readOnly}
+      loadingSections={loadingSections}
     />
   );
 

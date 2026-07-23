@@ -162,6 +162,19 @@ export function GrimoireMobile({
         </button>
       )}
 
+      {/* Bouton sommaire flottant (vue article) */}
+      {selectedPageId && !showArticleListInView && (
+        <button
+          type="button"
+          onClick={() => setIsSummaryOpen(true)}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-[#29206A]/90 border border-[#E3CCCD]/40 text-white text-[11px] font-semibold shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-md transition-all hover:bg-[#3a2d8a] hover:scale-105"
+          aria-label="Sommaire"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          Sommaire
+        </button>
+      )}
+
       <div className="flex-1 min-h-0 overflow-hidden p-2">
         <div className="relative h-full rounded-xl border border-[#E3CCCD]/18 bg-[#1E1941]/35 backdrop-blur-xl overflow-hidden">
           <div className="absolute inset-1 border border-[#E3CCCD]/12 rounded-[10px] pointer-events-none" />

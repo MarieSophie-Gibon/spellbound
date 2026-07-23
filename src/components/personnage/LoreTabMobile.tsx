@@ -84,7 +84,7 @@ export default function LoreTabMobile({ pjId, type, stats, readOnly = false, onS
               {field.label}
             </p>
             {value ? (
-              <p className="text-xs text-white/80 leading-relaxed line-clamp-3">
+              <p className={`text-xs text-white/80 leading-relaxed whitespace-pre-wrap ${field.type === "text" || field.key === "sexe" ? "line-clamp-1" : ""}`}>
                 {value}
               </p>
             ) : (

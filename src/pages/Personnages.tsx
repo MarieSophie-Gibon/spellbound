@@ -210,6 +210,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
                 selectedId={selectedId}
                 readOnly={!isMJ}
                 mobileSummary={true}
+                defaultOpenSection={selectedType}
                 onSelect={(id, type) => {
                   setSelectedId(id);
                   if (type) setSelectedType(type);

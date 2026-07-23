@@ -1,11 +1,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Coins, Package, Shield, Sword, Target, Backpack,
   Loader2, Plus, Minus, Trash2, X, Save,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface InventoryTabMobileProps {
   pjId: string;
@@ -50,10 +52,14 @@ export default function InventoryTabMobile({
   // Add modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [addType, setAddType] = useState<ItemType>("equipement");
+  const [addItemId, setAddItemId] = useState<string | number | null>(null);
   const [addNom, setAddNom] = useState("");
   const [addDesc, setAddDesc] = useState("");
   const [addQte, setAddQte] = useState(1);
+  const [addIsEquipped, setAddIsEquipped] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const [compendiumItems, setCompendiumItems] = useState<any[]>([]);
+  const [isFetchingCompendium, setIsFetchingCompendium] = useState(false);
 
   useEffect(() => {
     setPa(pjStats?.bourse_pa ?? 0);
@@ -76,6 +82,31 @@ export default function InventoryTabMobile({
   useEffect(() => {
     if (ownerId) fetchItems();
   }, [ownerId, profilId]);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+
+    const fetchCompendium = async () => {
+      setIsFetchingCompendium(true);
+      const tableMap: Record<ItemType, string> = {
+        arme_contact: "armes_contact",
+        arme_distance: "armes_distance",
+        armure: "armures",
+        equipement: "equipements",
+      };
+
+      try {
+        const { data } = await supabase.from(tableMap[addType]).select("*").order("nom");
+        setCompendiumItems(data || []);
+      } catch {
+        setCompendiumItems([]);
+      } finally {
+        setIsFetchingCompendium(false);
+      }
+    };
+
+    fetchCompendium();
+  }, [addType, showAddModal]);
 
   const openEdit = (item: any) => {
     setEditItem(item);
@@ -146,11 +177,11 @@ export default function InventoryTabMobile({
     try {
       const payload = {
         item_type: addType,
-        item_id: normalizeItemIdForDb(null),
+        item_id: normalizeItemIdForDb(addItemId),
         nom_custom: addNom.trim(),
         description_custom: addDesc.trim(),
         qte: addQte,
-        is_equipped: false,
+        is_equipped: addType === "equipement" ? false : addIsEquipped,
       };
       if (isPnj) {
         const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
@@ -162,7 +193,12 @@ export default function InventoryTabMobile({
         await supabase.from("pj_inventaire").insert({ ...payload, pj_id: pjId });
       }
       setShowAddModal(false);
-      setAddNom(""); setAddDesc(""); setAddQte(1); setAddType("equipement");
+      setAddNom("");
+      setAddDesc("");
+      setAddQte(1);
+      setAddType("equipement");
+      setAddItemId(null);
+      setAddIsEquipped(false);
       fetchItems();
     } catch (e: any) {
       alert(e.message);
@@ -173,6 +209,43 @@ export default function InventoryTabMobile({
 
   const weaponsAndArmor = unifiedItems.filter(i => ["arme_contact", "arme_distance", "armure"].includes(i.item_type));
   const genericItems = unifiedItems.filter(i => i.item_type === "equipement" || !i.item_type);
+  const selectedCompendiumItem = addItemId
+    ? compendiumItems.find((i) => i.id?.toString() === addItemId.toString())
+    : null;
+  const selectItemClass = "!text-white **:!text-white hover:!text-white focus:!text-white data-highlighted:!text-white hover:bg-white/10 focus:bg-white/10 data-highlighted:bg-white/10 data-[state=checked]:!text-white focus:**:!text-white data-highlighted:**:!text-white";
+
+  const handleAddTypeChange = (nextType: ItemType) => {
+    setAddType(nextType);
+    setAddItemId(null);
+    setAddNom("");
+    setAddDesc("");
+    setAddQte(1);
+    setAddIsEquipped(false);
+  };
+
+  const handleCompendiumSelect = (value: string) => {
+    if (value === "custom") {
+      setAddItemId(null);
+      setAddNom("");
+      setAddDesc("");
+      return;
+    }
+
+    const selected = compendiumItems.find((i) => i.id.toString() === value);
+    if (!selected) return;
+
+    let desc = selected.description || selected.data?.description || "";
+    if (addType === "arme_contact" || addType === "arme_distance") {
+      desc = `Dégâts: ${selected.dm}`;
+    }
+    if (addType === "armure") {
+      desc = `Défense: ${selected.bonus_def}`;
+    }
+
+    setAddItemId(selected.id);
+    setAddNom(selected.nom || "");
+    setAddDesc(desc);
+  };
 
   if (isLoading) {
     return <div className="flex justify-center py-10"><Loader2 className="w-7 h-7 text-[#E3CCCD]/50 animate-spin" /></div>;
@@ -219,7 +292,10 @@ export default function InventoryTabMobile({
           </span>
           {!readOnly && (
             <button
-              onClick={() => { setAddType("arme_contact"); setShowAddModal(true); }}
+              onClick={() => {
+                handleAddTypeChange("arme_contact");
+                setShowAddModal(true);
+              }}
               className="flex items-center gap-1 text-white/50 bg-white/5 hover:bg-white/10 px-1 py-1 rounded-lg border border-white/10 transition-colors"
             >
               <Plus className="w-3 h-3" />
@@ -270,7 +346,10 @@ export default function InventoryTabMobile({
           </span>
           {!readOnly && (
             <button
-              onClick={() => { setAddType("equipement"); setShowAddModal(true); }}
+              onClick={() => {
+                handleAddTypeChange("equipement");
+                setShowAddModal(true);
+              }}
               className="flex items-center gap-1 text-white/50 bg-white/5 hover:bg-white/10 px-1 py-1 rounded-lg border border-white/10 transition-colors"
             >
               <Plus className="w-3 h-3" />
@@ -309,9 +388,9 @@ export default function InventoryTabMobile({
       </div>
 
       {/* ── BOTTOM SHEET : ÉDITION D'UN OBJET ── */}
-      {editItem && !readOnly && (
+      {editItem && !readOnly && createPortal(
         <div
-          className="fixed inset-0 z-9999 bg-black/60 backdrop-blur-sm flex items-end justify-center p-4 pb-8"
+          className="fixed inset-0 z-9999 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => !isSaving && setEditItem(null)}
         >
           <div
@@ -381,13 +460,14 @@ export default function InventoryTabMobile({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ── BOTTOM SHEET : AJOUT D'UN OBJET ── */}
-      {showAddModal && !readOnly && (
+      {showAddModal && !readOnly && createPortal(
         <div
-          className="fixed inset-0 z-9999 bg-black/60 backdrop-blur-sm flex items-end justify-center p-4 pb-8"
+          className="fixed inset-0 z-9999 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => !isAdding && setShowAddModal(false)}
         >
           <div
@@ -413,7 +493,7 @@ export default function InventoryTabMobile({
                       <button
                         key={t}
                         type="button"
-                        onClick={() => setAddType(t)}
+                        onClick={() => handleAddTypeChange(t)}
                         className={`py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${addType === t ? "bg-[#E3CCCD]/18 border-[#E3CCCD]/40 text-[#E3CCCD]" : "bg-white/5 border-white/12 text-white/55"}`}
                       >
                         {labels[t]}
@@ -421,6 +501,37 @@ export default function InventoryTabMobile({
                     );
                   })}
                 </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60">Objet du Compendium</label>
+                  <span className="text-[10px] text-white/35 font-mono">{compendiumItems.length}</span>
+                </div>
+                <Select
+                  value={addItemId?.toString() || "custom"}
+                  onValueChange={handleCompendiumSelect}
+                  disabled={isFetchingCompendium}
+                >
+                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 focus-visible:border-[#E3CCCD]/55 disabled:opacity-50">
+                    <SelectValue placeholder="Objet personnalisé..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                    <SelectItem value="custom" className={selectItemClass}>Objet personnalisé...</SelectItem>
+                    {compendiumItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id.toString()} className={selectItemClass}>
+                        {item.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-[10px] text-white/35">
+                  {isFetchingCompendium
+                    ? "Chargement..."
+                    : selectedCompendiumItem
+                      ? "Objet du compendium"
+                      : "Objet personnalisé"}
+                </p>
               </div>
 
               <div>
@@ -457,6 +568,18 @@ export default function InventoryTabMobile({
                   </div>
                 </div>
               )}
+
+              {addType !== "equipement" && (
+                <label className="flex items-center gap-2 cursor-pointer mt-1 w-max p-2 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/10">
+                  <input
+                    type="checkbox"
+                    checked={addIsEquipped}
+                    onChange={(e) => setAddIsEquipped(e.target.checked)}
+                    className="accent-[#E3CCCD] w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-[12px] text-white/80 select-none">Objet équipé en main / porté</span>
+                </label>
+              )}
             </div>
 
             <div className="flex gap-2 px-4 pb-4">
@@ -478,7 +601,8 @@ export default function InventoryTabMobile({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

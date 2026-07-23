@@ -88,14 +88,9 @@ export function CompendiumMobile({
 
   useEffect(() => {
     if (showListInView && !wasListInView.current) {
-      setOpenSection(null);
-      setOpenProfilGroups(new Set());
-      setOpenVoiesGroups(new Set());
-      setOpenBestiaireGroups(new Set());
+      // Ne pas réinitialiser les sections : garder ouvert ce qui était ouvert
       if (isBestiaireOnlyView) {
         onSectionChange("bestiaire");
-      } else {
-        onSectionChange(null);
       }
     }
     wasListInView.current = showListInView;

@@ -25,6 +25,27 @@ import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { useProfile } from "@/hooks/useProfile";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
+function normalizeRole(value: unknown): "mj" | "player" {
+  const raw = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const compact = raw.replace(/[\s_-]+/g, "");
+  if (
+    raw === "mj" ||
+    raw === "gm" ||
+    raw === "dm" ||
+    raw === "admin" ||
+    compact === "maitredujeu" ||
+    compact === "master"
+  ) {
+    return "mj";
+  }
+  return "player";
+}
+
 function App() {
   const isMobile = useIsMobile();
   const location = useLocation();
@@ -34,7 +55,7 @@ function App() {
   const { session, isLoading, initializeAuth } = useAuthStore();
   const role = useAuthStore((s) => s.role);
   const profile = useProfile();
-  const isGlobalEditor = role === 'mj' || profile?.role === 'mj';
+  const isGlobalEditor = role === "mj" || normalizeRole(profile?.role) === "mj";
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
@@ -62,7 +83,12 @@ function App() {
   // Détermine les onglets visibles selon la route
   const isCampaignRoute = location.pathname.startsWith("/campaign");
   const isCombatRoute = location.pathname.startsWith("/campaign/combat");
-  const canManageActiveCampaign = !!activeCampaign && activeCampaign.owner_id === session?.user?.id;
+  const canManageActiveCampaign =
+    !!activeCampaign &&
+    (
+      activeCampaign.owner_id === session?.user?.id ||
+      activeCampaign.access_type === "owner"
+    );
   const getActiveTab = () => {
     if (isCampaignRoute && location.pathname.includes("grimoire")) return "grimoire";
     if (isCampaignRoute && location.pathname.includes("bestiaire")) return "bestiaire";
