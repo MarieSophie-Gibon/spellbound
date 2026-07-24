@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
-import { EMPTY_RANGS, RANG_ACTION_TYPES, RANG_BONUS_TYPES, type RangsState, type VoieRang } from "@/types/compendium";
+import { EMPTY_RANGS, RANG_ACTION_TYPES, type RangsState, type VoieRang } from "@/types/compendium";
 import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";
 
 interface InitialPeupleData {
