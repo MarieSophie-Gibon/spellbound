@@ -17,7 +17,7 @@ export function BookLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex-1 w-full h-full p-0 sm:p-2 lg:p-8 lg:pr-24">
+    <div className="flex-1 w-full h-full p-0 sm:p-2 lg:p-8">
       {/* Responsive layout: mobile/tablet */}
       <div className="lg:hidden w-full h-full flex flex-col">
         <div className="sticky top-0 z-20 shrink-0 px-3 pt-3 pb-2 bg-linear-to-b from-[#100c2f]/95 via-[#100c2f]/80 to-transparent backdrop-blur-sm">
@@ -73,7 +73,7 @@ export function BookLayout({
       </div>
 
       {/* Existing large-screen design (unchanged) */}
-      <div className="hidden lg:flex w-full h-full max-w-362.5 rounded-[1rem] relative bg-[#1E1941]/40 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden">
+      <div className="hidden lg:flex w-full h-full rounded-[1rem] relative bg-[#1E1941]/40 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden">
         <div
           className="absolute inset-1.5 border border-[#E3CCCD]/15 pointer-events-none z-0"
           style={{ borderRadius: "calc(1rem - 5px)" }}

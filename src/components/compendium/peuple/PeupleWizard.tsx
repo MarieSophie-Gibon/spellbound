@@ -445,10 +445,10 @@ export function PeupleWizard({
                 const actions = Array.isArray(rangData.actions) ? rangData.actions : [];
                 const familiers = Array.isArray(rangData.familiers) ? rangData.familiers : [];
                 const legacies = Array.isArray(rangData.legacies) ? rangData.legacies : [];
-                const itemHasContent = (item: Record<string, unknown>) =>
-                  Object.values(item).some(v => (typeof v === "string" && v.trim().length > 0) || (typeof v === "boolean" && v));
+                const itemHasContent = (item: unknown) =>
+                  Object.values(item as Record<string, unknown>).some(v => (typeof v === "string" && v.trim().length > 0) || (typeof v === "boolean" && v));
                 const showItems = isEditing
-                  ? [...bonuses, ...capacites, ...actions, ...familiers, ...legacies].some((i, _idx) => itemHasContent(i as Record<string, unknown>)) || newItemKeys.size > 0
+                  ? [...bonuses, ...capacites, ...actions, ...familiers, ...legacies].some((i, _idx) => itemHasContent(i)) || newItemKeys.size > 0
                   : bonuses.length > 0 || capacites.length > 0 || actions.length > 0 || familiers.length > 0 || legacies.length > 0;
                 return (
                   <div key={key} className="rounded-xl border border-white/8 overflow-hidden">
@@ -467,7 +467,7 @@ export function PeupleWizard({
                     {showItems && (
                       <div className="px-3 pt-1 pb-0.5 space-y-1">
                         {bonuses.map((bonus, idx) => {
-                          if (isEditing && !itemHasContent(bonus as Record<string, unknown>) && !newItemKeys.has(`${key}-bonus-${idx}`)) return null;
+                          if (isEditing && !itemHasContent(bonus) && !newItemKeys.has(`${key}-bonus-${idx}`)) return null;
                           const ikey = `${key}-bonus-${idx}`;
                           const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
                           return (
@@ -493,7 +493,7 @@ export function PeupleWizard({
                           );
                         })}
                         {capacites.map((capacite, idx) => {
-                          if (isEditing && !itemHasContent(capacite as Record<string, unknown>) && !newItemKeys.has(`${key}-capacites-${idx}`)) return null;
+                          if (isEditing && !itemHasContent(capacite) && !newItemKeys.has(`${key}-capacites-${idx}`)) return null;
                           const ikey = `${key}-capacites-${idx}`;
                           const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
                           return (
@@ -515,7 +515,7 @@ export function PeupleWizard({
                           );
                         })}
                         {actions.map((action, idx) => {
-                          if (isEditing && !itemHasContent(action as Record<string, unknown>) && !newItemKeys.has(`${key}-actions-${idx}`)) return null;
+                          if (isEditing && !itemHasContent(action) && !newItemKeys.has(`${key}-actions-${idx}`)) return null;
                           const ikey = `${key}-actions-${idx}`;
                           const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
                           return (
@@ -558,7 +558,7 @@ export function PeupleWizard({
                           );
                         })}
                         {familiers.map((familier, idx) => {
-                          if (isEditing && !itemHasContent(familier as Record<string, unknown>) && !newItemKeys.has(`${key}-familiers-${idx}`)) return null;
+                          if (isEditing && !itemHasContent(familier) && !newItemKeys.has(`${key}-familiers-${idx}`)) return null;
                           const ikey = `${key}-familiers-${idx}`;
                           const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
                           return (
@@ -580,7 +580,7 @@ export function PeupleWizard({
                           );
                         })}
                         {legacies.map((legacy, idx) => {
-                          if (isEditing && !itemHasContent(legacy as Record<string, unknown>) && !newItemKeys.has(`${key}-legacies-${idx}`)) return null;
+                          if (isEditing && !itemHasContent(legacy) && !newItemKeys.has(`${key}-legacies-${idx}`)) return null;
                           const ikey = `${key}-legacies-${idx}`;
                           const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
                           return (
