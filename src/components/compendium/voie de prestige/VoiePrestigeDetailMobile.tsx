@@ -1,6 +1,18 @@
 import { ChevronDown, Pencil, Trash2 } from "lucide-react";
 import type { FamilleVoie } from "@/types/compendium";
 
+function getTypeStyles(type?: string | null) {
+  if (!type) return { border: "border-white/10", bg: "", badge: "text-[#E3CCCD]/40 border-[#E3CCCD]/15", dot: "bg-white/20" };
+  const t = type.toLowerCase();
+  if (t.includes("action"))
+    return { border: "border-[#f4a261]/50", bg: "bg-[#f4a261]/5", badge: "text-[#f4a261] border-[#f4a261]/40", dot: "bg-[#f4a261]" };
+  if (t.includes("bonus"))
+    return { border: "border-[#e9c46a]/50", bg: "bg-[#e9c46a]/5", badge: "text-[#e9c46a] border-[#e9c46a]/40", dot: "bg-[#e9c46a]" };
+  if (t === "passif")
+    return { border: "border-[#90e0ef]/50", bg: "bg-[#90e0ef]/5", badge: "text-[#90e0ef] border-[#90e0ef]/40", dot: "bg-[#90e0ef]" };
+  return { border: "border-white/15", bg: "bg-white/3", badge: "text-white/40 border-white/15", dot: "bg-white/20" };
+}
+
 interface VoiePrestigeDetailMobileProps {
   voie: FamilleVoie;
   readOnly?: boolean;
@@ -75,38 +87,35 @@ export function VoiePrestigeDetailMobile({
             const key = `rang${rangNum}` as keyof typeof voie.capacites;
             const cap = voie.capacites[key];
             if (!cap?.nom) return null;
+            const styles = getTypeStyles(cap.type);
 
             return (
               <details
                 key={key}
-                className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl p-4 group"
+                className={`border-l-2 ${styles.border} ${styles.bg} rounded-r-xl pl-3 pr-3 pt-2.5 pb-2.5 group`}
               >
                 <summary className="list-none cursor-pointer select-none flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-5 h-5 rounded-full border border-[#E3CCCD]/35 flex items-center justify-center text-[10px] text-[#E3CCCD]/75 shrink-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <span className="w-5 h-5 rounded-full border border-[#E3CCCD]/30 flex items-center justify-center text-[10px] text-[#E3CCCD]/60 shrink-0">
                       {rangNum}
                     </span>
-                    <h3 className="text-[14px] text-white font-medium leading-snug wrap-break-word">
-                      {cap.nom}
-                    </h3>
+                    <h3 className="text-[13px] text-white font-medium leading-snug">{cap.nom}</h3>
+                    {!!cap.type && (
+                      <span className={`text-[9px] uppercase tracking-widest rounded-full px-1.5 py-0.5 border ${styles.badge}`}>
+                        {cap.type}
+                      </span>
+                    )}
                   </div>
-                  <span className="flex h-6 w-6 items-center justify-center origin-center text-white/95 transition-transform duration-200 group-open:rotate-180 shrink-0">
-                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  <span className="flex h-5 w-5 items-center justify-center text-white/50 transition-transform duration-200 group-open:rotate-180 shrink-0">
+                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
                   </span>
                 </summary>
 
-                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                  {!!cap.type && (
-                    <span className="inline-block text-[9px] uppercase tracking-widest text-[#E3CCCD]/55 border border-[#E3CCCD]/15 rounded-full px-1.5 py-0.5">
-                      {cap.type}
-                    </span>
-                  )}
-                  {!!cap.description && (
-                    <p className="text-[13px] font-light text-white/80 leading-relaxed whitespace-pre-wrap">
-                      {cap.description}
-                    </p>
-                  )}
-                </div>
+                {!!cap.description && (
+                  <p className="mt-2 text-[12px] font-light text-white/60 leading-relaxed whitespace-pre-wrap">
+                    {cap.description}
+                  </p>
+                )}
               </details>
             );
           })}

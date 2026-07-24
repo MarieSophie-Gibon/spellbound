@@ -55,6 +55,8 @@ export interface VoieRang {
   bonus?: VoieRangBonus[] | VoieRangBonus | null;
   capacites?: VoieRangCapaciteDetail[] | VoieRangCapaciteDetail | null;
   actions?: VoieRangAction[] | VoieRangAction | null;
+  familiers?: VoieRangCapaciteDetail[] | null;
+  legacies?: VoieRangCapaciteDetail[] | null;
   // Transitional fields for intermediate payloads.
   capacite?: VoieRangCapaciteDetail | null;
   action?: VoieRangAction | null;

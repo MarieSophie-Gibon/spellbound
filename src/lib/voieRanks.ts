@@ -25,6 +25,8 @@ export interface NormalizedVoieRang {
   bonus: VoieRangBonus[];
   capacites: VoieRangCapaciteDetail[];
   actions: VoieRangAction[];
+  familiers: VoieRangCapaciteDetail[];
+  legacies: VoieRangCapaciteDetail[];
 }
 
 const normalizeBonusItem = (input: unknown): VoieRangBonus => {
@@ -78,6 +80,8 @@ export function normalizeVoieRang(input: unknown): NormalizedVoieRang {
     bonus: [],
     capacites: [],
     actions: [],
+    familiers: [],
+    legacies: [],
   };
 
   if (!input || typeof input !== "object") return rank;
@@ -99,6 +103,9 @@ export function normalizeVoieRang(input: unknown): NormalizedVoieRang {
   if (rank.actions.length === 0 && source.action) {
     rank.actions = asArray(source.action, normalizeActionItem);
   }
+
+  rank.familiers = asArray(source.familiers, normalizeCapaciteItem);
+  rank.legacies = asArray(source.legacies, normalizeCapaciteItem);
 
   // Legacy payloads stored only nom/description/type. Promote to capacite for display/edit consistency.
   if (rank.capacites.length === 0 && (isNonEmpty(rank.nom) || isNonEmpty(rank.description))) {
@@ -163,8 +170,27 @@ export function hasLegacyContent(rank: VoieRang): boolean {
   return [normalized.nom, normalized.type, normalized.description].some((v) => isNonEmpty(v));
 }
 
+export function hasFamilier(rank: VoieRang): boolean {
+  const normalized = normalizeVoieRang(rank);
+  return normalized.familiers.some((f) => [f.titre, f.description].some((v) => isNonEmpty(v)));
+}
+
+export function hasLegacyRang(rank: VoieRang): boolean {
+  const normalized = normalizeVoieRang(rank);
+  return normalized.legacies.some((l) => [l.titre, l.description].some((v) => isNonEmpty(v)));
+}
+
 export function hasRangContent(rank: VoieRang): boolean {
-  return hasBonus(rank) || hasCapacite(rank) || hasAction(rank) || hasLegacyContent(rank);
+  const normalized = normalizeVoieRang(rank);
+  return (
+    isNonEmpty(normalized.titre) ||
+    hasBonus(rank) ||
+    hasCapacite(rank) ||
+    hasAction(rank) ||
+    hasFamilier(rank) ||
+    hasLegacyRang(rank) ||
+    hasLegacyContent(rank)
+  );
 }
 
 export function getRankTitle(rank: VoieRang, fallback: string): string {
@@ -187,11 +213,26 @@ export function cleanupRankForSave(rank: VoieRang): VoieRang {
   const cleanBonuses = normalized.bonus.filter((bonus) =>
     [bonus.titre, bonus.type, bonus.valeur, bonus.condition].some((v) => isNonEmpty(v)),
   );
-  const cleanCapacites = normalized.capacites.filter((capacite) =>
+
+  // Lire les capacités BRUTES pour éviter que normalizeVoieRang re-promove
+  // les champs legacy (nom/description) si l'utilisateur a tout supprimé.
+  const rawCapacites: VoieRangCapaciteDetail[] = Array.isArray(rank.capacites)
+    ? (rank.capacites as VoieRangCapaciteDetail[])
+    : rank.capacite
+      ? [rank.capacite as VoieRangCapaciteDetail]
+      : [];
+  const cleanCapacites = rawCapacites.filter((capacite) =>
     [capacite.titre, capacite.description].some((v) => isNonEmpty(v)),
   );
+
   const cleanActions = normalized.actions.filter((action) =>
     [action.titre, action.type, action.cout_mana, action.dm, action.test_type, action.resultat_si_reussi, action.description].some((v) => isNonEmpty(v)),
+  );
+  const cleanFamiliers = normalized.familiers.filter((f) =>
+    [f.titre, f.description].some((v) => isNonEmpty(v)),
+  );
+  const cleanLegacies = normalized.legacies.filter((l) =>
+    [l.titre, l.description].some((v) => isNonEmpty(v)),
   );
 
   const cleaned: VoieRang = {
@@ -199,6 +240,8 @@ export function cleanupRankForSave(rank: VoieRang): VoieRang {
     bonus: cleanBonuses.length ? cleanBonuses : null,
     capacites: cleanCapacites.length ? cleanCapacites : null,
     actions: cleanActions.length ? cleanActions : null,
+    familiers: cleanFamiliers.length ? cleanFamiliers : null,
+    legacies: cleanLegacies.length ? cleanLegacies : null,
   };
 
   return cleaned;

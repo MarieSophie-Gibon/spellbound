@@ -2,7 +2,8 @@ import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon } from "lucide
 import type { Peuple, Voie } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { PeupleDetailMobile } from "@/components/compendium/peuple/PeupleDetailMobile";
-import { getRankTitle, hasAction, hasBonus, hasCapacite, hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
+import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
+import { RangCard } from "@/components/ui/RangCard";
 
 interface PeupleDetailProps {
   peuple: Peuple;
@@ -84,81 +85,14 @@ export function PeupleDetail({ peuple, voie, isFullscreen, readOnly, onToggleFul
         </div>
 
         {/* VOIE DU PEUPLE */}
-        <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl p-6 shadow-inner">
+        <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl px-3 py-3 shadow-inner">
           <h3 className="font-serif text-xl text-white mb-5">{voie ? voie.nom : "Voie raciale non définie"}</h3>
           {voie ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((rangNum) => {
                 const rang = normalizeVoieRang(voie.capacites[`rang${rangNum}` as keyof typeof voie.capacites]);
                 if (!hasRangContent(rang)) return null;
-
-                const rankTitle = getRankTitle(rang, `Rang ${rangNum}`);
-                const showBonus = hasBonus(rang);
-                const showCapacite = hasCapacite(rang);
-                const showAction = hasAction(rang);
-                const bonuses = rang.bonus || [];
-                const capacites = rang.capacites || [];
-                const actions = rang.actions || [];
-
-                return (
-                  <div key={rangNum} className="text-[13px] rounded-lg border border-white/10 bg-black/10 p-3">
-                    <p className="font-bold text-white mb-1">{rangNum}. {rankTitle}</p>
-
-                    {showBonus && bonuses.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-[10px] uppercase tracking-wider text-[#E3CCCD]/65">Bonus</p>
-                        {bonuses.map((bonus, idx) => (
-                          <div key={`bonus-${idx}`}>
-                            <p className="text-white/80">
-                              <span className="font-medium">{bonus.titre || "Bonus"}</span>
-                              {(bonus.type || bonus.valeur) && (
-                                <span className="text-white/65"> - {[bonus.type, bonus.valeur].filter(Boolean).join(" ")}</span>
-                              )}
-                            </p>
-                            {bonus.condition && <p className="text-white/65">{bonus.condition}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {showCapacite && capacites.length > 0 && (
-                      <div className="mb-2">
-                        <p className="text-[10px] uppercase tracking-wider text-[#E3CCCD]/65">Capacité</p>
-                        {capacites.map((capacite, idx) => (
-                          <div key={`capacite-${idx}`}>
-                            <p className="text-white/80 font-medium">{capacite.titre || "Capacité"}</p>
-                            {capacite.description && <p className="text-white/65">{capacite.description}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {showAction && actions.length > 0 && (
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[#E3CCCD]/65">Action</p>
-                        {actions.map((action, idx) => (
-                          <div key={`action-${idx}`}>
-                            <p className="text-white/80 flex flex-wrap items-center gap-1.5">
-                              <span className="font-medium">{action.titre || "Action"}</span>
-                              {action.type && <span className="text-[10px] border border-[#E3CCCD]/20 rounded-full px-1.5 py-0.5 text-[#E3CCCD]/70">{action.type}</span>}
-                              {action.sort && <span className="text-[10px] border border-sky-300/30 rounded-full px-1.5 py-0.5 text-sky-200/70">Sort</span>}
-                              {action.sort && action.cout_mana && <span className="text-[10px] text-sky-200/70">PM {action.cout_mana}</span>}
-                              {action.dm && <span className="text-[10px] text-amber-200/80">DM {action.dm}</span>}
-                            </p>
-                            {action.test_oppose && (
-                              <p className="text-white/65">Test opposé{action.test_type ? ` (${action.test_type})` : ""}{action.resultat_si_reussi ? ` - Si réussi: ${action.resultat_si_reussi}` : ""}</p>
-                            )}
-                            {action.description && <p className="text-white/65">{action.description}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {!showBonus && !showCapacite && !showAction && rang.description && (
-                      <p className="font-light text-white/80 leading-relaxed">{rang.description}</p>
-                    )}
-                  </div>
-                );
+                return <RangCard key={rangNum} rang={rang} rangNum={rangNum} />;
               })}
             </div>
           ) : (
