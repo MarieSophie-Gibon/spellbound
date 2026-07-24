@@ -210,7 +210,7 @@ h1, h2, h3, h4, h5, h6 {
 
   .overlay-bg {
     background-position: 50% 40%;
-    background-size: 280%;
+    background-size: 200%;
   }
 
   @media (min-width: 1024px) {
