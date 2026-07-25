@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
   type Combatant,
+  type CombatFamilier,
   type ChapitreBlock,
   type EncounterEntry,
   type MapToken,
@@ -495,7 +496,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
           if (searchTerm.trim()) query = query.ilike("name", `%${searchTerm}%`);
           const { data } = await query;
           setSearchResults((data ?? []).map((npc) => ({
-            id: npc.id, name: npc.name, image_url: npc.image_url, type: "npc" as const, stats: npc.stats,
+            id: npc.id, name: npc.name, image_url: npc.image_url, type: "npc" as const, stats: npc.stats, pathways: npc.pathways,
           })));
         }
       } finally { setLoadingSearch(false); }
@@ -519,14 +520,23 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     if (!isHydrated) return;
 
     const allPJs = combatants.filter((c) => c.type === "pj" && c.entityId);
-    const npcsMissing = combatants.filter((c) => c.type === "npc" && !c.voies && c.entityId);
+    const allNPCs = combatants.filter((c) => c.type === "npc" && c.entityId);
 
-    if (allPJs.length === 0 && npcsMissing.length === 0) return;
+    if (allPJs.length === 0 && allNPCs.length === 0) return;
 
     const run = async () => {
       if (allPJs.length > 0) {
         const ids = allPJs.map((c) => c.entityId!);
-        const { data } = await supabase.from("pj").select("id, stats, pathways").in("id", ids);
+        const [{ data }, { data: pjFamData }] = await Promise.all([
+          supabase.from("pj").select("id, stats, pathways").in("id", ids),
+          supabase.from("pj_familiers").select("*").in("pj_id", ids),
+        ]);
+        const famsByPJ = new Map<string, CombatFamilier[]>();
+        for (const f of pjFamData ?? []) {
+          const list = famsByPJ.get(f.pj_id) ?? [];
+          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null });
+          famsByPJ.set(f.pj_id, list);
+        }
         if (data?.length) {
           const voiesPerPJ = await Promise.all(data.map((r) => fetchVoiesForPathways(r.pathways)));
           setCombatants((prev) =>
@@ -537,28 +547,37 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
               const row = data[idx];
               return {
                 ...c,
-                // Stats de combat toujours fraîches depuis la DB (defense + initiative)
                 defense: toNumber(row.stats?.defense, 0),
                 initiative: toNumber(row.stats?.initiative, c.initiative),
                 pvMax: toNumber(row.stats?.pv_max ?? row.stats?.pv, c.pvMax),
                 pjStats: buildPJStats(row),
                 voies: voiesPerPJ[idx],
+                familiers: famsByPJ.get(row.id) ?? [],
               };
             })
           );
         }
       }
-      if (npcsMissing.length > 0) {
-        const ids = npcsMissing.map((c) => c.entityId!);
-        const { data } = await supabase.from("pnj").select("id, stats, pathways").in("id", ids);
+      if (allNPCs.length > 0) {
+        const ids = allNPCs.map((c) => c.entityId!);
+        const [{ data }, { data: npcFamData }] = await Promise.all([
+          supabase.from("pnj").select("id, stats, pathways").in("id", ids),
+          supabase.from("pj_familiers").select("*").in("pnj_id", ids),
+        ]);
+        const famsByNPC = new Map<string, CombatFamilier[]>();
+        for (const f of npcFamData ?? []) {
+          const list = famsByNPC.get(f.pnj_id) ?? [];
+          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null });
+          famsByNPC.set(f.pnj_id, list);
+        }
         if (data?.length) {
           const voiesPerNPC = await Promise.all(data.map((r) => fetchVoiesForPathways(r.pathways)));
           setCombatants((prev) =>
             prev.map((c) => {
-              if (c.type !== "npc" || c.voies) return c;
+              if (c.type !== "npc") return c;
               const idx = data.findIndex((d) => d.id === c.entityId);
               if (idx < 0) return c;
-              return { ...c, voies: voiesPerNPC[idx], pjStats: buildPJStats(data[idx]) };
+              return { ...c, voies: voiesPerNPC[idx], pjStats: buildPJStats(data[idx]), familiers: famsByNPC.get(data[idx].id) ?? [] };
             })
           );
         }
@@ -613,7 +632,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
           if (!npc) continue;
           const pvMax = toNumber(npc.stats?.pv_max ?? npc.stats?.pv, 10);
           const voies = await fetchVoiesForPathways(npc.pathways);
-          created.push({ id: makeCombatantId(), entityId: npc.id, type: "npc", name: npc.name, imageUrl: npc.image_url ?? block.data.imageUrl, initiative: toNumber(npc.stats?.initiative, 0), pv: pvMax, pvMax, defense: toNumber(npc.stats?.defense, 0), conditions: [], tactics: block.data.comportement, notes: block.data.notes, voies });
+          created.push({ id: makeCombatantId(), entityId: npc.id, type: "npc", name: npc.name, imageUrl: npc.image_url ?? block.data.imageUrl, initiative: toNumber(npc.stats?.initiative, 0), pv: pvMax, pvMax, defense: toNumber(npc.stats?.defense, 0), conditions: [], tactics: block.data.comportement, notes: block.data.notes, voies, pjStats: buildPJStats({ stats: npc.stats }) });
         }
       }
       upsertCombatants(created);
@@ -1034,6 +1053,19 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
                   })
                 )
               }
+              onSummonFamilier={(f) => {
+                const d = f.data as any;
+                const newEntry: Combatant = {
+                  id: makeCombatantId(), entityId: f.id, type: "familier", name: f.name,
+                  imageUrl: f.image_url ?? undefined,
+                  initiative: toNumber(d?.combat?.initiative, 0),
+                  pv: f.pv, pvMax: f.pv_max,
+                  defense: toNumber(d?.combat?.defense, 0),
+                  conditions: [],
+                  details: { stats: d?.stats, combat: d?.combat, attaques: d?.attaques ?? [], capacites: d?.capacites ?? [] },
+                };
+                setCombatants((prev) => [...prev, newEntry]);
+              }}
             />
           </div>
         </div>

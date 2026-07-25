@@ -1,68 +1,75 @@
 import { useState } from "react";
 import { ChevronDown, Crosshair, Minus, Plus, Shield, Swords, Wand2, Zap, Heart, X } from "lucide-react";
 import { MagicCard } from "@/components/ui/MagicCard";
+import { RangCard } from "@/components/ui/RangCard";
+import type { VoieSection } from "@/components/ui/RangCard";
 import { CONDITION_OPTIONS, STAT_ORDER, toNumber } from "./types";
-import type { Combatant, ConditionKey, MonsterStatsMap, VoieEntry } from "./types";
-import { getRankPrimaryDescription, getRankTitle, hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
+import type { Combatant, CombatFamilier, ConditionKey, MonsterStatsMap, VoieEntry } from "./types";
+import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
+
+const VOIE_FILTER_OPTIONS: { key: VoieSection; label: string; activeClass: string }[] = [
+    { key: 'action',   label: 'Actions',   activeClass: 'text-[#f4a261] border-[#f4a261]/50 bg-[#f4a261]/10' },
+    { key: 'bonus',    label: 'Bonus',     activeClass: 'text-[#e9c46a] border-[#e9c46a]/50 bg-[#e9c46a]/10' },
+    { key: 'capacite', label: 'Capacités', activeClass: 'text-[#90e0ef] border-[#90e0ef]/50 bg-[#90e0ef]/10' },
+    { key: 'familier', label: 'Familiers', activeClass: 'text-[#6ee7b7] border-[#6ee7b7]/50 bg-[#6ee7b7]/10' },
+];
 
 interface CombatantCardProps {
     combatant: Combatant;
     onUpdatePv: (newPv: number) => void;
     onToggleCondition: (cond: ConditionKey) => void;
     onClose?: () => void;
+    onSummonFamilier?: (familier: CombatFamilier) => void;
 }
 
 function signedNum(n: number) {
     return n >= 0 ? `+${n}` : String(n);
 }
 
-function VoieAccordion({ voie, expanded, onToggle }: { voie: VoieEntry; expanded: boolean; onToggle: () => void }) {
+function FlatVoieList({ voies, sections }: { voies: VoieEntry[]; sections: Set<VoieSection> }) {
+    const groups = voies
+        .map(voie => ({
+            voie,
+            rangs: [...voie.rangsAcquis]
+                .sort((a, b) => a - b)
+                .map(rang => ({ rang, cap: normalizeVoieRang(voie.capacites[`rang${rang}`]) }))
+                .filter(({ cap }) => hasRangContent(cap)),
+        }))
+        .filter(g => g.rangs.length > 0);
+
+    if (groups.length === 0) {
+        return <p className="text-[10px] text-white/30 italic">Aucune voie disponible.</p>;
+    }
+
     return (
-        <div className="bg-white/6 rounded-lg border border-white/10 overflow-hidden">
-            <button onClick={onToggle} className="w-full flex items-center justify-between px-2.5 py-2 text-left hover:bg-white/5 transition-colors">
-                <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-xs font-semibold text-white truncate">{voie.nom}</span>
-                    <div className="flex gap-0.5 shrink-0">
-                        {[...voie.rangsAcquis].sort((a, b) => a - b).map((r) => (
-                            <span key={r} className="w-4 h-4 rounded-full bg-[#E3CCCD]/15 border border-[#E3CCCD]/30 flex items-center justify-center text-[8px] text-[#E3CCCD]/80 font-bold">{r}</span>
+        <div className="space-y-3">
+            {groups.map(({ voie, rangs }) => (
+                <div key={voie.id}>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="text-[8px] uppercase tracking-widest text-white/30 shrink-0">{voie.nom}</span>
+                        <div className="flex-1 h-px bg-white/8" />
+                    </div>
+                    <div className="space-y-1.5">
+                        {rangs.map(({ rang, cap }) => (
+                            <RangCard key={rang} rang={cap} rangNum={rang} hideLegacy sections={sections} />
                         ))}
                     </div>
                 </div>
-                <ChevronDown className={`w-3 h-3 text-white/30 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
-            </button>
-            {expanded && (
-                <div className="px-2.5 pb-2 border-t border-white/8 pt-2 space-y-1.5">
-                    {[1, 2, 3, 4, 5].map((rang) => {
-                        const cap = normalizeVoieRang(voie.capacites[`rang${rang}`]);
-                        if (!hasRangContent(cap)) return null;
-                        const acquired = voie.rangsAcquis.includes(rang);
-                        const capTitle = getRankTitle(cap, `Rang ${rang}`);
-                        const capType = cap.actions[0]?.type || cap.type || "";
-                        const capDescription = getRankPrimaryDescription(cap);
-                        return (
-                            <div key={rang} className={`text-[10px] ${acquired ? "" : "opacity-30"}`}>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-white">{rang}. {capTitle}</span>
-                                    {capType && (
-                                        <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded px-1 py-0.5">{capType}</span>
-                                    )}
-                                    {acquired && <span className="ml-auto text-[8px] text-emerald-400/70">✓</span>}
-                                </div>
-                                <p className="text-white/55 leading-relaxed mt-0.5 line-clamp-3">{capDescription}</p>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+            ))}
         </div>
     );
 }
 
-export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClose }: CombatantCardProps) {
-    const [expandedVoie, setExpandedVoie] = useState<string | null>(null);
+export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClose, onSummonFamilier }: CombatantCardProps) {
     const [editOpen, setEditOpen] = useState(false);
     const [pvDelta, setPvDelta] = useState<string>("1");
     const [expandedAttacks, setExpandedAttacks] = useState<Set<number>>(new Set());
+    const [voieFilters, setVoieFilters] = useState<Set<VoieSection>>(new Set(['bonus', 'capacite', 'action', 'familier']));
+    const toggleVoieFilter = (key: VoieSection) => setVoieFilters(prev => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key); else next.add(key);
+        return next;
+    });
     const toggleAttack = (idx: number) => setExpandedAttacks((prev) => {
         const next = new Set(prev);
         if (next.has(idx)) next.delete(idx); else next.add(idx);
@@ -284,44 +291,49 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                     )}
 
                     {isPJLike ? (
-                        <div className="overflow-y-auto space-y-1.5 scrollbar-none max-h-72">
-                            {(() => {
-                                const acquired = combatant.voies?.flatMap((voie) =>
-                                    voie.rangsAcquis.map((r) => {
-                                                                                const cap = normalizeVoieRang(voie.capacites[`rang${r}`]);
-                                                                                if (!hasRangContent(cap)) return null;
-                                                                                return {
-                                                                                    voieNom: voie.nom,
-                                                                                    rang: r,
-                                                                                    nom: getRankTitle(cap, `Rang ${r}`),
-                                                                                    type: cap.actions[0]?.type || cap.type || "",
-                                                                                    description: getRankPrimaryDescription(cap),
-                                                                                };
-                                    }).filter(Boolean)
-                                ) ?? [];
-                                return acquired.length
-                                    ? acquired.map((cap, idx) => {
-                                        if (!cap) return null;
-                                        const isOpen = expandedAttacks.has(1000 + idx);
-                                        return (
-                                            <div key={idx}
-                                                onClick={(e) => { e.stopPropagation(); toggleAttack(1000 + idx); }}
-                                                className="bg-white/6 rounded-lg px-2.5 py-2 border border-white/10 cursor-pointer hover:border-white/20 transition-colors"
-                                            >
-                                                <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                                                    <span className="text-xs font-semibold text-white">{cap.nom}</span>
-                                                    {cap.type && cap.type !== "passif" && (
-                                                        <span className="text-[8px] uppercase tracking-wider text-[#E3CCCD]/50 border border-[#E3CCCD]/15 rounded px-1 py-0.5">{cap.type}</span>
+                        <div className="space-y-1.5">
+                            {/* Chips de filtre */}
+                            <div className="flex gap-1 flex-wrap">
+                                {VOIE_FILTER_OPTIONS.map(opt => {
+                                    const active = voieFilters.has(opt.key);
+                                    return (
+                                        <button
+                                            key={opt.key}
+                                            onClick={(e) => { e.stopPropagation(); toggleVoieFilter(opt.key); }}
+                                            className={`text-[8px] uppercase tracking-wider border rounded px-1.5 py-0.5 transition-colors ${active ? opt.activeClass : 'text-white/35 border-white/15 hover:text-white/60'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div className="overflow-y-auto scrollbar-none max-h-64 space-y-2">
+                                <FlatVoieList voies={combatant.voies ?? []} sections={voieFilters} />
+                                {combatant.familiers?.length ? (
+                                    <div className="border-t border-white/8 pt-2">
+                                        <p className="text-[8px] uppercase tracking-widest text-white/25 mb-1.5">Familiers</p>
+                                        <div className="space-y-1">
+                                            {combatant.familiers.map((f) => (
+                                                <div key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-[#6ee7b7]/5 border border-[#6ee7b7]/15">
+                                                    <img src={f.image_url || "/default-avatar.png"} alt={f.name} className="w-6 h-6 rounded-full object-cover border border-white/20 shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[10px] text-white/80 truncate font-medium">{f.name}</p>
+                                                        <p className="text-[8px] text-[#6ee7b7]/50">{f.pv}/{f.pv_max} PV</p>
+                                                    </div>
+                                                    {onSummonFamilier && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); onSummonFamilier(f); }}
+                                                            className="text-[8px] text-[#6ee7b7]/70 border border-[#6ee7b7]/30 rounded px-1.5 py-0.5 hover:bg-[#6ee7b7]/10 transition-colors shrink-0"
+                                                        >
+                                                            Convoquer
+                                                        </button>
                                                     )}
-                                                    <span className="ml-auto text-[8px] text-white/30">{cap.voieNom} · R{cap.rang}</span>
-                                                    <ChevronDown className={`w-3 h-3 text-white/30 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                                 </div>
-                                                <p className={`text-[10px] text-white/55 leading-relaxed ${isOpen ? '' : 'line-clamp-3'}`}>{cap.description}</p>
-                                            </div>
-                                        );
-                                    })
-                                    : <p className="text-[10px] text-white/30 italic">Aucune capacité acquise.</p>;
-                            })()}
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
                         </div>
                     ) : isMonster ? (
                         <div className="overflow-y-auto space-y-1.5 scrollbar-none max-h-72">
@@ -395,9 +407,22 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                             {combatant.voies?.length ? (
                                 <>
                                     <div className="h-px bg-white/10 my-1" />
-                                    {combatant.voies.map((voie: VoieEntry) => (
-                                        <VoieAccordion key={voie.id} voie={voie} expanded={expandedVoie === voie.id} onToggle={() => setExpandedVoie(expandedVoie === voie.id ? null : voie.id)} />
-                                    ))}
+                                    {/* Chips de filtre */}
+                                    <div className="flex gap-1 flex-wrap mb-1.5">
+                                        {VOIE_FILTER_OPTIONS.map(opt => {
+                                            const active = voieFilters.has(opt.key);
+                                            return (
+                                                <button
+                                                    key={opt.key}
+                                                    onClick={(e) => { e.stopPropagation(); toggleVoieFilter(opt.key); }}
+                                                    className={`text-[8px] uppercase tracking-wider border rounded px-1.5 py-0.5 transition-colors ${active ? opt.activeClass : 'text-white/35 border-white/15 hover:text-white/60'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <FlatVoieList voies={combatant.voies} sections={voieFilters} />
                                 </>
                             ) : null}
                         </div>

@@ -1,10 +1,16 @@
 import type { NormalizedVoieRang } from "@/lib/voieRanks";
 
+export type VoieSection = 'bonus' | 'capacite' | 'action' | 'familier';
+
 interface RangCardProps {
   rang: NormalizedVoieRang;
   rangNum: number;
   /** Lorsque fourni, opacifie la carte si false (voie non acquise) */
   isAcquired?: boolean;
+  /** Masque la section Legacy */
+  hideLegacy?: boolean;
+  /** Si fourni, n'affiche que les sections listées */
+  sections?: Set<VoieSection>;
 }
 
 // ─── Palette de couleurs ────────────────────────────────────────────────────
@@ -66,7 +72,7 @@ function NeonBadge({ label, color }: { label: string; color: BadgeColor }) {
 
 // ─── Composant principal ─────────────────────────────────────────────────────
 
-export function RangCard({ rang, rangNum, isAcquired }: RangCardProps) {
+export function RangCard({ rang, rangNum, isAcquired, hideLegacy, sections }: RangCardProps) {
   const dimmed = isAcquired === false;
 
   // Filtrer les entrées vides (normalizeVoieRang ajoute toujours un élément vide par section)
@@ -77,12 +83,14 @@ export function RangCard({ rang, rangNum, isAcquired }: RangCardProps) {
     [a.titre, a.type, a.cout_mana, a.dm, a.test_type, a.resultat_si_reussi, a.description].some(isNonEmpty)
   );
 
-  const showBonus = bonuses.length > 0;
-  const showCapacite = capacites.length > 0;
-  const showAction = actions.length > 0;
+  const inFilter = (key: VoieSection) => !sections || sections.has(key);
+
+  const showBonus = bonuses.length > 0 && inFilter('bonus');
+  const showCapacite = capacites.length > 0 && inFilter('capacite');
+  const showAction = actions.length > 0 && inFilter('action');
   const familiers = rang.familiers.filter(f => [f.titre, f.description].some(isNonEmpty));
   const legacies = rang.legacies.filter(l => [l.titre, l.description].some(isNonEmpty));
-  const showFamilier = familiers.length > 0;
+  const showFamilier = familiers.length > 0 && inFilter('familier');
   const showLegacy = legacies.length > 0;
 
   // Mode "sections" : rang avec bonus / capacités / actions
@@ -220,7 +228,7 @@ export function RangCard({ rang, rangNum, isAcquired }: RangCardProps) {
         </div>
       )}
 
-      {showLegacy && (
+      {showLegacy && !hideLegacy && (
         <div className="border-l-2 border-[#c084fc]/50 pl-2 space-y-1">
           {legacies.map((l, idx) => (
             <div key={idx}>
@@ -242,6 +250,7 @@ export function RangCard({ rang, rangNum, isAcquired }: RangCardProps) {
           ))}
         </div>
       )}
+
     </div>
   );
 }

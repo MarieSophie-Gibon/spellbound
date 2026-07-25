@@ -54,6 +54,15 @@ export interface VoieEntry {
   rangsAcquis: number[];
 }
 
+export interface CombatFamilier {
+  id: string;
+  name: string;
+  image_url: string | null;
+  pv: number;
+  pv_max: number;
+  data: Record<string, unknown> | null;
+}
+
 export interface Combatant {
   id: string;
   entityId?: string;
@@ -71,6 +80,7 @@ export interface Combatant {
   details?: MonsterDetails;
   pjStats?: PJStats;
   voies?: VoieEntry[];
+  familiers?: CombatFamilier[];
 }
 
 export interface ChapitreBlock {
