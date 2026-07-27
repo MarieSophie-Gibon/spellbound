@@ -19,6 +19,8 @@ import {
   Target,
   Wand2,
   Dice1,
+  Search,
+  History,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -110,16 +112,88 @@ function computeDerived(stats: StatsMap, famille: FamilleRef | null) {
 // Composant
 // ─────────────────────────────────────────────
 
+interface OldPJ {
+  id: string;
+  name: string;
+  image_url: string | null;
+  stats: any;
+  pathways: any;
+  inventory: any;
+  peuple_id: string | null;
+  profils_id: string | null;
+  user_id: string | null;
+  campaign_id: string;
+  campaign_nom: string;
+}
+
 export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }: PJWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // ── Wizard Mode ──────────────────────────────
+  const [wizardMode, setWizardMode] = useState<'select' | 'new' | 'recover'>('select');
+  // ── Recovery State ────────────────────────────
+  const [oldPJs, setOldPJs] = useState<OldPJ[]>([]);
+  const [oldPJsLoading, setOldPJsLoading] = useState(false);
+  const [recoverSearch, setRecoverSearch] = useState('');
+  const [selectedOldPJ, setSelectedOldPJ] = useState<OldPJ | null>(null);
+  const [recoverName, setRecoverName] = useState('');
+  const [recoverPlayerId, setRecoverPlayerId] = useState('');
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoverError, setRecoverError] = useState<string | null>(null);
+  const [recoverRetry, setRecoverRetry] = useState(0);
 
   useEffect(() => {
     if (playerMode) {
       supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
     }
   }, [playerMode]);
+
+  useEffect(() => {
+    if (wizardMode !== 'recover') return;
+    setOldPJsLoading(true);
+    setRecoverError(null);
+    const doFetch = async () => {
+      try {
+        // Étape 1 : récupérer les PJs des autres campagnes
+        let query = supabase
+          .from('pj')
+          .select('id, name, image_url, stats, pathways, inventory, peuple_id, profils_id, user_id, campaign_id')
+          .neq('campaign_id', campaignId)
+          .order('name');
+        if (playerMode && currentUserId) {
+          query = query.eq('user_id', currentUserId);
+        }
+        const { data: pjData, error: pjError } = await query;
+        if (pjError) throw pjError;
+
+        // Étape 2 : récupérer les noms des campagnes concernées
+        const uniqueCampaignIds = [...new Set((pjData || []).map((p: any) => p.campaign_id))];
+        let campaignNames: Record<string, string> = {};
+        if (uniqueCampaignIds.length > 0) {
+          const { data: campData } = await supabase
+            .from('campagnes')
+            .select('id, nom')
+            .in('id', uniqueCampaignIds);
+          if (campData) {
+            campaignNames = Object.fromEntries(campData.map((c: any) => [c.id, c.nom]));
+          }
+        }
+
+        setOldPJs((pjData || []).map((pj: any) => ({
+          ...pj,
+          campaign_nom: campaignNames[pj.campaign_id] ?? 'Campagne inconnue',
+        })));
+      } catch (err: any) {
+        console.error('[PJWizard] fetchOldPJs error:', err);
+        setRecoverError(err?.message ?? 'Erreur lors du chargement des anciens PJs.');
+      } finally {
+        setOldPJsLoading(false);
+      }
+    };
+    doFetch();
+  }, [wizardMode, campaignId, playerMode, currentUserId, recoverRetry]);
 
   // ── Step 1 ──────────────────────────────────
   const [nom, setNom] = useState("");
@@ -416,6 +490,58 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
     });
   };
 
+  // ── Recover ──────────────────────────────────
+  const handleRecover = async () => {
+    if (!selectedOldPJ) return;
+    setIsRecovering(true);
+    try {
+      const finalName = recoverName.trim() || selectedOldPJ.name;
+      let finalUserId: string | null;
+      if (playerMode) {
+        finalUserId = currentUserId;
+      } else if (recoverPlayerId === 'none') {
+        finalUserId = null;
+      } else if (recoverPlayerId) {
+        finalUserId = recoverPlayerId;
+      } else {
+        finalUserId = selectedOldPJ.user_id;
+      }
+      const { data: newPJData, error } = await supabase
+        .from('pj')
+        .insert({
+          campaign_id: campaignId,
+          user_id: finalUserId,
+          name: finalName,
+          image_url: selectedOldPJ.image_url,
+          peuple_id: selectedOldPJ.peuple_id,
+          profils_id: selectedOldPJ.profils_id,
+          stats: selectedOldPJ.stats,
+          pathways: selectedOldPJ.pathways,
+          inventory: selectedOldPJ.inventory,
+        })
+        .select();
+      if (error) throw error;
+      const newPJId = newPJData?.[0]?.id;
+      if (newPJId) {
+        const { data: oldItems } = await supabase
+          .from('pj_inventaire')
+          .select('item_type, item_id, nom_custom, description_custom, qte, is_equipped')
+          .eq('pj_id', selectedOldPJ.id);
+        if (oldItems && oldItems.length > 0) {
+          await supabase.from('pj_inventaire').insert(
+            oldItems.map((item) => ({ ...item, pj_id: newPJId }))
+          );
+        }
+      }
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      alert('Erreur : ' + err.message);
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
   // ── Submit ──────────────────────────────────
   const handleSubmit = async () => {
     if (!nom.trim()) return alert("Le nom est obligatoire.");
@@ -580,9 +706,17 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
       {/* HEADER */}
       <div className="relative z-10 shrink-0 px-8 pt-7 pb-5 border-b border-white/8 bg-black/10">
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
-              Nouveau Personnage Joueur
+          <div className="flex items-center gap-2">
+            {wizardMode !== 'select' && (
+              <button
+                onClick={() => setWizardMode('select')}
+                className="p-1.5 text-white/30 hover:text-white/70 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50">
+              {wizardMode === 'recover' ? 'Récupérer un Personnage' : 'Nouveau Personnage Joueur'}
             </p>
           </div>
           <button
@@ -594,7 +728,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         </div>
 
         {/* Steps */}
-        <div className="flex items-center gap-0">
+        {wizardMode === 'new' && <div className="flex items-center gap-0">
           {STEPS.map((s, i) => (
             <div key={s.num} className="flex items-center">
               <button
@@ -619,13 +753,157 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
               )}
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {/* CONTENT */}
       <div className="relative z-10 flex-1 overflow-y-auto px-8 py-7 scrollbar-thin scrollbar-thumb-white/8">
+        {/* ── MODE SELECT ── */}
+        {wizardMode === 'select' && (
+          <div className="flex flex-col items-center justify-center h-full gap-10 py-12 animate-in fade-in">
+            <div className="text-center space-y-1">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/40">Nouveau Personnage Joueur</p>
+              <p className="text-sm text-white/40">Comment souhaitez-vous procéder ?</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+              <button
+                onClick={() => setWizardMode('new')}
+                className="group flex flex-col items-center gap-4 p-6 rounded-2xl border border-white/12 bg-white/3 hover:border-[#E3CCCD]/40 hover:bg-[#E3CCCD]/6 transition-all"
+              >
+                <div className="w-12 h-12 rounded-xl border border-white/15 bg-white/8 flex items-center justify-center group-hover:border-[#E3CCCD]/30 transition-all">
+                  <Sparkles className="w-6 h-6 text-white/40 group-hover:text-[#E3CCCD]/70" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-semibold text-white/80 group-hover:text-[#E3CCCD] transition-colors">Nouveau PJ</p>
+                  <p className="text-[11px] text-white/30 mt-1 leading-relaxed">Créer un personnage de zéro via l'assistant</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setWizardMode('recover')}
+                className="group flex flex-col items-center gap-4 p-6 rounded-2xl border border-white/12 bg-white/3 hover:border-[#E3CCCD]/40 hover:bg-[#E3CCCD]/6 transition-all"
+              >
+                <div className="w-12 h-12 rounded-xl border border-white/15 bg-white/8 flex items-center justify-center group-hover:border-[#E3CCCD]/30 transition-all">
+                  <History className="w-6 h-6 text-white/40 group-hover:text-[#E3CCCD]/70" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-semibold text-white/80 group-hover:text-[#E3CCCD] transition-colors">Récupérer un PJ</p>
+                  <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+                    {playerMode ? "Importer l'un de vos anciens personnages" : "Importer un PJ depuis une autre campagne"}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── RECOVER MODE ── */}
+        {wizardMode === 'recover' && (
+          <div className="space-y-5 animate-in fade-in">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <input
+                type="text"
+                value={recoverSearch}
+                onChange={(e) => setRecoverSearch(e.target.value)}
+                placeholder="Rechercher un personnage..."
+                className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/40 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm outline-none transition-colors placeholder:text-white/25"
+              />
+            </div>
+
+            {/* PJ List */}
+            {oldPJsLoading ? (
+              <p className="text-center text-white/30 text-sm py-10">Chargement...</p>
+            ) : recoverError ? (
+              <div className="flex flex-col items-center gap-3 py-10">
+                <p className="text-red-400/70 text-sm text-center">{recoverError}</p>
+                <button
+                  type="button"
+                  onClick={() => { setRecoverError(null); setRecoverRetry(n => n + 1); }}
+                  className="px-4 py-2 rounded-xl border border-white/15 text-white/50 hover:text-white text-[12px] transition-all"
+                >
+                  Réessayer
+                </button>
+              </div>
+            ) : oldPJs.length === 0 ? (
+              <p className="text-center text-white/30 text-sm py-10 italic">Aucun ancien PJ disponible.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {oldPJs
+                  .filter((pj) => !recoverSearch || pj.name.toLowerCase().includes(recoverSearch.toLowerCase()))
+                  .map((pj) => {
+                    const sel = selectedOldPJ?.id === pj.id;
+                    return (
+                      <button
+                        key={pj.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOldPJ(pj);
+                          setRecoverName(pj.name);
+                          setRecoverPlayerId('');
+                        }}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${sel ? 'border-[#E3CCCD]/50 bg-[#E3CCCD]/8' : 'border-white/10 bg-white/3 hover:border-white/20 hover:bg-white/5'}`}
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/8 flex items-center justify-center">
+                          {pj.image_url ? (
+                            <img src={pj.image_url} alt={pj.name} className="w-full h-full object-cover opacity-80" />
+                          ) : (
+                            <span className="text-white/15 text-sm">◈</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-medium truncate ${sel ? 'text-[#E3CCCD]' : 'text-white/80'}`}>{pj.name}</p>
+                          <p className="text-[11px] text-white/30 truncate">{pj.campaign_nom}</p>
+                        </div>
+                        {pj.stats?.niveau !== undefined && (
+                          <span className="text-[11px] text-white/30 shrink-0">Niv. {pj.stats.niveau}</span>
+                        )}
+                        {sel && <span className="text-[#E3CCCD]/60 text-xs shrink-0">✓</span>}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Selected PJ config */}
+            {selectedOldPJ && (
+              <div className="p-4 rounded-xl border border-[#E3CCCD]/20 bg-[#E3CCCD]/5 space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-[#E3CCCD]/60">Configuration</p>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-[0.15em] text-white/50">Nom dans cette campagne</label>
+                  <input
+                    type="text"
+                    value={recoverName}
+                    onChange={(e) => setRecoverName(e.target.value)}
+                    placeholder={selectedOldPJ.name}
+                    className="w-full bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/60 py-2 text-white text-sm outline-none transition-colors placeholder:text-white/25"
+                  />
+                </div>
+
+                {!playerMode && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-[0.15em] text-white/50">Joueur rattaché</label>
+                    <select
+                      value={recoverPlayerId}
+                      onChange={(e) => setRecoverPlayerId(e.target.value)}
+                      className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                    >
+                      <option value="" className="bg-[#1E1941] text-white/50">— Conserver le joueur original —</option>
+                      <option value="none" className="bg-[#1E1941] text-white/50">— Aucun joueur assigné —</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">{p.pseudo}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── STEP 1 : Concept & Origine ── */}
-        {step === 1 && (
+        {wizardMode === 'new' && step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* Nom + Joueur */}
             <div className="flex gap-4 items-end">
@@ -844,7 +1122,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         )}
 
         {/* ── STEP 2 : Famille & Profil ── */}
-        {step === 2 && (
+        {wizardMode === 'new' && step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* Famille */}
             <div className="space-y-1.5">
@@ -1018,7 +1296,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         )}
 
         {/* ── STEP 3 : Caractéristiques ── */}
-        {step === 3 && (
+        {wizardMode === 'new' && step === 3 && (
           <div className="flex gap-4 animate-in slide-in-from-right-4 fade-in">
             {/* ── Colonne gauche ── */}
             <div className="w-56 shrink-0 space-y-4">
@@ -1221,7 +1499,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         )}
 
         {/* ── STEP 4 : Voies & Capacités ── */}
-        {step === 4 && (
+        {wizardMode === 'new' && step === 4 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* Encart contextuel */}
             <div className="flex gap-3 p-4 rounded-xl border-[#E3CCCD]/15 bg-[#E3CCCD]/5">
@@ -1408,7 +1686,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         )}
 
         {/* ── STEP 5 : Statistiques Dérivées ── */}
-        {step === 5 && (
+        {wizardMode === 'new' && step === 5 && (
           <div className="space-y-5 animate-in slide-in-from-right-4 fade-in">
             <div className="flex gap-3 p-4 rounded-xl border border-white/10 bg-white/4">
               <Info className="w-4 h-4 text-white/40 shrink-0 mt-0.5" />
@@ -1627,7 +1905,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         )}
 
         {/* ── STEP 6 : Lore ── */}
-        {step === 6 && (
+        {wizardMode === 'new' && step === 6 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* Idéal */}
             <div className="space-y-1.5">
@@ -1711,56 +1989,74 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
 
       {/* FOOTER */}
       <div className="relative z-10 shrink-0 px-8 py-5 border-t border-white/8 bg-black/10 flex items-center justify-between gap-3">
-        {step > 1 ? (
-          <button
-            onClick={() => setStep((s) => s - 1)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Retour
-          </button>
+        {wizardMode === 'new' ? (
+          <>
+            {step > 1 ? (
+              <button
+                onClick={() => setStep((s) => s - 1)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Retour
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex items-center gap-2">
+              {STEPS.map((s) => (
+                <div
+                  key={s.num}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${step === s.num ? "bg-[#E3CCCD]" : step > s.num ? "bg-white/40" : "bg-white/15"}`}
+                />
+              ))}
+            </div>
+
+            {step < STEPS.length ? (
+              <button
+                onClick={() => {
+                  if (!canAdvance())
+                    return alert(
+                      step === 1
+                        ? "Complétez le nom et sélectionnez un peuple."
+                        : step === 2
+                          ? "Sélectionnez une famille et un profil."
+                          : step === 3
+                            ? "Assignez toutes les valeurs."
+                            : "Choisissez 2 voies de famille (et l'héritage demi-elfe si nécessaire).",
+                    );
+                  setStep((s) => s + 1);
+                }}
+                disabled={!canAdvance()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/15 border border-[#E3CCCD]/30 text-[#E3CCCD] hover:bg-[#E3CCCD]/25 text-[13px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Suivant <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 text-[#E3CCCD] hover:bg-[#E3CCCD]/30 text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                {isSubmitting ? "Sauvegarde..." : "Créer le personnage"}
+              </button>
+            )}
+          </>
+        ) : wizardMode === 'recover' ? (
+          <>
+            <div />
+            <button
+              onClick={handleRecover}
+              disabled={!selectedOldPJ || isRecovering}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 text-[#E3CCCD] hover:bg-[#E3CCCD]/30 text-[13px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <History className="w-4 h-4" />
+              {isRecovering ? "Récupération..." : "Récupérer ce personnage"}
+            </button>
+          </>
         ) : (
           <div />
-        )}
-
-        <div className="flex items-center gap-2">
-          {STEPS.map((s) => (
-            <div
-              key={s.num}
-              className={`w-1.5 h-1.5 rounded-full transition-all ${step === s.num ? "bg-[#E3CCCD]" : step > s.num ? "bg-white/40" : "bg-white/15"}`}
-            />
-          ))}
-        </div>
-
-        {step < STEPS.length ? (
-          <button
-            onClick={() => {
-              if (!canAdvance())
-                return alert(
-                  step === 1
-                    ? "Complétez le nom et sélectionnez un peuple."
-                    : step === 2
-                      ? "Sélectionnez une famille et un profil."
-                      : step === 3
-                        ? "Assignez toutes les valeurs."
-                        : "Choisissez 2 voies de famille (et l'héritage demi-elfe si nécessaire).",
-                );
-              setStep((s) => s + 1);
-            }}
-            disabled={!canAdvance()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/15 border border-[#E3CCCD]/30 text-[#E3CCCD] hover:bg-[#E3CCCD]/25 text-[13px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Suivant <ArrowRight className="w-4 h-4" />
-          </button>
-        ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 text-[#E3CCCD] hover:bg-[#E3CCCD]/30 text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-4 h-4" />
-            {isSubmitting ? "Sauvegarde..." : "Créer le personnage"}
-          </button>
         )}
       </div>
     </ModalLayout>
