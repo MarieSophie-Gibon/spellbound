@@ -169,6 +169,9 @@ export function PersonnageDetailMobile({
   const [editAttaques, setEditAttaques] = useState<Array<{nom: string; bonus: string; degats: string; description: string}>>([]);
   const [editCapacites, setEditCapacites] = useState<Array<{nom: string; description: string}>>([]); 
 
+  // Armes affichées dans la fiche technique
+  const [weapons, setWeapons] = useState<any[]>([]);
+
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [showPvModal, setShowPvModal] = useState(false);
@@ -309,6 +312,24 @@ export function PersonnageDetailMobile({
     setActiveTab("stats");
     setIsLevelingUp(false);
   }, [technicalSheetOnly]);
+
+  // Chargement des armes depuis l'inventaire
+  useEffect(() => {
+    if (!pj?.id) { setWeapons([]); return; }
+    if (type === 'pnj') {
+      supabase.from('pnj').select('inventory').eq('id', pj.id).single().then(({ data }) => {
+        const items: any[] = data?.inventory?.items ?? [];
+        setWeapons(items.filter((i: any) => (i.item_type === 'arme_contact' || i.item_type === 'arme_distance') && i.is_equipped));
+      });
+    } else {
+      supabase.from('pj_inventaire')
+        .select('*')
+        .eq('pj_id', pj.id)
+        .in('item_type', ['arme_contact', 'arme_distance'])
+        .eq('is_equipped', true)
+        .then(({ data }) => setWeapons(data ?? []));
+    }
+  }, [pj?.id, type]);
 
   useEffect(() => {
     if (!pj) return;
@@ -647,7 +668,7 @@ export function PersonnageDetailMobile({
 
       {/* NAV MOBILE */}
       {mobileNavItems.length > 0 && (
-        <div className="sticky top-0 z-20 mb-3">
+        <div className="sticky top-0 z-50 mb-3">
           <div
             className={`grid gap-1 rounded-xl border border-[#E3CCCD]/35 bg-white/14 backdrop-blur-xl p-1.5 shadow-[0_10px_26px_rgba(0,0,0,0.25)] ${mobileNavItems.length >= 4 ? "grid-cols-4" : "grid-cols-2"}`}
           >
@@ -1496,6 +1517,32 @@ export function PersonnageDetailMobile({
                     )
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Armes */}
+            {!isSimpleCombatant && weapons.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] uppercase tracking-widest text-orange-300/60 flex items-center gap-1 shrink-0">
+                  <Sword className="w-3 h-3" /> Armes
+                </span>
+                {weapons.map((w, idx) => (
+                  <div
+                    key={w.id ?? idx}
+                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-orange-400/25 bg-orange-400/8"
+                  >
+                    <span className="text-[11px] text-white/90 font-medium">{w.nom_custom || 'Arme'}</span>
+                    <span className={`text-[8px] uppercase tracking-widest font-bold ${
+                      w.item_type === 'arme_distance' ? 'text-sky-300/60' : 'text-orange-300/60'
+                    }`}>
+                      {w.item_type === 'arme_distance' ? 'D' : 'C'}
+                    </span>
+                    {w.description_custom && (
+                      <span className="text-[11px] font-mono text-orange-200/80">{w.description_custom}</span>
+                    )}
+                    {(w.qte ?? 1) > 1 && <span className="text-[9px] text-white/35 font-mono">×{w.qte}</span>}
+                  </div>
+                ))}
               </div>
             )}
 

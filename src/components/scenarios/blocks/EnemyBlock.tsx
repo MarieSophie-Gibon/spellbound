@@ -58,6 +58,18 @@ interface MonsterDetails {
     capacites?: Array<{ nom?: string; type?: string; description?: string }> | null;
 }
 
+interface PnjDetails {
+    stats?: {
+        pv?: number;
+        pv_max?: number;
+        defense?: number;
+        initiative?: number;
+        caracteristiques?: Record<string, number>;
+        attaques?: Array<{ nom?: string; bonus?: string; degats?: string; description?: string }>;
+        capacites_speciales?: Array<{ nom?: string; description?: string }>;
+    } | null;
+}
+
 function isValidUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -71,6 +83,7 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
     const [showNpcWizard, setShowNpcWizard] = useState(false);
     const [showMonsterWizard, setShowMonsterWizard] = useState(false);
     const [monsterDetails, setMonsterDetails] = useState<MonsterDetails | null>(null);
+    const [pnjDetails, setPnjDetails] = useState<PnjDetails | null>(null);
     const [newRoundTriggerText, setNewRoundTriggerText] = useState("");
     const [newRoundTriggerRounds, setNewRoundTriggerRounds] = useState("1");
     const [uploadingBattlemap, setUploadingBattlemap] = useState(false);
@@ -161,8 +174,9 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
                 .from('pnj')
                 .select('id, name, image_url')
                 .eq('campaign_id', campaignId)
+                .filter('stats->>is_combatant', 'eq', 'true')
                 .order('name')
-                .limit(5);
+                .limit(20);
 
             if (searchTerm) {
                 query = query.ilike('name', `%${searchTerm}%`);
@@ -199,6 +213,27 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
         };
 
         void fetchMonsterDetails();
+    }, [data.entityType, data.entityId]);
+
+    useEffect(() => {
+        if (data.entityType !== 'npc' || !data.entityId) {
+            setPnjDetails(null);
+            return;
+        }
+
+        const fetchPnjDetails = async () => {
+            const { data: details, error } = await supabase
+                .from('pnj')
+                .select('stats')
+                .eq('id', data.entityId)
+                .single();
+
+            if (!error && details) {
+                setPnjDetails(details as PnjDetails);
+            }
+        };
+
+        void fetchPnjDetails();
     }, [data.entityType, data.entityId]);
 
     const statOrder = ['FOR', 'CON', 'AGI', 'PER', 'INT', 'VOL', 'CHA'];
@@ -471,6 +506,50 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
                                                         {capacite.nom ?? 'Capacité'}
                                                         {capacite.type ? ` (${capacite.type})` : ''}
                                                     </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {data.entityType === 'npc' && pnjDetails?.stats && (
+                                <div className="mb-3 p-2.5 rounded-lg border border-white/10 bg-black/25 text-[12px] text-white/75 space-y-2">
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-white/80">
+                                        {pnjDetails.stats.pv_max !== undefined && <span><span className="text-white/45">PV</span> {pnjDetails.stats.pv_max}</span>}
+                                        {pnjDetails.stats.defense !== undefined && <span><span className="text-white/45">DEF</span> {pnjDetails.stats.defense}</span>}
+                                        {pnjDetails.stats.initiative !== undefined && <span><span className="text-white/45">INIT</span> {pnjDetails.stats.initiative}</span>}
+                                    </div>
+                                    {pnjDetails.stats.caracteristiques && Object.keys(pnjDetails.stats.caracteristiques).length > 0 && (
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">Caractéristiques</div>
+                                            <div className="flex flex-wrap gap-x-3 gap-y-1">
+                                                {(['FOR','CON','AGI','PER','INT','VOL','CHA'] as const).map(k => {
+                                                    const v = pnjDetails!.stats!.caracteristiques![k] ?? 0;
+                                                    return <span key={k}>{k} {v >= 0 ? `+${v}` : v}</span>;
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {pnjDetails.stats.attaques && pnjDetails.stats.attaques.length > 0 && (
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">Attaques</div>
+                                            <div className="space-y-0.5">
+                                                {pnjDetails.stats.attaques.map((att, i) => (
+                                                    <div key={i} className="text-white/75">
+                                                        {att.nom || 'Attaque'}
+                                                        {att.bonus ? ` ${att.bonus}` : ''}
+                                                        {att.degats ? ` — ${att.degats}` : ''}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {pnjDetails.stats.capacites_speciales && pnjDetails.stats.capacites_speciales.length > 0 && (
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider text-white/45 mb-1">Capacités spéciales</div>
+                                            <div className="space-y-0.5">
+                                                {pnjDetails.stats.capacites_speciales.map((cap, i) => (
+                                                    <div key={i} className="text-white/75">{cap.nom || 'Capacité'}</div>
                                                 ))}
                                             </div>
                                         </div>

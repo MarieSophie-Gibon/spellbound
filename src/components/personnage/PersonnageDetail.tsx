@@ -168,6 +168,9 @@ export function PersonnageDetail({
   // Attaques et capacités spéciales (mode monstre)
   const [editAttaques, setEditAttaques] = useState<Array<{nom: string; bonus: string; degats: string; description: string}>>([]);
   const [editCapacites, setEditCapacites] = useState<Array<{nom: string; description: string}>>([]); 
+
+  // Armes affichées dans la fiche technique
+  const [weapons, setWeapons] = useState<any[]>([]);
   
   // PJ Lore
   const [editIdeal, setEditIdeal] = useState("");
@@ -274,6 +277,24 @@ export function PersonnageDetail({
     setIsLevelingUp(false);
   }, [technicalSheetOnly]);
 
+  // Chargement des armes depuis l'inventaire
+  useEffect(() => {
+    if (!pj?.id) { setWeapons([]); return; }
+    if (type === 'pnj') {
+      supabase.from('pnj').select('inventory').eq('id', pj.id).single().then(({ data }) => {
+        const items: any[] = data?.inventory?.items ?? [];
+        setWeapons(items.filter((i: any) => (i.item_type === 'arme_contact' || i.item_type === 'arme_distance') && i.is_equipped));
+      });
+    } else {
+      supabase.from('pj_inventaire')
+        .select('*')
+        .eq('pj_id', pj.id)
+        .in('item_type', ['arme_contact', 'arme_distance'])
+        .eq('is_equipped', true)
+        .then(({ data }) => setWeapons(data ?? []));
+    }
+  }, [pj?.id, type]);
+
   const handleSave = async () => {
     if (!pj) return;
     setIsSaving(true);
@@ -325,6 +346,7 @@ export function PersonnageDetail({
             att_contact: editAttContact,
             att_distance: editAttDistance,
             att_magie: editAttMagie,
+            caracteristiques: editCaract,
             attaques: editAttaques,
             capacites_speciales: editCapacites,
           })
@@ -937,7 +959,7 @@ export function PersonnageDetail({
                 )}
               </div>
 
-              {!isSimpleCombatant && (
+              {(
               <div
                 className="w-full md:w-20 shrink-0 rounded-lg border border-[#E3CCCD]/15 flex md:flex-col flex-row justify-evenly py-3 px-2 flex-wrap"
                 style={{
@@ -971,88 +993,153 @@ export function PersonnageDetail({
               )}
 
               <div className="flex-1 flex flex-col gap-3 min-w-0">
+                {/* ── Mode Monstre : PV + Initiative + Défense, puis attaques ── */}
+                {isSimpleCombatant ? (
+                  <>
+                  <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center">
+                    <div className="grid grid-cols-3 gap-3">
+                      {isEditing ? (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] uppercase text-emerald-400/60">PV / Max</span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={editPv}
+                                onChange={(e) => setEditPv(parseInt(e.target.value) || 0)}
+                                className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
+                              />
+                              <span className="text-white/30">/</span>
+                              <input
+                                type="number"
+                                value={editPvMax}
+                                onChange={(e) => setEditPvMax(parseInt(e.target.value) || 0)}
+                                className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
+                              />
+                            </div>
+                          </div>
+                          <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} />
+                          <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} />
+                        </>
+                      ) : (
+                        <>
+                          <CombatStatCard
+                            icon={Heart}
+                            label="PV"
+                            value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`}
+                            color="text-emerald-400/70"
+                            border="border-emerald-400/20"
+                          />
+                          <CombatStatCard
+                            icon={Zap}
+                            label="Initiative"
+                            value={String(pj.stats?.initiative ?? "—")}
+                            color="text-yellow-400/70"
+                            border="border-yellow-400/20"
+                          />
+                          <CombatStatCard
+                            icon={Shield}
+                            label="Défense"
+                            value={String(pj.stats?.defense ?? "—")}
+                            color="text-sky-400/70"
+                            border="border-sky-400/20"
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attaques */}
+                  <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
+                        <Swords className="w-3.5 h-3.5" /> Attaques
+                      </p>
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => setEditAttaques(prev => [...prev, { nom: '', bonus: '', degats: '', description: '' }])}
+                          className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/70 border border-[#E3CCCD]/30 rounded-full px-2.5 py-0.5 hover:bg-white/5 transition-colors"
+                        >
+                          + Ajouter
+                        </button>
+                      )}
+                    </div>
+                    {isEditing ? (
+                      editAttaques.length === 0 ? (
+                        <p className="text-[12px] text-white/30 italic">Aucune attaque. Cliquez sur + Ajouter.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {editAttaques.map((att, idx) => (
+                            <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-3 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  value={att.nom}
+                                  onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, nom: e.target.value } : a))}
+                                  placeholder="Nom de l'attaque..."
+                                  className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50"
+                                />
+                                <button type="button" onClick={() => setEditAttaques(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <div className="flex-1 space-y-1">
+                                  <span className="text-[9px] uppercase tracking-widest text-white/40">Bonus Att.</span>
+                                  <input value={att.bonus} onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, bonus: e.target.value } : a))} placeholder="+5" className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <span className="text-[9px] uppercase tracking-widest text-white/40">Dégâts</span>
+                                  <input value={att.degats} onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, degats: e.target.value } : a))} placeholder="2d6+3" className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                                </div>
+                              </div>
+                              <textarea value={att.description} onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, description: e.target.value } : a))} placeholder="Description (optionnel)..." rows={2} className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50 resize-none placeholder:text-white/25" />
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ) : (
+                      (pj.stats?.attaques as any[] ?? []).length === 0 ? (
+                        <p className="text-[12px] text-white/30 italic">Aucune attaque définie.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {(pj.stats?.attaques as any[] ?? []).map((att: any, idx: number) => (
+                            <div key={idx} className="rounded-lg border border-white/10 bg-white/4 px-3 py-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-medium text-[12px] text-white">{att.nom || 'Attaque'}</span>
+                                {att.bonus && <span className="text-[11px] font-mono text-orange-400/80 border border-orange-400/25 rounded px-1.5 py-0.5">{att.bonus}</span>}
+                                {att.degats && <span className="text-[11px] font-mono text-red-400/80 border border-red-400/25 rounded px-1.5 py-0.5">{att.degats}</span>}
+                              </div>
+                              {att.description && <p className="text-[11px] text-white/50 mt-0.5 leading-relaxed line-clamp-2">{att.description}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  </>
+                ) : (
+                  <>
                 <div className="flex-1 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5 mb-2">
                     <Swords className="w-3.5 h-3.5" /> Combat
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className={`grid gap-3 grid-cols-2 md:grid-cols-5`}>
                     {isEditing ? (
                       <>
-                        <EditNumField
-                          label="Initiative"
-                          value={editInitiative}
-                          onChange={setEditInitiative}
-                        />
-                        <EditNumField
-                          label="Défense"
-                          value={editDefense}
-                          onChange={setEditDefense}
-                        />
-                        <EditNumField
-                          label="Contact"
-                          value={editAttContact}
-                          onChange={setEditAttContact}
-                        />
-                        <EditNumField
-                          label="Distance"
-                          value={editAttDistance}
-                          onChange={setEditAttDistance}
-                        />
-                        <EditNumField
-                          label="Magie"
-                          value={editAttMagie}
-                          onChange={setEditAttMagie}
-                        />
+                        <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} />
+                        <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} />
+                        <EditNumField label="Contact" value={editAttContact} onChange={setEditAttContact} />
+                        <EditNumField label="Distance" value={editAttDistance} onChange={setEditAttDistance} />
+                        <EditNumField label="Magie" value={editAttMagie} onChange={setEditAttMagie} />
                       </>
                     ) : (
                       <>
-                        <CombatStatCard
-                          icon={Zap}
-                          label="Initiative"
-                          value={String(pj.stats?.initiative ?? "—")}
-                          color="text-yellow-400/70"
-                          border="border-yellow-400/20"
-                        />
-                        <CombatStatCard
-                          icon={Shield}
-                          label="Défense"
-                          value={String(pj.stats?.defense ?? "—")}
-                          color="text-sky-400/70"
-                          border="border-sky-400/20"
-                        />
-                        <CombatStatCard
-                          icon={Sword}
-                          label="Contact"
-                          value={
-                            displayAttContact != null
-                              ? `+${displayAttContact}`
-                              : "—"
-                          }
-                          color="text-orange-400/70"
-                          border="border-orange-400/20"
-                        />
-                        <CombatStatCard
-                          icon={Target}
-                          label="Distance"
-                          value={
-                            displayAttDistance != null
-                              ? `+${displayAttDistance}`
-                              : "—"
-                          }
-                          color="text-orange-400/70"
-                          border="border-orange-400/20"
-                        />
-                        <CombatStatCard
-                          icon={Wand2}
-                          label="Magie"
-                          value={
-                            displayAttMagie != null
-                              ? `+${displayAttMagie}`
-                              : "—"
-                          }
-                          color="text-violet-400/70"
-                          border="border-violet-400/20"
-                        />
+                        <CombatStatCard icon={Zap} label="Initiative" value={String(pj.stats?.initiative ?? "—")} color="text-yellow-400/70" border="border-yellow-400/20" />
+                        <CombatStatCard icon={Shield} label="Défense" value={String(pj.stats?.defense ?? "—")} color="text-sky-400/70" border="border-sky-400/20" />
+                        <CombatStatCard icon={Sword} label="Contact" value={displayAttContact != null ? `+${displayAttContact}` : "—"} color="text-orange-400/70" border="border-orange-400/20" />
+                        <CombatStatCard icon={Target} label="Distance" value={displayAttDistance != null ? `+${displayAttDistance}` : "—"} color="text-orange-400/70" border="border-orange-400/20" />
+                        <CombatStatCard icon={Wand2} label="Magie" value={displayAttMagie != null ? `+${displayAttMagie}` : "—"} color="text-violet-400/70" border="border-violet-400/20" />
                       </>
                     )}
                   </div>
@@ -1060,117 +1147,100 @@ export function PersonnageDetail({
 
                 <div
                   className="flex-1 border border-emerald-400/20 rounded-lg p-4 flex flex-col shadow-inner justify-center"
-                  style={{
-                    background:
-                      "linear-gradient(to right, rgba(16,185,129,0.05) 0%, rgba(6,78,59,0.2) 100%)",
-                  }}
+                  style={{ background: "linear-gradient(to right, rgba(16,185,129,0.05) 0%, rgba(6,78,59,0.2) 100%)" }}
                 >
                   <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400/50 flex items-center gap-1.5 mb-2">
                     <Heart className="w-3.5 h-3.5" /> Ressources
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
                     {isEditing ? (
                       <>
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] uppercase text-emerald-400/60">
-                            PV / Max
-                          </span>
+                          <span className="text-[10px] uppercase text-emerald-400/60">PV / Max</span>
                           <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              value={editPv}
-                              onChange={(e) =>
-                                setEditPv(parseInt(e.target.value) || 0)
-                              }
-                              className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
-                            />
+                            <input type="number" value={editPv} onChange={(e) => setEditPv(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                             <span className="text-white/30">/</span>
-                            <input
-                              type="number"
-                              value={editPvMax}
-                              onChange={(e) =>
-                                setEditPvMax(parseInt(e.target.value) || 0)
-                              }
-                              className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
-                            />
+                            <input type="number" value={editPvMax} onChange={(e) => setEditPvMax(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                           </div>
                         </div>
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] uppercase text-emerald-400/60">
-                            Récupération
-                          </span>
+                          <span className="text-[10px] uppercase text-emerald-400/60">Récupération</span>
                           <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              value={editDrQty}
-                              onChange={(e) =>
-                                setEditDrQty(parseInt(e.target.value) || 0)
-                              }
-                              className="w-10 text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
-                            />
+                            <input type="number" value={editDrQty} onChange={(e) => setEditDrQty(parseInt(e.target.value) || 0)} className="w-10 text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                             <span className="text-white/30 font-mono">×</span>
-                            <input
-                              type="text"
-                              value={editDrDe}
-                              onChange={(e) => setEditDrDe(e.target.value)}
-                              className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
-                            />
+                            <input type="text" value={editDrDe} onChange={(e) => setEditDrDe(e.target.value)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                           </div>
                         </div>
-                        <EditNumField
-                          label="Chance (PC)"
-                          value={editPc}
-                          onChange={setEditPc}
-                        />
-                        <EditNumField
-                          label="Mana (PM)"
-                          value={editPm}
-                          onChange={setEditPm}
-                        />
+                        <EditNumField label="Chance (PC)" value={editPc} onChange={setEditPc} />
+                        <EditNumField label="Mana (PM)" value={editPm} onChange={setEditPm} />
                       </>
                     ) : (
                       <>
-                        <CombatStatCard
-                          icon={Heart}
-                          label="Points de Vie"
-                          value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`}
-                          color="text-emerald-400/70"
-                          border="border-emerald-400/20"
-                        />
-                        <CombatStatCard
-                          icon={RefreshCw}
-                          label="Récupération"
-                          value={
-                            pj.stats?.dr_qty != null
-                              ? `${pj.stats.dr_qty}×${pj.stats.dr_de ?? "d6"}`
-                              : "—"
-                          }
-                          color="text-emerald-400/70"
-                          border="border-emerald-400/20"
-                        />
-                        <CombatStatCard
-                          icon={Star}
-                          label="Chance (PC)"
-                          value={String(pj.stats?.pc ?? 0)}
-                          color="text-emerald-400/70"
-                          border="border-emerald-400/20"
-                        />
-                        <CombatStatCard
-                          icon={Sparkles}
-                          label="Mana (PM)"
-                          value={String(pj.stats?.pm ?? 0)}
-                          color="text-emerald-400/70"
-                          border="border-emerald-400/20"
-                        />
+                        <CombatStatCard icon={Heart} label="Points de Vie" value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`} color="text-emerald-400/70" border="border-emerald-400/20" />
+                        <CombatStatCard icon={RefreshCw} label="Récupération" value={pj.stats?.dr_qty != null ? `${pj.stats.dr_qty}×${pj.stats.dr_de ?? "d6"}` : "—"} color="text-emerald-400/70" border="border-emerald-400/20" />
+                        <CombatStatCard icon={Star} label="Chance (PC)" value={String(pj.stats?.pc ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" />
+                        <CombatStatCard icon={Sparkles} label="Mana (PM)" value={String(pj.stats?.pm ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" />
                       </>
                     )}
                   </div>
                 </div>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Grille d'édition des caractéristiques – visible uniquement en mode édition et mode étendu */}
-            {isEditing && !isSimpleCombatant && (
+            {/* Capacités spéciales — Mode Monstre (pleine largeur sous la ligne image) */}
+            {isSimpleCombatant && (
+              <div className="rounded-lg border border-violet-400/40 bg-violet-500/15 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-violet-300/90 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Capacités spéciales
+                  </p>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setEditCapacites(prev => [...prev, { nom: '', description: '' }])}
+                      className="text-[10px] uppercase tracking-widest text-violet-400/70 border border-violet-400/30 rounded-full px-2.5 py-0.5 hover:bg-violet-400/10 transition-colors"
+                    >
+                      + Ajouter
+                    </button>
+                  )}
+                </div>
+                {isEditing ? (
+                  editCapacites.length === 0 ? (
+                    <p className="text-[12px] text-white/30 italic">Aucune capacité. Cliquez sur + Ajouter.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {editCapacites.map((cap, idx) => (
+                        <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input value={cap.nom} onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, nom: e.target.value } : c))} placeholder="Nom de la capacité..." className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50" />
+                            <button type="button" onClick={() => setEditCapacites(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0"><X className="w-4 h-4" /></button>
+                          </div>
+                          <textarea value={cap.description} onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))} placeholder="Description de la capacité..." rows={3} className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50 resize-none placeholder:text-white/25" />
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  (pj.stats?.capacites_speciales as any[] ?? []).length === 0 ? (
+                    <p className="text-[12px] text-violet-400/30 italic">Aucune capacité spéciale définie.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(pj.stats?.capacites_speciales as any[] ?? []).map((cap: any, idx: number) => (
+                        <div key={idx} className="rounded-lg border border-violet-400/30 bg-violet-500/20 px-3 py-2">
+                          <p className="font-medium text-[13px] text-violet-100">{cap.nom || 'Capacité'}</p>
+                          {cap.description && <p className="text-[12px] text-violet-100/80 mt-1 leading-relaxed">{cap.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Grille d'édition des caractéristiques – visible en mode édition */}
+            {isEditing && (
               <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-4">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-3">Caractéristiques</p>
                 <div className="grid grid-cols-7 gap-2">
@@ -1207,155 +1277,29 @@ export function PersonnageDetail({
               </div>
             )}
 
-            {/* ATTAQUES & CAPACITÉS SPÉCIALES — Mode Monstre */}
-            {isSimpleCombatant && (
-              <div className="space-y-4 mt-2">
-
-                {/* Attaques */}
-                <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
-                      <Swords className="w-3.5 h-3.5" /> Attaques
-                    </p>
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => setEditAttaques(prev => [...prev, { nom: '', bonus: '', degats: '', description: '' }])}
-                        className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/70 border border-[#E3CCCD]/30 rounded-full px-2.5 py-0.5 hover:bg-white/5 transition-colors"
-                      >
-                        + Ajouter
-                      </button>
+            {/* ── Armes ── */}
+            {!isSimpleCombatant && weapons.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] uppercase tracking-widest text-orange-300/60 flex items-center gap-1 shrink-0">
+                  <Sword className="w-3 h-3" /> 
+                </span>
+                {weapons.map((w, idx) => (
+                  <div
+                    key={w.id ?? idx}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-orange-400/25 bg-orange-400/8"
+                  >
+                    <span className="text-[11px] text-white/90 font-medium">{w.nom_custom || 'Arme'}</span>
+                    <span className={`text-[8px] uppercase tracking-widest font-bold ${
+                      w.item_type === 'arme_distance' ? 'text-sky-300/60' : 'text-orange-300/60'
+                    }`}>
+                      {w.item_type === 'arme_distance' ? 'D' : 'C'}
+                    </span>
+                    {w.description_custom && (
+                      <span className="text-[11px] font-mono text-orange-200/80">{w.description_custom}</span>
                     )}
+                    {(w.qte ?? 1) > 1 && <span className="text-[9px] text-white/35 font-mono">×{w.qte}</span>}
                   </div>
-                  {isEditing ? (
-                    editAttaques.length === 0 ? (
-                      <p className="text-[12px] text-white/30 italic">Aucune attaque. Cliquez sur + Ajouter.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {editAttaques.map((att, idx) => (
-                          <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <input
-                                value={att.nom}
-                                onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, nom: e.target.value } : a))}
-                                placeholder="Nom de l'attaque..."
-                                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50"
-                              />
-                              <button type="button" onClick={() => setEditAttaques(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div className="flex gap-2">
-                              <div className="flex-1 space-y-1">
-                                <span className="text-[9px] uppercase tracking-widest text-white/40">Bonus Att.</span>
-                                <input
-                                  value={att.bonus}
-                                  onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, bonus: e.target.value } : a))}
-                                  placeholder="+5"
-                                  className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50"
-                                />
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <span className="text-[9px] uppercase tracking-widest text-white/40">Dégâts</span>
-                                <input
-                                  value={att.degats}
-                                  onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, degats: e.target.value } : a))}
-                                  placeholder="2d6+3"
-                                  className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50"
-                                />
-                              </div>
-                            </div>
-                            <textarea
-                              value={att.description}
-                              onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, description: e.target.value } : a))}
-                              placeholder="Description (optionnel)..."
-                              rows={2}
-                              className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50 resize-none placeholder:text-white/25"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    (pj.stats?.attaques as any[] ?? []).length === 0 ? (
-                      <p className="text-[12px] text-white/30 italic">Aucune attaque définie.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {(pj.stats?.attaques as any[] ?? []).map((att: any, idx: number) => (
-                          <div key={idx} className="rounded-lg border border-white/10 bg-white/4 px-3 py-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-[13px] text-white">{att.nom || 'Attaque'}</span>
-                              {att.bonus && <span className="text-[11px] font-mono text-orange-400/80 border border-orange-400/25 rounded px-1.5 py-0.5">{att.bonus}</span>}
-                              {att.degats && <span className="text-[11px] font-mono text-red-400/80 border border-red-400/25 rounded px-1.5 py-0.5">{att.degats}</span>}
-                            </div>
-                            {att.description && <p className="text-[12px] text-white/60 mt-1 leading-relaxed">{att.description}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
-
-                {/* Capacités spéciales */}
-                <div className="rounded-lg border border-violet-400/20 bg-violet-400/5 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-violet-400/60 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" /> Capacités spéciales
-                    </p>
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => setEditCapacites(prev => [...prev, { nom: '', description: '' }])}
-                        className="text-[10px] uppercase tracking-widest text-violet-400/70 border border-violet-400/30 rounded-full px-2.5 py-0.5 hover:bg-violet-400/10 transition-colors"
-                      >
-                        + Ajouter
-                      </button>
-                    )}
-                  </div>
-                  {isEditing ? (
-                    editCapacites.length === 0 ? (
-                      <p className="text-[12px] text-white/30 italic">Aucune capacité. Cliquez sur + Ajouter.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {editCapacites.map((cap, idx) => (
-                          <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-3 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <input
-                                value={cap.nom}
-                                onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, nom: e.target.value } : c))}
-                                placeholder="Nom de la capacité..."
-                                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50"
-                              />
-                              <button type="button" onClick={() => setEditCapacites(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
-                                <X className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <textarea
-                              value={cap.description}
-                              onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))}
-                              placeholder="Description de la capacité..."
-                              rows={3}
-                              className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50 resize-none placeholder:text-white/25"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  ) : (
-                    (pj.stats?.capacites_speciales as any[] ?? []).length === 0 ? (
-                      <p className="text-[12px] text-violet-400/30 italic">Aucune capacité spéciale définie.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {(pj.stats?.capacites_speciales as any[] ?? []).map((cap: any, idx: number) => (
-                          <div key={idx} className="rounded-lg border border-violet-400/15 bg-violet-400/5 px-3 py-2">
-                            <p className="font-medium text-[13px] text-violet-200">{cap.nom || 'Capacité'}</p>
-                            {cap.description && <p className="text-[12px] text-violet-100/60 mt-1 leading-relaxed">{cap.description}</p>}
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  )}
-                </div>
+                ))}
               </div>
             )}
 

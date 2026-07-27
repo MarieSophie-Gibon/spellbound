@@ -419,3 +419,54 @@ export function useRevealedPnjs(campaignId: string) {
     enabled: !!campaignId,
   })
 }
+
+// ── Monstres révélés aux joueurs ──────────────────────────────────────────────
+
+export function useRevealedMonstres(campaignId: string) {
+  return useQuery({
+    queryKey: ['revealedMonstres', campaignId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from('campaign_revealed_monstres')
+        .select('monstre_id')
+        .eq('campaign_id', campaignId)
+
+      if (error) throw error
+      return (data ?? []).map((row: { monstre_id: string }) => row.monstre_id)
+    },
+    enabled: !!campaignId,
+  })
+}
+
+export function useToggleRevealedMonstre() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      campaignId,
+      monstreId,
+      isRevealed,
+    }: {
+      campaignId: string
+      monstreId: string
+      isRevealed: boolean
+    }) => {
+      if (isRevealed) {
+        const { error } = await supabase
+          .from('campaign_revealed_monstres')
+          .delete()
+          .eq('campaign_id', campaignId)
+          .eq('monstre_id', monstreId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('campaign_revealed_monstres')
+          .insert({ campaign_id: campaignId, monstre_id: monstreId })
+        if (error) throw error
+      }
+    },
+    onSuccess: (_data, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['revealedMonstres', campaignId] })
+    },
+  })
+}

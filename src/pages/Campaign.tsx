@@ -1,6 +1,6 @@
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
-import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch } from "lucide-react";
+import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch, Bell, X } from "lucide-react";
 import { CampaignHomeMobile } from "@/components/campaign/CampaignHomeMobile";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { PJList } from "@/components/campaign/PJList";
@@ -9,11 +9,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
 
+interface CampaignActivity { id: string; pseudo: string; at: string; }
+
 interface CampaignProps {
     campaign: Campaign;
+    activityLog?: CampaignActivity[];
+    onClearActivity?: (id?: string) => void;
 }
 
-export function CampaignHome({ campaign }: CampaignProps) {
+export function CampaignHome({ campaign, activityLog = [], onClearActivity }: CampaignProps) {
     const isMobile = useIsMobile();
     const role = useAuthStore((s) => s.role);
     const isMJ = role === "mj";
@@ -34,7 +38,7 @@ export function CampaignHome({ campaign }: CampaignProps) {
                 setSelectedPnjVoies([]);
                 return;
             }
-            const voieIds = selectedPnj.pathways.map((p) => p.voie_id).filter(Boolean);
+            const voieIds = selectedPnj.pathways.map((p: { voie_id: string }) => p.voie_id).filter(Boolean);
             if (voieIds.length === 0) {
                 setSelectedPnjVoies([]);
                 return;
@@ -44,15 +48,15 @@ export function CampaignHome({ campaign }: CampaignProps) {
                 .select("id, nom")
                 .in("id", voieIds);
 
-            const voieName = new Map((data ?? []).map((v) => [v.id, v.nom]));
+            const voieName = new Map((data ?? []).map((v: { id: string; nom: string }) => [v.id, v.nom]));
             setSelectedPnjVoies(
                 selectedPnj.pathways
-                    .map((p) => ({
+                    .map((p: { voie_id: string; rangs_acquis?: number[] }) => ({
                         id: p.voie_id,
                         nom: voieName.get(p.voie_id) ?? "Voie inconnue",
                         rang: (p.rangs_acquis && p.rangs_acquis.length > 0) ? Math.max(...p.rangs_acquis) : 0,
                     }))
-                    .sort((a, b) => a.nom.localeCompare(b.nom))
+                    .sort((a: { nom: string }, b: { nom: string }) => a.nom.localeCompare(b.nom))
             );
         };
         void loadVoies();
@@ -67,10 +71,57 @@ export function CampaignHome({ campaign }: CampaignProps) {
     }
 
     return (
-        <div className="flex-1 relative p-10">
-            {/* Campaign card + stats — top right */}
-            <div className="absolute top-6 right-8 flex flex-col gap-3 w-56">
-                {/* Card */}
+        <div className="flex-1 flex overflow-hidden">
+
+            {/* ── Zone principale (scrollable) ── */}
+            <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 p-8 pr-4 flex flex-col gap-8">
+
+                {/* PNJs rencontrés */}
+                {(revealedPnjs?.length ?? 0) > 0 && (
+                    <div>
+                        <div className="flex items-center gap-2 mb-4">
+                            <UserSearch className="w-4 h-4 text-violet-400/70" />
+                            <h2 className="text-[11px] uppercase tracking-widest text-violet-300/60 font-semibold">PNJs rencontrés</h2>
+                        </div>
+                        <div className="flex flex-wrap gap-4">
+                            {revealedPnjs!.map((pnj) => (
+                                <button
+                                    key={pnj.id}
+                                    type="button"
+                                    onClick={() => setSelectedPnjId(pnj.id)}
+                                    className="flex flex-col items-center gap-2 w-24 group text-left"
+                                >
+                                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-violet-500/30 bg-white/5 shadow-lg group-hover:border-violet-400/60 transition-colors">
+                                        <img
+                                            src={pnj.image_url || '/default-avatar.png'}
+                                            alt={pnj.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                    <span className="text-[11px] text-white/70 text-center leading-tight font-medium group-hover:text-white transition-colors">
+                                        {pnj.name}
+                                    </span>
+                                    {pnj.description && (
+                                        <span className="text-[10px] text-white/30 text-center leading-tight line-clamp-2">
+                                            {pnj.description}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Liste des personnages joueurs */}
+                <div>
+                    <PJList campaignId={campaign.id} isMJ={isMJ} />
+                </div>
+            </div>
+
+            {/* ── Colonne droite (fixe) ── */}
+            <div className="w-60 shrink-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 p-4 flex flex-col gap-3">
+
+                {/* Card campagne */}
                 <MagicCard
                     size="medium"
                     imageUrl={campaign.image_url}
@@ -83,18 +134,14 @@ export function CampaignHome({ campaign }: CampaignProps) {
                     )}
                 </MagicCard>
 
-                {/* Stats block */}
+                {/* Stats / Progression */}
                 <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
                     {createdAt && (
-                        
-                            <div className="flex items-center gap-2 text-white/40">
-                                <CalendarDays className="w-3.5 h-3.5 shrink-0" />
-                                <span className="text-[11px]">Créée le {createdAt}</span>
-                            </div>
-                        
+                        <div className="flex items-center gap-2 text-white/40">
+                            <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                            <span className="text-[11px]">Créée le {createdAt}</span>
+                        </div>
                     )}
-
-                    {/* Barre de progression de la campagne */}
                     {(progress?.totalChapitres ?? 0) > 0 && (
                         <>
                             <div className="h-px bg-white/10 my-0.5" />
@@ -122,6 +169,7 @@ export function CampaignHome({ campaign }: CampaignProps) {
                     )}
                 </div>
 
+                {/* Invitation joueurs */}
                 {isMJ && (
                     <div className="rounded-xl border border-amber-300/20 bg-amber-500/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
                         <div className="flex items-center gap-2 text-amber-200/90">
@@ -145,7 +193,7 @@ export function CampaignHome({ campaign }: CampaignProps) {
                         </button>
                         {inviteCode && (
                             <button
-                            onClick={async () => {
+                                onClick={async () => {
                                     await navigator.clipboard.writeText(inviteCode);
                                     setCopied(true);
                                     setTimeout(() => setCopied(false), 2000);
@@ -163,47 +211,56 @@ export function CampaignHome({ campaign }: CampaignProps) {
                         {inviteError && <p className="text-[10px] text-red-300">{inviteError}</p>}
                     </div>
                 )}
+
+                {/* Notifications joueurs */}
+                {isMJ && activityLog.length > 0 && (
+                    <div className="rounded-xl border border-[#E3CCCD]/15 bg-white/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-[#E3CCCD]/70">
+                                <Bell className="w-3.5 h-3.5" />
+                                <span className="text-[11px] uppercase tracking-widest">Activité</span>
+                            </div>
+                            <button
+                                onClick={() => onClearActivity?.()}
+                                className="text-[10px] text-white/30 hover:text-white/70 transition-colors"
+                            >
+                                Tout effacer
+                            </button>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                            {activityLog.map(notif => (
+                                <div key={notif.id} className="flex items-center gap-2 group">
+                                    <div className="w-5 h-5 rounded-full bg-[#E3CCCD]/10 border border-[#E3CCCD]/20 flex items-center justify-center shrink-0">
+                                        <Bell className="w-2.5 h-2.5 text-[#E3CCCD]/60" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[11px] text-white/80 font-medium">{notif.pseudo}</span>
+                                        <span className="text-[11px] text-white/40"> a rejoint</span>
+                                    </div>
+                                    <span className="text-[10px] text-white/25 tabular-nums shrink-0">{notif.at}</span>
+                                    <button
+                                        onClick={() => onClearActivity?.(notif.id)}
+                                        className="p-0.5 rounded text-white/20 hover:text-white/60 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                                    >
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* PNJs rencontrés */}
-            {(revealedPnjs?.length ?? 0) > 0 && (
-                <div className="max-w-6xl mx-auto mb-10">
-                    <div className="flex items-center gap-2 mb-4">
-                        <UserSearch className="w-4 h-4 text-violet-400/70" />
-                        <h2 className="text-[11px] uppercase tracking-widest text-violet-300/60 font-semibold">PNJs rencontrés</h2>
-                    </div>
-                    <div className="flex flex-wrap gap-4">
-                        {revealedPnjs!.map((pnj) => (
-                            <button
-                                key={pnj.id}
-                                type="button"
-                                onClick={() => setSelectedPnjId(pnj.id)}
-                                className="flex flex-col items-center gap-2 w-24 group text-left"
-                            >
-                                <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-violet-500/30 bg-white/5 shadow-lg group-hover:border-violet-400/60 transition-colors">
-                                    <img
-                                        src={pnj.image_url || '/default-avatar.png'}
-                                        alt={pnj.name}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <span className="text-[11px] text-white/70 text-center leading-tight font-medium group-hover:text-white transition-colors">
-                                    {pnj.name}
-                                </span>
-                                {pnj.description && (
-                                    <span className="text-[10px] text-white/30 text-center leading-tight line-clamp-2">
-                                        {pnj.description}
-                                    </span>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
+            {/* Modal détail PNJ */}
             {selectedPnj && (
-                <div className="fixed inset-0 z-60 bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center" onClick={() => setSelectedPnjId(null)}>
-                    <div className="w-full max-w-xl rounded-2xl border border-violet-300/25 bg-[#1E1941]/95 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div
+                    className="fixed inset-0 z-60 bg-black/65 backdrop-blur-sm p-4 flex items-center justify-center"
+                    onClick={() => setSelectedPnjId(null)}
+                >
+                    <div
+                        className="w-full max-w-xl rounded-2xl border border-violet-300/25 bg-[#1E1941]/95 shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <div className="px-5 py-4 border-b border-white/10 flex items-start gap-3">
                             <div className="w-12 h-12 rounded-full border-2 border-violet-400/60 overflow-hidden shrink-0">
                                 <img src={selectedPnj.image_url || '/default-avatar.png'} alt={selectedPnj.name} className="w-full h-full object-cover" />
@@ -212,52 +269,47 @@ export function CampaignHome({ campaign }: CampaignProps) {
                                 <p className="text-[10px] uppercase tracking-widest text-violet-300/55">Fiche technique PNJ</p>
                                 <h3 className="font-serif text-xl text-white truncate">{selectedPnj.name}</h3>
                             </div>
-                            <button onClick={() => setSelectedPnjId(null)} className="p-1.5 rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors" aria-label="Fermer la fiche PNJ">
+                            <button
+                                onClick={() => setSelectedPnjId(null)}
+                                className="p-1.5 rounded-full text-white/45 hover:text-white hover:bg-white/10 transition-colors"
+                                aria-label="Fermer"
+                            >
                                 ✕
                             </button>
                         </div>
-
                         <div className="p-5 space-y-4">
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Initiative</p>
-                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">{Number(selectedPnj.stats?.initiative ?? 0)}</p>
-                                </div>
-                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Défense</p>
-                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">{Number(selectedPnj.stats?.defense ?? 0)}</p>
-                                </div>
-                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Niveau</p>
-                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">{Number(selectedPnj.stats?.niveau ?? 1)}</p>
-                                </div>
-                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Att. contact</p>
-                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{Number(selectedPnj.stats?.att_contact ?? 0)}</p>
-                                </div>
-                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Att. distance</p>
-                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{Number(selectedPnj.stats?.att_distance ?? 0)}</p>
-                                </div>
-                                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                                    <p className="text-[10px] uppercase tracking-wide text-white/45">Att. magie</p>
-                                    <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{Number(selectedPnj.stats?.att_magie ?? 0)}</p>
-                                </div>
+                                {[
+                                    { label: "Initiative", val: selectedPnj.stats?.initiative },
+                                    { label: "Défense",    val: selectedPnj.stats?.defense },
+                                    { label: "Niveau",     val: selectedPnj.stats?.niveau ?? 1 },
+                                    { label: "Att. contact",  val: selectedPnj.stats?.att_contact, plus: true },
+                                    { label: "Att. distance", val: selectedPnj.stats?.att_distance, plus: true },
+                                    { label: "Att. magie",    val: selectedPnj.stats?.att_magie, plus: true },
+                                ].map(({ label, val, plus }) => (
+                                    <div key={label} className="rounded-lg border border-white/10 bg-white/5 p-2.5">
+                                        <p className="text-[10px] uppercase tracking-wide text-white/45">{label}</p>
+                                        <p className="text-sm text-white font-semibold mt-1 tabular-nums">
+                                            {plus ? "+" : ""}{Number(val ?? 0)}
+                                        </p>
+                                    </div>
+                                ))}
                             </div>
-
                             {selectedPnjVoies.length > 0 && (
                                 <div className="space-y-2">
                                     <p className="text-[10px] uppercase tracking-[0.15em] text-violet-300/60">Voies connues</p>
                                     <div className="flex flex-wrap gap-2">
                                         {selectedPnjVoies.map((voie) => (
-                                            <span key={`${voie.id}-${voie.rang}`} className="text-[11px] px-2.5 py-1 rounded-full border border-violet-300/25 bg-violet-500/10 text-violet-100/90">
+                                            <span
+                                                key={`${voie.id}-${voie.rang}`}
+                                                className="text-[11px] px-2.5 py-1 rounded-full border border-violet-300/25 bg-violet-500/10 text-violet-100/90"
+                                            >
                                                 {voie.nom}{voie.rang > 0 ? ` (R${voie.rang})` : ""}
                                             </span>
                                         ))}
                                     </div>
                                 </div>
                             )}
-
                             {selectedPnj.description && (
                                 <div className="space-y-1.5">
                                     <p className="text-[10px] uppercase tracking-[0.15em] text-white/45">Description publique</p>
@@ -268,11 +320,6 @@ export function CampaignHome({ campaign }: CampaignProps) {
                     </div>
                 </div>
             )}
-
-            {/* Liste design des personnages joueurs */}
-            <div className="max-w-6xl mx-auto">
-                <PJList campaignId={campaign.id} isMJ={isMJ} />
-            </div>
         </div>
     );
 }

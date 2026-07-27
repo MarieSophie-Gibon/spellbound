@@ -27,6 +27,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { supabase } from "@/lib/supabase";
 
 interface CampaignNotif { id: string; pseudo: string; }
+interface CampaignActivity { id: string; pseudo: string; at: string; }
 
 function normalizeRole(value: unknown): "mj" | "player" {
   const raw = String(value ?? "")
@@ -64,6 +65,7 @@ function App() {
 
   // ── Notifications de connexion à la campagne ─────────────────────────────
   const [campaignNotifs, setCampaignNotifs] = useState<CampaignNotif[]>([]);
+  const [activityLog, setActivityLog] = useState<CampaignActivity[]>([]);
   const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   useEffect(() => {
@@ -72,6 +74,7 @@ function App() {
     if (!campaignId || !userId) {
       presenceChannelRef.current?.unsubscribe();
       presenceChannelRef.current = null;
+      setActivityLog([]);
       return;
     }
 
@@ -97,7 +100,9 @@ function App() {
         const p = (newPresences as Array<{ pseudo?: string }>)[0];
         const pseudo = p?.pseudo ?? "Un joueur";
         const notifId = `${key}-${Date.now()}`;
+        const at = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
         setCampaignNotifs((prev) => [...prev, { id: notifId, pseudo }]);
+        setActivityLog((prev) => [...prev, { id: notifId, pseudo, at }]);
         setTimeout(() => {
           setCampaignNotifs((prev) => prev.filter((n) => n.id !== notifId));
         }, 6000);
@@ -174,11 +179,8 @@ function App() {
   // Navigation handler pour SideNav (global ou campagne)
   const handleTabChange = (tab: string) => {
     if (isCampaignRoute) {
-      if (tab === "none") {
-        setActiveCampaign(null);
-        navigate("/");
-      }
-      if (tab === "grimoire") navigate("/campaign/grimoire");
+      if (tab === "none") navigate("/campaign");
+      else if (tab === "grimoire") navigate("/campaign/grimoire");
       else if (tab === "compendium") navigate("/campaign/compendium");
       else if (tab === "bestiaire") navigate("/campaign/bestiaire");
       else if (tab === "scenarios") navigate("/campaign/scenarios");
@@ -257,7 +259,14 @@ function App() {
                 path="/campaign"
                 element={
                   activeCampaign ? (
-                    <CampaignHome campaign={activeCampaign} />
+                    <CampaignHome
+                      campaign={activeCampaign}
+                      activityLog={activityLog}
+                      onClearActivity={(id) => {
+                        if (id) setActivityLog(prev => prev.filter(n => n.id !== id));
+                        else setActivityLog([]);
+                      }}
+                    />
                   ) : (
                     <Navigate to="/" />
                   )
@@ -312,6 +321,7 @@ function App() {
                     key={`campaign-compendium-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
                     readOnly={isMobile || !canManageActiveCampaign}
+                    isOwner={canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
                   />
                 }
@@ -323,6 +333,7 @@ function App() {
                     key={`campaign-bestiaire-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
                     readOnly={isMobile || !canManageActiveCampaign}
+                    isOwner={canManageActiveCampaign}
                     mode="bestiaire"
                     onBack={() => navigate("/campaign")}
                   />

@@ -22,17 +22,30 @@ import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/Voi
 import { VoiePrestigeDetail } from "@/components/compendium/voie de prestige/VoiePrestigeDetail";
 import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useRevealedMonstres, useToggleRevealedMonstre } from "@/hooks/useCampaigns";
 
 interface CompendiumProps {
   onBack: () => void;
   campaignId?: string;
   readOnly?: boolean;
+  /** true = l'utilisateur courant est le propriétaire (MJ) de la campagne */
+  isOwner?: boolean;
   mode?: 'full' | 'bestiaire';
 }
 
-export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full' }: CompendiumProps) {
+export function Compendium({ onBack, campaignId, readOnly = false, isOwner = false, mode = 'full' }: CompendiumProps) {
   const isMobile = useIsMobile();
   const isBestiaireOnly = mode === 'bestiaire';
+
+  // Monstres révélés aux joueurs (uniquement dans le contexte d'une campagne)
+  const { data: revealedIds = [] } = useRevealedMonstres(campaignId ?? '');
+  const toggleRevealMonstre = useToggleRevealedMonstre();
+  const revealedMonstreIds = new Set(revealedIds);
+
+  const handleToggleReveal = (monstreId: string, isCurrentlyRevealed: boolean) => {
+    if (!campaignId) return;
+    toggleRevealMonstre.mutate({ campaignId, monstreId, isRevealed: isCurrentlyRevealed });
+  };
   const [activeSection, setActiveSection] = useState<Section | null>(
     isBestiaireOnly ? 'bestiaire' : (isMobile ? 'peuples' : null),
   );
@@ -281,6 +294,11 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
   const selectedPeuple = peuples.find(p => p.id === selectedPeupleId);
   const selectedFamilleArchetype = famillesArchetypes.find(f => f.id === selectedFamilleArchetypeId);
   const selectedProfil = profils.find(f => f.id === selectedProfilId);
+  // Pour les joueurs (non-owner) dans une campagne : on ne montre que les monstres révélés par le MJ
+  // Les monstres globaux (campaign_id === null) restent toujours visibles
+  const visibleMonstres = (campaignId && !isOwner)
+    ? monstres.filter(m => m.campaign_id === null || revealedMonstreIds.has(m.id))
+    : monstres;
   const selectedMonstre = monstres.find(m => m.id === selectedMonstreId);
   const filteredEquipements = equipements.filter(e => e.table_source === selectedEquipementTable);
   const selectedVoiePrestige = voiesPrestige.find(v => v.id === selectedVoiePrestigeId);
@@ -377,8 +395,9 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
       selectedFamilleArchetypeId={selectedFamilleArchetypeId}
       profils={profils}
       selectedProfilId={selectedProfilId}
-      monstres={monstres}
+      monstres={visibleMonstres}
       selectedMonstreId={selectedMonstreId}
+      revealedMonstreIds={isOwner && campaignId ? revealedMonstreIds : undefined}
       equipements={equipements}
       selectedEquipementTable={selectedEquipementTable}
       voiesPrestige={voiesPrestige}
@@ -413,7 +432,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
           peuples={peuples}
           famillesArchetypes={famillesArchetypes}
           profils={profils}
-          monstres={monstres}
+          monstres={visibleMonstres}
           equipements={equipements}
           voiesPrestige={voiesPrestige}
           onSectionChange={(section) => handleSectionChange(section)}
@@ -472,10 +491,13 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
               onDelete={() => setShowDeleteFamilleConfirm(true)}
             />
           ) : activeSection === 'bestiaire' && selectedMonstre ? (
-            <MonsterDetailMobile
+          <MonsterDetailMobile
               monstre={selectedMonstre}
               isFullscreen={isFullscreen}
               readOnly={readOnly}
+              isOwner={isOwner}
+              revealedMonstreIds={revealedMonstreIds}
+              onToggleReveal={handleToggleReveal}
               onToggleFullscreen={() => setIsFullscreen(f => !f)}
               onEdit={() => setShowEditMonster(true)}
               onDelete={() => setShowDeleteMonsterConfirm(true)}
@@ -544,6 +566,9 @@ export function Compendium({ onBack, campaignId, readOnly = false, mode = 'full'
             monstre={selectedMonstre}
             isFullscreen={isFullscreen}
             readOnly={readOnly}
+            isOwner={isOwner}
+            revealedMonstreIds={revealedMonstreIds}
+            onToggleReveal={handleToggleReveal}
             onToggleFullscreen={() => setIsFullscreen(f => !f)}
             onEdit={() => setShowEditMonster(true)}
             onDelete={() => setShowDeleteMonsterConfirm(true)}

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package, Award, Loader2 } from "lucide-react";
+import { ChevronDown, ArrowLeft, Plus, Users, BookOpen as BookOpenIcon, Swords, Wand2, Sword, Target, Shield, Package, Award, Loader2, Eye, EyeOff } from "lucide-react";
 import type { Peuple, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
@@ -25,6 +25,8 @@ interface CompendiumSidebarProps {
   selectedProfilId: string | null;
   monstres: Monstre[];
   selectedMonstreId: string | null;
+  /** IDs des monstres révélés (pour afficher l'indicateur MJ) */
+  revealedMonstreIds?: Set<string>;
   equipements: Equipement[];
   selectedEquipementTable: EquipementType | null;
   voiesPrestige: FamilleVoie[];
@@ -68,6 +70,7 @@ export function CompendiumSidebar({
   selectedProfilId,
   monstres,
   selectedMonstreId,
+  revealedMonstreIds,
   equipements,
   selectedEquipementTable,
   voiesPrestige,
@@ -285,6 +288,11 @@ export function CompendiumSidebar({
                             >
                               <div className={`w-1 h-1 shrink-0 rounded-full ${selectedMonstreId === monstre.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
                               <span className="wrap-break-word min-w-0 flex-1">{monstre.nom}</span>
+                              {revealedMonstreIds && monstre.campaign_id && (
+                                revealedMonstreIds.has(monstre.id)
+                                  ? <Eye className="w-3 h-3 shrink-0 text-emerald-400/70" />
+                                  : <EyeOff className="w-3 h-3 shrink-0 text-white/20" />
+                              )}
                               <span className="text-[10px] text-white/30 font-mono shrink-0">NC {monstre.nc}</span>
                             </button>
                           ))}
@@ -322,28 +330,33 @@ export function CompendiumSidebar({
                           </button>
                           <SectionPanel open={isOpen}>
                             <div className="mt-0.5 space-y-0.5 ml-1 border-l border-white/10 pl-2">
-                              {monstresParType[type].map(monstre => (
-                                <button
-                                  key={monstre.id}
-                                  onClick={() => onSelectMonstre(monstre.id)}
-                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedMonstreId === monstre.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
-                                >
-                                  <div className={`w-1 h-1 shrink-0 rounded-full ${selectedMonstreId === monstre.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
-                                  <span className="wrap-break-word min-w-0 flex-1">{monstre.nom}</span>
-                                  <span className="text-[10px] text-white/30 font-mono shrink-0">NC {monstre.nc}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </SectionPanel>
+                          {monstresParType[type].map(monstre => (
+                            <button
+                              key={monstre.id}
+                              onClick={() => onSelectMonstre(monstre.id)}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-light flex items-center gap-2 ${selectedMonstreId === monstre.id ? "bg-[#29206A]/60 text-white" : "hover:bg-white/5 text-white/60 hover:text-white"}`}
+                            >
+                              <div className={`w-1 h-1 shrink-0 rounded-full ${selectedMonstreId === monstre.id ? "bg-[#E3CCCD]" : "bg-[#E3CCCD]/30"}`} />
+                              <span className="wrap-break-word min-w-0 flex-1">{monstre.nom}</span>
+                              {revealedMonstreIds && monstre.campaign_id && (
+                                revealedMonstreIds.has(monstre.id)
+                                  ? <Eye className="w-3 h-3 shrink-0 text-emerald-400/70" />
+                                  : <EyeOff className="w-3 h-3 shrink-0 text-white/20" />
+                              )}
+                              <span className="text-[10px] text-white/30 font-mono shrink-0">NC {monstre.nc}</span>
+                            </button>
+                          ))}
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              </SectionPanel>
+                      </SectionPanel>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          )
-        )}
+          </SectionPanel>
+        </div>
+      )
+    )}
 
         {/* SECTION OBJETS */}
         {showSection('objets') && <div className="w-full">

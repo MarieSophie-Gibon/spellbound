@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, Swords, Shield, Zap, Heart, Sparkles } from "lucide-react";
+import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, Swords, Shield, Zap, Heart, Sparkles, Eye, EyeOff } from "lucide-react";
 import type { Monstre, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
@@ -6,6 +6,12 @@ interface MonsterDetailProps {
     monstre: Monstre;
     isFullscreen: boolean;
     readOnly?: boolean;
+    /** true = le viewer est le MJ propriétaire de la campagne */
+    isOwner?: boolean;
+    /** IDs des monstres déjà révélés aux joueurs (seulement si isOwner) */
+    revealedMonstreIds?: Set<string>;
+    /** Callback pour basculer la visibilité (seulement si isOwner) */
+    onToggleReveal?: (monstreId: string, isCurrentlyRevealed: boolean) => void;
     onToggleFullscreen: () => void;
     onEdit: () => void;
     onDelete: () => void;
@@ -14,9 +20,12 @@ interface MonsterDetailProps {
 const STAT_KEYS = ["for", "agi", "con", "int", "per", "vol", "cha"] as const;
 const STAT_LABELS: Record<string, string> = { for: "FOR", agi: "AGI", con: "CON", int: "INT", per: "PER", vol: "VOL", cha: "CHA" };
 
-export function MonsterDetail({ monstre, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: MonsterDetailProps) {
+export function MonsterDetail({ monstre, isFullscreen, readOnly, isOwner, revealedMonstreIds, onToggleReveal, onToggleFullscreen, onEdit, onDelete }: MonsterDetailProps) {
     const isMobile = useIsMobile();
     const hasActions = !isMobile || !readOnly;
+    const isRevealed = revealedMonstreIds?.has(monstre.id) ?? false;
+    // Le toggle n'est visible que pour un monstre de campagne (campaign_id non null)
+    const showRevealToggle = isOwner && !!monstre.campaign_id && !!onToggleReveal;
 
     return (
         <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
@@ -37,6 +46,22 @@ export function MonsterDetail({ monstre, isFullscreen, readOnly, onToggleFullscr
                                 <button onClick={onToggleFullscreen} className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors">
                                     {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
                                 </button>
+                            )}
+                            {showRevealToggle && (
+                                <>
+                                    {!isMobile && <div className="w-px h-4 bg-white/20 mx-1" />}
+                                    <button
+                                        onClick={() => onToggleReveal!(monstre.id, isRevealed)}
+                                        title={isRevealed ? "Masquer aux joueurs" : "Révéler aux joueurs"}
+                                        className={`p-1.5 rounded-full transition-colors ${
+                                            isRevealed
+                                                ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                                                : "text-white/40 hover:text-white hover:bg-white/10"
+                                        }`}
+                                    >
+                                        {isRevealed ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                    </button>
+                                </>
                             )}
                             {!readOnly && (
                                 <>

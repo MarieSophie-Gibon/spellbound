@@ -8,6 +8,8 @@ import {
   Heart,
   Shield,
   Zap,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import type {
   Monstre,
@@ -20,6 +22,12 @@ interface MonsterDetailMobileProps {
   monstre: Monstre;
   isFullscreen: boolean;
   readOnly?: boolean;
+  /** true = le viewer est le MJ propriétaire de la campagne */
+  isOwner?: boolean;
+  /** IDs des monstres déjà révélés aux joueurs (seulement si isOwner) */
+  revealedMonstreIds?: Set<string>;
+  /** Callback pour basculer la visibilité (seulement si isOwner) */
+  onToggleReveal?: (monstreId: string, isCurrentlyRevealed: boolean) => void;
   onToggleFullscreen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -39,10 +47,15 @@ const STAT_LABELS: Record<string, string> = {
 export function MonsterDetailMobile({
   monstre,
   readOnly,
+  isOwner,
+  revealedMonstreIds,
+  onToggleReveal,
   onEdit,
   onDelete,
 }: MonsterDetailMobileProps) {
   const hasActions = !readOnly;
+  const isRevealed = revealedMonstreIds?.has(monstre.id) ?? false;
+  const showRevealToggle = isOwner && !!monstre.campaign_id && !!onToggleReveal;
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 p-3 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
@@ -54,20 +67,37 @@ export function MonsterDetailMobile({
             {monstre.type_creature}
           </span>
         </div>
-        {hasActions && (
+        {(hasActions || showRevealToggle) && (
           <div className="flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1.5 backdrop-blur-md shadow-xl shrink-0">
-            <button
-              onClick={onEdit}
-              className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            {showRevealToggle && (
+              <button
+                onClick={() => onToggleReveal!(monstre.id, isRevealed)}
+                title={isRevealed ? "Masquer aux joueurs" : "Révéler aux joueurs"}
+                className={`p-1.5 rounded-full transition-colors ${
+                  isRevealed
+                    ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                    : "text-white/40 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                {isRevealed ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </button>
+            )}
+            {hasActions && (
+              <>
+                <button
+                  onClick={onEdit}
+                  className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onDelete}
+                  className="p-1.5 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
