@@ -171,6 +171,7 @@ export function PersonnageDetailMobile({
 
   // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
+  const [pendingEditWeaponId, setPendingEditWeaponId] = useState<string | null>(null);
 
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -1524,12 +1525,18 @@ export function PersonnageDetailMobile({
             {!isSimpleCombatant && weapons.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[9px] uppercase tracking-widest text-orange-300/60 flex items-center gap-1 shrink-0">
-                  <Sword className="w-3 h-3" /> Armes
+                  <Sword className="w-3 h-3" /> 
                 </span>
                 {weapons.map((w, idx) => (
-                  <div
+                  <button
                     key={w.id ?? idx}
-                    className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-orange-400/25 bg-orange-400/8"
+                    type="button"
+                    onClick={() => {
+                      if (readOnly) return;
+                      setPendingEditWeaponId(w.id ?? null);
+                      setActiveTab('inventory');
+                    }}
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-orange-400/25 bg-orange-400/8 ${!readOnly ? 'hover:border-orange-400/60 hover:bg-orange-400/15 transition-colors' : ''}`}
                   >
                     <span className="text-[11px] text-white/90 font-medium">{w.nom_custom || 'Arme'}</span>
                     <span className={`text-[8px] uppercase tracking-widest font-bold ${
@@ -1541,7 +1548,7 @@ export function PersonnageDetailMobile({
                       <span className="text-[11px] font-mono text-orange-200/80">{w.description_custom}</span>
                     )}
                     {(w.qte ?? 1) > 1 && <span className="text-[9px] text-white/35 font-mono">×{w.qte}</span>}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -1631,6 +1638,7 @@ export function PersonnageDetailMobile({
             }
             pjStats={pj.stats}
             readOnly={readOnly || technicalSheetOnly}
+            autoOpenItemId={pendingEditWeaponId}
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
               await supabase

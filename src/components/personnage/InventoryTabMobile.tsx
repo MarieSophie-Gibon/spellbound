@@ -16,6 +16,8 @@ interface InventoryTabMobileProps {
   pjStats: any;
   onUpdateStats: (newStats: any) => void;
   readOnly?: boolean;
+  /** Si défini, ouvre directement le panneau d'édition de cet item au chargement */
+  autoOpenItemId?: string | null;
 }
 
 type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
@@ -29,7 +31,7 @@ const normalizeItemIdForDb = (value: string | number | null) => {
 };
 
 export default function InventoryTabMobile({
-  pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false,
+  pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false, autoOpenItemId,
 }: InventoryTabMobileProps) {
   const isPnj = !!pnjId;
   const ownerId = pnjId || pjId;
@@ -44,10 +46,15 @@ export default function InventoryTabMobile({
 
   // Quick-edit bottom sheet
   const [editItem, setEditItem] = useState<any | null>(null);
+  const [editType, setEditType] = useState<ItemType>("arme_contact");
+  const [editItemId, setEditItemId] = useState<string | number | null>(null);
   const [editNom, setEditNom] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editQte, setEditQte] = useState(1);
+  const [editIsEquipped, setEditIsEquipped] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editCompendiumItems, setEditCompendiumItems] = useState<any[]>([]);
+  const [isFetchingEditCompendium, setIsFetchingEditCompendium] = useState(false);
 
   // Add modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -83,6 +90,13 @@ export default function InventoryTabMobile({
     if (ownerId) fetchItems();
   }, [ownerId, profilId]);
 
+  // Ouvre l'édition automatiquement si autoOpenItemId est fourni (après chargement)
+  useEffect(() => {
+    if (!autoOpenItemId || isLoading || unifiedItems.length === 0) return;
+    const item = unifiedItems.find((i: any) => i.id === autoOpenItemId);
+    if (item) openEdit(item);
+  }, [autoOpenItemId, isLoading, unifiedItems]);
+
   useEffect(() => {
     if (!showAddModal) return;
 
@@ -110,16 +124,31 @@ export default function InventoryTabMobile({
 
   const openEdit = (item: any) => {
     setEditItem(item);
+    setEditType(item.item_type ?? "equipement");
+    setEditItemId(item.item_id ?? null);
     setEditNom(item.nom_custom || "");
     setEditDesc(item.description_custom || "");
     setEditQte(item.qte || 1);
+    setEditIsEquipped(item.is_equipped || false);
   };
+
+  // Charge le compendium quand le type change dans la modale d'édition
+  useEffect(() => {
+    if (!editItem) return;
+    const tableMap: Record<ItemType, string> = { arme_contact: "armes_contact", arme_distance: "armes_distance", armure: "armures", equipement: "equipements" };
+    setIsFetchingEditCompendium(true);
+    supabase.from(tableMap[editType]).select("*").order("nom").then(({ data }) => {
+      setEditCompendiumItems(data ?? []);
+      setIsFetchingEditCompendium(false);
+    });
+  }, [editType, editItem]);
 
   const handleSave = async () => {
     if (!editItem) return;
     setIsSaving(true);
     try {
-      const payload = { nom_custom: editNom, description_custom: editDesc, qte: editQte };
+      const normalizedId = editItemId == null ? null : typeof editItemId === "number" ? editItemId : /^\d+$/.test(String(editItemId).trim()) ? Number(editItemId) : null;
+      const payload = { item_type: editType, item_id: normalizedId, nom_custom: editNom, description_custom: editDesc, qte: editQte, is_equipped: editIsEquipped };
       if (isPnj) {
         const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
         const current: any[] = data?.inventory?.items ?? [];
@@ -405,38 +434,86 @@ export default function InventoryTabMobile({
               </button>
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              {/* Catégorie */}
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1.5">Catégorie</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(["arme_contact","arme_distance","armure","equipement"] as ItemType[]).map(t => {
+                    const labels: Record<ItemType,string> = { arme_contact:"Contact", arme_distance:"Distance", armure:"Armure", equipement:"Équipement" };
+                    return (
+                      <button key={t} type="button"
+                        onClick={() => { setEditType(t); setEditItemId(null); setEditNom(""); setEditDesc(""); }}
+                        className={`py-1.5 rounded-lg border text-[11px] font-medium transition-colors ${editType === t ? "border-[#E3CCCD]/50 bg-[#E3CCCD]/15 text-[#E3CCCD]" : "border-white/15 text-white/50 hover:text-white/80"}`}
+                      >{labels[t]}</button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Compendium */}
+              <div>
+                <label className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60 block mb-1">Objet du Compendium</label>
+                <Select
+                  value={editItemId?.toString() || "custom"}
+                  onValueChange={(val) => {
+                    if (val === "custom") { setEditItemId(null); setEditNom(""); setEditDesc(""); return; }
+                    const sel = editCompendiumItems.find(i => i.id?.toString() === val);
+                    if (!sel) return;
+                    let desc = sel.description || sel.data?.description || "";
+                    if (editType === "arme_contact" || editType === "arme_distance") desc = `Dégâts: ${sel.dm}`;
+                    if (editType === "armure") desc = `Défense: ${sel.bonus_def}`;
+                    setEditItemId(sel.id); setEditNom(sel.nom); setEditDesc(desc);
+                  }}
+                  disabled={isFetchingEditCompendium}
+                >
+                  <SelectTrigger className="w-full h-10 bg-white/8 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 disabled:opacity-50">
+                    <SelectValue placeholder="Objet personnalisé…" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-60 **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                    <SelectItem value="custom" className="text-white! hover:bg-white/10">Objet personnalisé…</SelectItem>
+                    {editCompendiumItems.map(ci => (
+                      <SelectItem key={ci.id} value={ci.id.toString()} className="text-white! hover:bg-white/10">{ci.nom}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Nom */}
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1">Nom</label>
-                <input
-                  type="text"
-                  value={editNom}
-                  onChange={(e) => setEditNom(e.target.value)}
-                  className="w-full bg-white/8 border border-white/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-[#E3CCCD]/50"
-                />
+                <input type="text" value={editNom} onChange={(e) => setEditNom(e.target.value)}
+                  className="w-full bg-white/8 border border-white/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-[#E3CCCD]/50" />
               </div>
+
+              {/* Description */}
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1">Description</label>
-                <textarea
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  rows={2}
-                  className="w-full bg-white/8 border border-white/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-[#E3CCCD]/50 resize-none"
-                />
+                <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1">
+                  {editType.includes("arme") ? "Dégâts" : editType === "armure" ? "Défense" : "Description"}
+                </label>
+                <input type="text" value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder={editType.includes("arme") ? "ex: 1d8+2" : editType === "armure" ? "ex: +2" : ""}
+                  className="w-full bg-white/8 border border-white/20 rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-[#E3CCCD]/50" />
               </div>
-              {(editItem.item_type === "equipement" || !editItem.item_type) && (
+
+              {/* Quantité (équipement seulement) */}
+              {(editType === "equipement" || !editType) && (
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1">Quantité</label>
                   <div className="flex items-center gap-3 bg-white/8 border border-white/20 rounded-lg px-3 py-1.5 w-max">
-                    <button type="button" onClick={() => setEditQte(q => Math.max(1, q - 1))} className="p-1 text-white/50 hover:text-white">
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
+                    <button type="button" onClick={() => setEditQte(q => Math.max(1, q - 1))} className="p-1 text-white/50 hover:text-white"><Minus className="w-3.5 h-3.5" /></button>
                     <span className="font-mono text-base font-bold text-white w-8 text-center">{editQte}</span>
-                    <button type="button" onClick={() => setEditQte(q => q + 1)} className="p-1 text-white/50 hover:text-white">
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    <button type="button" onClick={() => setEditQte(q => q + 1)} className="p-1 text-white/50 hover:text-white"><Plus className="w-3.5 h-3.5" /></button>
                   </div>
                 </div>
+              )}
+
+              {/* Porté */}
+              {editType !== "equipement" && (
+                <label className="flex items-center gap-2 cursor-pointer w-max">
+                  <input type="checkbox" checked={editIsEquipped} onChange={(e) => setEditIsEquipped(e.target.checked)} className="accent-[#E3CCCD] w-4 h-4" />
+                  <span className="text-sm text-white/80 select-none">Porté / équipé en main</span>
+                </label>
               )}
             </div>
 
