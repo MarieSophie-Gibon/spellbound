@@ -18,6 +18,9 @@ import {
   Target,
   Wand2,
   Dice1,
+  Search,
+  History,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -44,6 +47,19 @@ interface PNJWizardProps {
   campaignId: string;
   onClose: () => void;
   onSuccess: (pnj?: CreatedPnj) => void;
+}
+
+interface OldPNJ {
+  id: string;
+  name: string;
+  image_url: string | null;
+  stats: any;
+  pathways: any;
+  inventory: any;
+  peuple_id: string | null;
+  profils_id: string | null;
+  campaign_id: string;
+  campaign_nom: string;
 }
 
 function isValidUuid(value: string): boolean {
@@ -110,6 +126,18 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCombatant, setIsCombatant] = useState(false);
+
+  // ── Wizard Mode ──────────────────────────────
+  const [wizardMode, setWizardMode] = useState<'select' | 'new' | 'recover'>('select');
+  // ── Recovery State ────────────────────────────
+  const [oldPNJs, setOldPNJs] = useState<OldPNJ[]>([]);
+  const [oldPNJsLoading, setOldPNJsLoading] = useState(false);
+  const [recoverSearch, setRecoverSearch] = useState('');
+  const [selectedOldPNJ, setSelectedOldPNJ] = useState<OldPNJ | null>(null);
+  const [recoverName, setRecoverName] = useState('');
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoverError, setRecoverError] = useState<string | null>(null);
+  const [recoverRetry, setRecoverRetry] = useState(0);
 
   // ── Step 1 ──────────────────────────────────
   const [nom, setNom] = useState("");
@@ -239,6 +267,45 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
     fetchRef();
   }, [campaignId, isCombatant]);
 
+  useEffect(() => {
+    if (wizardMode !== 'recover') return;
+    setOldPNJsLoading(true);
+    setRecoverError(null);
+    const doFetch = async () => {
+      try {
+        const { data: pnjData, error: pnjError } = await supabase
+          .from('pnj')
+          .select('id, name, image_url, stats, pathways, inventory, peuple_id, profils_id, campaign_id')
+          .neq('campaign_id', campaignId)
+          .order('name');
+        if (pnjError) throw pnjError;
+
+        const uniqueCampaignIds = [...new Set((pnjData || []).map((p: any) => p.campaign_id))];
+        let campaignNames: Record<string, string> = {};
+        if (uniqueCampaignIds.length > 0) {
+          const { data: campData } = await supabase
+            .from('campagnes')
+            .select('id, nom')
+            .in('id', uniqueCampaignIds);
+          if (campData) {
+            campaignNames = Object.fromEntries(campData.map((c: any) => [c.id, c.nom]));
+          }
+        }
+
+        setOldPNJs((pnjData || []).map((pnj: any) => ({
+          ...pnj,
+          campaign_nom: campaignNames[pnj.campaign_id] ?? 'Campagne inconnue',
+        })));
+      } catch (err: any) {
+        console.error('[PNJWizard] fetchOldPNJs error:', err);
+        setRecoverError(err?.message ?? 'Erreur lors du chargement des anciens PNJs.');
+      } finally {
+        setOldPNJsLoading(false);
+      }
+    };
+    doFetch();
+  }, [wizardMode, campaignId, recoverRetry]);
+
   const totalStats: StatsMap = {
     FOR: stats.FOR + bonusPeuple.FOR,
     CON: stats.CON + bonusPeuple.CON,
@@ -343,6 +410,50 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
       if (prev.length >= 2) return prev;
       return [...prev, voieId];
     });
+  };
+
+  // ── Recover ──────────────────────────────────
+  const handleRecoverPNJ = async () => {
+    if (!selectedOldPNJ) return;
+    setIsRecovering(true);
+    try {
+      const finalName = recoverName.trim() || selectedOldPNJ.name;
+      const { data: newPNJData, error } = await supabase
+        .from('pnj')
+        .insert({
+          campaign_id: campaignId,
+          name: finalName,
+          image_url: selectedOldPNJ.image_url,
+          peuple_id: selectedOldPNJ.peuple_id,
+          profils_id: selectedOldPNJ.profils_id,
+          stats: selectedOldPNJ.stats,
+          pathways: selectedOldPNJ.pathways,
+          inventory: selectedOldPNJ.inventory,
+        })
+        .select();
+      if (error) throw error;
+      const newPNJId = newPNJData?.[0]?.id;
+      if (newPNJId) {
+        const { data: oldItems } = await supabase
+          .from('pj_inventaire')
+          .select('item_type, item_id, nom_custom, description_custom, qte, is_equipped')
+          .eq('pnj_id', selectedOldPNJ.id);
+        if (oldItems && oldItems.length > 0) {
+          await supabase.from('pj_inventaire').insert(
+            oldItems.map((item) => ({ ...item, pj_id: null, pnj_id: newPNJId }))
+          );
+        }
+      }
+      const created = newPNJData?.[0]
+        ? { id: newPNJData[0].id, name: newPNJData[0].name, image_url: newPNJData[0].image_url }
+        : undefined;
+      onSuccess(created);
+      onClose();
+    } catch (err: any) {
+      alert('Erreur : ' + err.message);
+    } finally {
+      setIsRecovering(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -483,9 +594,17 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
       {/* HEADER */}
       <div className="relative z-10 shrink-0 px-8 pt-7 pb-5 border-b border-white/8 bg-black/10">
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-1">
-              Nouveau Personnage Non-Joueur
+          <div className="flex items-center gap-2">
+            {wizardMode !== 'select' && (
+              <button
+                onClick={() => setWizardMode('select')}
+                className="p-1.5 text-white/30 hover:text-white/70 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50">
+              {wizardMode === 'recover' ? 'Récupérer un PNJ' : 'Nouveau Personnage Non-Joueur'}
             </p>
           </div>
           <button onClick={onClose} className="p-2 text-white/30 hover:text-white/70 transition-colors">
@@ -494,7 +613,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         </div>
 
         {/* Steps */}
-        <div className="flex items-center gap-0">
+        {wizardMode === 'new' && <div className="flex items-center gap-0">
           {STEPS.map((s, i) => (
             <div key={s.num} className="flex items-center">
               <button
@@ -513,14 +632,134 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
               )}
             </div>
           ))}
-        </div>
+        </div>}
       </div>
 
       {/* CONTENT */}
       <div className="relative z-10 flex-1 overflow-y-auto px-8 py-7 scrollbar-thin scrollbar-thumb-white/8">
         
+        {/* ── MODE SELECT ── */}
+        {wizardMode === 'select' && (
+          <div className="flex flex-col items-center justify-center h-full gap-10 py-12 animate-in fade-in">
+            <div className="text-center space-y-1">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/40">Nouveau Personnage Non-Joueur</p>
+              <p className="text-sm text-white/40">Comment souhaitez-vous procéder ?</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+              <button
+                onClick={() => setWizardMode('new')}
+                className="group flex flex-col items-center gap-4 p-6 rounded-2xl border border-white/12 bg-white/3 hover:border-[#E3CCCD]/40 hover:bg-[#E3CCCD]/6 transition-all"
+              >
+                <div className="w-12 h-12 rounded-xl border border-white/15 bg-white/8 flex items-center justify-center group-hover:border-[#E3CCCD]/30 transition-all">
+                  <Sparkles className="w-6 h-6 text-white/40 group-hover:text-[#E3CCCD]/70" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-semibold text-white/80 group-hover:text-[#E3CCCD] transition-colors">Nouveau PNJ</p>
+                  <p className="text-[11px] text-white/30 mt-1 leading-relaxed">Créer un personnage de zéro via l'assistant</p>
+                </div>
+              </button>
+              <button
+                onClick={() => setWizardMode('recover')}
+                className="group flex flex-col items-center gap-4 p-6 rounded-2xl border border-white/12 bg-white/3 hover:border-[#E3CCCD]/40 hover:bg-[#E3CCCD]/6 transition-all"
+              >
+                <div className="w-12 h-12 rounded-xl border border-white/15 bg-white/8 flex items-center justify-center group-hover:border-[#E3CCCD]/30 transition-all">
+                  <History className="w-6 h-6 text-white/40 group-hover:text-[#E3CCCD]/70" />
+                </div>
+                <div className="text-center">
+                  <p className="text-[13px] font-semibold text-white/80 group-hover:text-[#E3CCCD] transition-colors">Récupérer un PNJ</p>
+                  <p className="text-[11px] text-white/30 mt-1 leading-relaxed">Importer un PNJ depuis une autre campagne</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── RECOVER MODE ── */}
+        {wizardMode === 'recover' && (
+          <div className="space-y-5 animate-in fade-in">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
+              <input
+                type="text"
+                value={recoverSearch}
+                onChange={(e) => setRecoverSearch(e.target.value)}
+                placeholder="Rechercher un PNJ..."
+                className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/40 rounded-xl pl-9 pr-4 py-2.5 text-white text-sm outline-none transition-colors placeholder:text-white/25"
+              />
+            </div>
+
+            {/* PNJ List */}
+            {oldPNJsLoading ? (
+              <p className="text-center text-white/30 text-sm py-10">Chargement...</p>
+            ) : recoverError ? (
+              <div className="flex flex-col items-center gap-3 py-10">
+                <p className="text-red-400/70 text-sm text-center">{recoverError}</p>
+                <button
+                  type="button"
+                  onClick={() => { setRecoverError(null); setRecoverRetry(n => n + 1); }}
+                  className="px-4 py-2 rounded-xl border border-white/15 text-white/50 hover:text-white text-[12px] transition-all"
+                >
+                  Réessayer
+                </button>
+              </div>
+            ) : oldPNJs.length === 0 ? (
+              <p className="text-center text-white/30 text-sm py-10 italic">Aucun ancien PNJ disponible.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {oldPNJs
+                  .filter((pnj) => !recoverSearch || pnj.name.toLowerCase().includes(recoverSearch.toLowerCase()))
+                  .map((pnj) => {
+                    const sel = selectedOldPNJ?.id === pnj.id;
+                    return (
+                      <button
+                        key={pnj.id}
+                        type="button"
+                        onClick={() => { setSelectedOldPNJ(pnj); setRecoverName(pnj.name); }}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${sel ? 'border-[#E3CCCD]/50 bg-[#E3CCCD]/8' : 'border-white/10 bg-white/3 hover:border-white/20 hover:bg-white/5'}`}
+                      >
+                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/8 flex items-center justify-center">
+                          {pnj.image_url ? (
+                            <img src={pnj.image_url} alt={pnj.name} className="w-full h-full object-cover opacity-80" />
+                          ) : (
+                            <span className="text-white/15 text-sm">◈</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-[13px] font-medium truncate ${sel ? 'text-[#E3CCCD]' : 'text-white/80'}`}>{pnj.name}</p>
+                          <p className="text-[11px] text-white/30 truncate">{pnj.campaign_nom}</p>
+                        </div>
+                        {pnj.stats?.is_combatant && (
+                          <span className="text-[10px] text-white/25 border border-white/10 rounded-full px-1.5 py-0.5 shrink-0">Combattant</span>
+                        )}
+                        {sel && <span className="text-[#E3CCCD]/60 text-xs shrink-0">✓</span>}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Selected PNJ config */}
+            {selectedOldPNJ && (
+              <div className="p-4 rounded-xl border border-[#E3CCCD]/20 bg-[#E3CCCD]/5 space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-[#E3CCCD]/60">Configuration</p>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase tracking-[0.15em] text-white/50">Nom dans cette campagne</label>
+                  <input
+                    type="text"
+                    value={recoverName}
+                    onChange={(e) => setRecoverName(e.target.value)}
+                    placeholder={selectedOldPNJ.name}
+                    className="w-full bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/60 py-2 text-white text-sm outline-none transition-colors placeholder:text-white/25"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── STEP 1 : Identité & Origine ── */}
-        {step === 1 && (
+        {wizardMode === 'new' && step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             <div className="flex gap-4 items-end">
               <div className="flex-1 space-y-1.5">
@@ -647,7 +886,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 2 : Famille ── (Uniquement si combattant) */}
-        {isCombatant && step === 2 && (
+        {wizardMode === 'new' && isCombatant && step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
              <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Famille *</label>
@@ -726,7 +965,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 3 : Caractéristiques ── (Uniquement si combattant) */}
-        {isCombatant && step === 3 && (
+        {wizardMode === 'new' && isCombatant && step === 3 && (
           <div className="flex gap-4 animate-in slide-in-from-right-4 fade-in">
             {/* Colonne gauche */}
             <div className="w-56 shrink-0 space-y-4">
@@ -809,7 +1048,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 4 : Voies ── (Uniquement si combattant) */}
-        {isCombatant && step === 4 && (
+        {wizardMode === 'new' && isCombatant && step === 4 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* ENCART MAGE */}
             {isMage && magePeuple?.voie && (
@@ -877,7 +1116,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 5 : Statistiques Dérivées ── (Uniquement si combattant) */}
-        {isCombatant && step === 5 && (
+        {wizardMode === 'new' && isCombatant && step === 5 && (
           <div className="space-y-5 animate-in slide-in-from-right-4 fade-in">
             <div className="flex gap-3 p-4 rounded-xl border border-white/10 bg-white/4">
               <Info className="w-4 h-4 text-white/40 shrink-0 mt-0.5" />
@@ -1018,7 +1257,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 6 : Lore & Notes (Étape 2 si non-combattant) ── */}
-        {step === 6 && (
+        {wizardMode === 'new' && step === 6 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description publique</label>
@@ -1063,42 +1302,60 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
 
       {/* FOOTER */}
       <div className="relative z-10 shrink-0 px-8 py-5 border-t border-white/8 bg-black/10 flex items-center justify-between gap-3">
-        {currentStepVisualIndex > 0 ? (
-          <button
-            onClick={() => setStep(STEPS[currentStepVisualIndex - 1].num)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Retour
-          </button>
-        ) : <div />}
+        {wizardMode === 'new' ? (
+          <>
+            {currentStepVisualIndex > 0 ? (
+              <button
+                onClick={() => setStep(STEPS[currentStepVisualIndex - 1].num)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/15 text-white/50 hover:text-white hover:border-white/30 text-[13px] transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Retour
+              </button>
+            ) : <div />}
 
-        <div className="flex items-center gap-2">
-          {STEPS.map((s) => (
-            <div key={s.num} className={`w-1.5 h-1.5 rounded-full transition-all ${step === s.num ? "bg-[#E3CCCD]" : step > s.num ? "bg-white/40" : "bg-white/15"}`} />
-          ))}
-        </div>
+            <div className="flex items-center gap-2">
+              {STEPS.map((s) => (
+                <div key={s.num} className={`w-1.5 h-1.5 rounded-full transition-all ${step === s.num ? "bg-[#E3CCCD]" : step > s.num ? "bg-white/40" : "bg-white/15"}`} />
+              ))}
+            </div>
 
-        {currentStepVisualIndex < STEPS.length - 1 ? (
-          <button
-            onClick={() => {
-              if (!canAdvance()) return alert("Veuillez remplir les informations obligatoires de cette étape.");
-              setStep(STEPS[currentStepVisualIndex + 1].num);
-            }}
-            disabled={!canAdvance()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/15 border border-[#E3CCCD]/30 text-[#E3CCCD] hover:bg-[#E3CCCD]/25 text-[13px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Suivant <ArrowRight className="w-4 h-4" />
-          </button>
+            {currentStepVisualIndex < STEPS.length - 1 ? (
+              <button
+                onClick={() => {
+                  if (!canAdvance()) return alert("Veuillez remplir les informations obligatoires de cette étape.");
+                  setStep(STEPS[currentStepVisualIndex + 1].num);
+                }}
+                disabled={!canAdvance()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/15 border border-[#E3CCCD]/30 text-[#E3CCCD] hover:bg-[#E3CCCD]/25 text-[13px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Suivant <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 text-[#E3CCCD] hover:bg-[#E3CCCD]/30 text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save className="w-4 h-4" />
+                {isSubmitting ? "Sauvegarde..." : "Créer le PNJ"}
+              </button>
+            )}
+          </>
+        ) : wizardMode === 'recover' ? (
+          <>
+            <div />
+            <button
+              onClick={handleRecoverPNJ}
+              disabled={!selectedOldPNJ || isRecovering}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 text-[#E3CCCD] hover:bg-[#E3CCCD]/30 text-[13px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <History className="w-4 h-4" />
+              {isRecovering ? "Récupération..." : "Récupérer ce PNJ"}
+            </button>
+          </>
         ) : (
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#E3CCCD]/20 border border-[#E3CCCD]/40 text-[#E3CCCD] hover:bg-[#E3CCCD]/30 text-[13px] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-4 h-4" />
-            {isSubmitting ? "Sauvegarde..." : "Créer le PNJ"}
-          </button>
+          <div />
         )}
       </div>
     </ModalLayout>

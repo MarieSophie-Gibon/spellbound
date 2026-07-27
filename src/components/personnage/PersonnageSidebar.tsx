@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
-import { UserPlus, Loader2, ArrowLeft, ChevronDown, Search, Sword } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { UserPlus, Loader2, ArrowLeft, ChevronDown, Search, Sword, User } from "lucide-react";
 
 interface PJ {
     id: string;
@@ -47,6 +47,20 @@ export function PersonnageSidebar({
     const filteredPjs = pjs.filter((perso) => !normalizedQuery || perso.name.toLowerCase().includes(normalizedQuery));
     const filteredPnjs = pnjs.filter((perso) => !normalizedQuery || perso.name.toLowerCase().includes(normalizedQuery));
     const [openSection, setOpenSection] = useState<"pj" | "pnj" | null>(defaultOpenSection ?? "pj");
+
+    const [showTypeMenu, setShowTypeMenu] = useState(false);
+    const typeMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!showTypeMenu) return;
+        const handler = (e: MouseEvent) => {
+            if (typeMenuRef.current && !typeMenuRef.current.contains(e.target as Node)) {
+                setShowTypeMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showTypeMenu]);
 
     const handleCreateForSection = (section: "pj" | "pnj") => {
         if (section === "pj") {
@@ -185,15 +199,46 @@ export function PersonnageSidebar({
             {!mobileSummary && (
             <div className="p-4 space-y-3 shrink-0 bg-black/10 border-t border-white/5">
                 {(!readOnly || (canCreateOwnPJ && openSection === 'pj')) && openSection && (
+                <div className="relative" ref={typeMenuRef}>
                     <button
                         type="button"
-                        onClick={() => handleCreateForSection(openSection)}
+                        onClick={() => {
+                            if (!readOnly) {
+                                setShowTypeMenu(v => !v);
+                            } else {
+                                // Joueur avec canCreateOwnPJ — ouvre directement PJWizard
+                                handleCreateForSection('pj');
+                            }
+                        }}
                         className="w-full flex items-center justify-start gap-3 px-4 py-2.5 rounded-xl border border-[#E3CCCD]/30 bg-[#29206A]/40 text-white hover:bg-white/10 text-[13px] transition-all shadow-lg"
                     >
                         <UserPlus className="w-4 h-4 text-[#E3CCCD]" />
                         Ajouter
                     </button>
-                )}
+
+                    {showTypeMenu && (
+                        <div className="absolute bottom-full mb-2 left-0 right-0 rounded-xl border border-white/15 bg-[#1a163a] shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2">
+                            <button
+                                type="button"
+                                onClick={() => { setShowTypeMenu(false); handleCreateForSection('pj'); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] text-white/80 hover:bg-white/8 transition-colors"
+                            >
+                                <User className="w-4 h-4 text-[#E3CCCD]/70 shrink-0" />
+                                Personnage Joueur
+                            </button>
+                            <div className="h-px bg-white/8" />
+                            <button
+                                type="button"
+                                onClick={() => { setShowTypeMenu(false); handleCreateForSection('pnj'); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] text-white/80 hover:bg-white/8 transition-colors"
+                            >
+                                <Sword className="w-4 h-4 text-sky-400/70 shrink-0" />
+                                Personnage Non-Joueur
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
                 {onBack && (
                     <button
                         type="button"

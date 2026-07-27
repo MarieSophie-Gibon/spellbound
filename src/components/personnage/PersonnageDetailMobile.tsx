@@ -156,6 +156,18 @@ export function PersonnageDetailMobile({
   const [editDrDe, setEditDrDe] = useState("d6");
   const [editPc, setEditPc] = useState(0);
   const [editPm, setEditPm] = useState(0);
+  const [editNiveau, setEditNiveau] = useState(1);
+  const [editInitiative, setEditInitiative] = useState(0);
+  const [editDefense, setEditDefense] = useState(0);
+  const [editAttContact, setEditAttContact] = useState(0);
+  const [editAttDistance, setEditAttDistance] = useState(0);
+  const [editAttMagie, setEditAttMagie] = useState(0);
+  // PNJ combat type
+  const [editIsCombatant, setEditIsCombatant] = useState(false);
+  const [editCombatStatsMode, setEditCombatStatsMode] = useState<'simple' | 'extended'>('extended');
+  // Attaques et capacités spéciales (mode monstre)
+  const [editAttaques, setEditAttaques] = useState<Array<{nom: string; bonus: string; degats: string; description: string}>>([]);
+  const [editCapacites, setEditCapacites] = useState<Array<{nom: string; description: string}>>([]); 
 
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -275,6 +287,16 @@ export function PersonnageDetailMobile({
     setEditDrDe(pj.stats?.dr_de ?? "d6");
     setEditPc(pj.stats?.pc ?? 0);
     setEditPm(pj.stats?.pm ?? 0);
+    setEditNiveau(pj.stats?.niveau ?? 1);
+    setEditInitiative(pj.stats?.initiative ?? 0);
+    setEditDefense(pj.stats?.defense ?? 0);
+    setEditAttContact(pj.stats?.att_contact ?? 0);
+    setEditAttDistance(pj.stats?.att_distance ?? 0);
+    setEditAttMagie(pj.stats?.att_magie ?? 0);
+    setEditIsCombatant(pj.stats?.is_combatant ?? false);
+    setEditCombatStatsMode((pj.stats?.combat_stats_mode as 'simple' | 'extended') ?? 'extended');
+    setEditAttaques(Array.isArray(pj.stats?.attaques) ? pj.stats.attaques : []);
+    setEditCapacites(Array.isArray(pj.stats?.capacites_speciales) ? pj.stats.capacites_speciales : []);
     setEditDescription(pj.stats?.description ?? "");
     setEditNotes(pj.stats?.notes ?? "");
     setIsEditing(false);
@@ -328,6 +350,56 @@ export function PersonnageDetailMobile({
       onEditSuccess();
     } catch (err: any) {
       alert(err.message || "Erreur lors du renommage");
+    } finally {
+      setIsInlineSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!pj) return;
+    setIsInlineSaving(true);
+    try {
+      const table = type === "pnj" ? "pnj" : "pj";
+      const derivedAttacksForSave = getDerivedAttacks(editNiveau, editCaract as unknown as Record<string, number>);
+      const normalizedPvMaxForSave = Math.max(Number(editPvMax ?? 0), Number(editPv ?? 0));
+      const statsToSave = type === "pnj" ? {
+        ...pj.stats,
+        sexe: editSexe,
+        age: editAge,
+        description: editDescription,
+        notes: editNotes,
+        is_combatant: editIsCombatant,
+        combat_stats_mode: editIsCombatant ? editCombatStatsMode : undefined,
+        ...(editIsCombatant ? {
+          pv: editPv,
+          pv_max: normalizedPvMaxForSave,
+          dr_qty: editDrQty,
+          dr_de: editDrDe,
+          initiative: editInitiative,
+          defense: editDefense,
+          ...(editCombatStatsMode === 'extended' ? {
+            caracteristiques: editCaract,
+            bonus_caracteristiques: editBonusCaract,
+            pc: editPc,
+            pm: editPm,
+            att_contact: derivedAttacksForSave.contact,
+            att_distance: derivedAttacksForSave.distance,
+            att_magie: derivedAttacksForSave.magie,
+            niveau: editNiveau,
+          } : {
+            att_contact: editAttContact,
+            att_distance: editAttDistance,
+            att_magie: editAttMagie,
+            attaques: editAttaques,
+            capacites_speciales: editCapacites,
+          })
+        } : {})
+      } : { ...pj.stats };
+      await supabase.from(table).update({ stats: statsToSave }).eq("id", pj.id);
+      setIsEditing(false);
+      onEditSuccess();
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la sauvegarde");
     } finally {
       setIsInlineSaving(false);
     }
@@ -486,7 +558,9 @@ export function PersonnageDetailMobile({
     );
   }
 
-  const isNonCombatantPNJ = type === "pnj" && pj.stats?.is_combatant !== true;
+  const isNonCombatantPNJ = type === "pnj" && (isEditing ? !editIsCombatant : pj.stats?.is_combatant !== true);
+  const effectiveCombatStatsMode = isEditing ? editCombatStatsMode : ((pj.stats?.combat_stats_mode as 'simple' | 'extended') ?? 'extended');
+  const isSimpleCombatant = !isNonCombatantPNJ && type === "pnj" && effectiveCombatStatsMode === 'simple';
 
   const caract = pj.stats?.caracteristiques ?? {};
   const displayImageUrl = imagePreview ?? pj.image_url;
@@ -500,6 +574,9 @@ export function PersonnageDetailMobile({
     Number(pj.stats?.pv_max ?? 0),
     Number(pj.stats?.pv ?? 0),
   );
+  const displayAttContact = isSimpleCombatant && !isEditing ? (pj.stats?.att_contact ?? 0) : derivedCurrentAttacks.contact;
+  const displayAttDistance = isSimpleCombatant && !isEditing ? (pj.stats?.att_distance ?? 0) : derivedCurrentAttacks.distance;
+  const displayAttMagie = isSimpleCombatant && !isEditing ? (pj.stats?.att_magie ?? 0) : derivedCurrentAttacks.magie;
   const derivedCurrentPcMax = Math.max(
     Number(pj.stats?.pc_max ?? pj.stats?.pc ?? 0),
     Number(pj.stats?.pc ?? 0),
@@ -643,16 +720,33 @@ export function PersonnageDetailMobile({
 
             {!readOnly && (
               <div className="relative z-50" ref={headerMenuRef}>
-                <button
-                  onClick={() => setShowHeaderMenu((v) => !v)}
-                  className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-                  aria-label="Options"
-                >
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                </button>
+                {isEditing ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isInlineSaving}
+                      className="p-1.5 text-emerald-400/80 hover:text-emerald-300 hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setShowHeaderMenu((v) => !v)}
+                      className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                      aria-label="Options"
+                    >
+                      <MoreHorizontal className="w-3.5 h-3.5" />
+                    </button>
 
                 {showHeaderMenu && (
-                  <>
                     <div className="absolute right-0 top-full mt-1 z-9999 w-52 rounded-xl border border-[#E3CCCD]/25 bg-[#1E1941]/95 backdrop-blur-xl shadow-2xl overflow-hidden">
                       <button
                         onClick={() => {
@@ -665,6 +759,18 @@ export function PersonnageDetailMobile({
                         <Pencil className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
                         Éditer le nom
                       </button>
+                      {type === "pnj" && isMJ && (
+                        <button
+                          onClick={() => {
+                            setShowHeaderMenu(false);
+                            setIsEditing(true);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white/85 hover:bg-white/10 transition-colors text-left border-t border-white/8"
+                        >
+                          <Pencil className="w-4 h-4 text-[#E3CCCD]/60 shrink-0" />
+                          Éditer les infos
+                        </button>
+                      )}
                       {type === "pj" && canQuickEdit && (
                         <button
                           onClick={async () => {
@@ -721,6 +827,7 @@ export function PersonnageDetailMobile({
                         </div>
                       )}
                     </div>
+                    )}
                   </>
                 )}
               </div>
@@ -848,6 +955,25 @@ export function PersonnageDetailMobile({
                       />
                     </div>
                   )}
+                  {/* Toggle combattant */}
+                  <div className="flex flex-wrap gap-2 items-center pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border border-sky-500/35 bg-sky-500/8">
+                      <input
+                        type="checkbox"
+                        checked={editIsCombatant}
+                        onChange={(e) => setEditIsCombatant(e.target.checked)}
+                        className="w-4 h-4 accent-sky-500"
+                      />
+                      <span className="text-[12px] text-sky-300/90 font-medium select-none">Combattant</span>
+                    </label>
+                    {editIsCombatant && (
+                      <div className="flex items-center rounded-lg border border-white/15 overflow-hidden text-[11px] font-medium">
+                        <button type="button" onClick={() => setEditCombatStatsMode('simple')} className={`px-3 py-1.5 transition-colors ${editCombatStatsMode === 'simple' ? 'bg-white/20 text-white' : 'text-white/40 hover:bg-white/8'}`}>Monstre</button>
+                        <div className="w-px h-4 bg-white/15" />
+                        <button type="button" onClick={() => setEditCombatStatsMode('extended')} className={`px-3 py-1.5 transition-colors ${editCombatStatsMode === 'extended' ? 'bg-white/20 text-white' : 'text-white/40 hover:bg-white/8'}`}>Personnage</button>
+                      </div>
+                    )}
+                  </div>
                 </>
               ) : (
                 <>
@@ -1105,17 +1231,17 @@ export function PersonnageDetailMobile({
                       <div className="grid grid-cols-3 gap-1.5">
                         <button type="button" onClick={() => canQuickEdit && setShowCombatModal(true)} disabled={!canQuickEdit} className="relative flex flex-col items-center justify-center gap-0 rounded-lg border border-[#E3CCCD]/20 bg-white/4 py-1 disabled:cursor-default">
                           <Sword className="w-3 h-3 text-orange-400/80 absolute top-1 left-1.5" />
-                          <span className="font-mono text-[13px] font-bold text-white leading-none">{derivedCurrentAttacks.contact != null ? `+${derivedCurrentAttacks.contact}` : "—"}</span>
+                          <span className="font-mono text-[13px] font-bold text-white leading-none">{displayAttContact != null ? `+${displayAttContact}` : "—"}</span>
                           <span className="text-[8px] uppercase tracking-widest text-white/50">Cont.</span>
                         </button>
                         <button type="button" onClick={() => canQuickEdit && setShowCombatModal(true)} disabled={!canQuickEdit} className="relative flex flex-col items-center justify-center gap-0 rounded-lg border border-[#E3CCCD]/20 bg-white/4 py-1 disabled:cursor-default">
                           <Target className="w-3 h-3 text-orange-400/80 absolute top-1 left-1.5" />
-                          <span className="font-mono text-[13px] font-bold text-white leading-none">{derivedCurrentAttacks.distance != null ? `+${derivedCurrentAttacks.distance}` : "—"}</span>
+                          <span className="font-mono text-[13px] font-bold text-white leading-none">{displayAttDistance != null ? `+${displayAttDistance}` : "—"}</span>
                           <span className="text-[8px] uppercase tracking-widest text-white/50">Dist.</span>
                         </button>
                         <button type="button" onClick={() => canQuickEdit && setShowCombatModal(true)} disabled={!canQuickEdit} className="relative flex flex-col items-center justify-center gap-0 rounded-lg border border-[#E3CCCD]/20 bg-white/4 py-1 disabled:cursor-default">
                           <Wand2 className="w-3 h-3 text-violet-400/80 absolute top-1 left-1.5" />
-                          <span className="font-mono text-[13px] font-bold text-white leading-none">{derivedCurrentAttacks.magie != null ? `+${derivedCurrentAttacks.magie}` : "—"}</span>
+                          <span className="font-mono text-[13px] font-bold text-white leading-none">{displayAttMagie != null ? `+${displayAttMagie}` : "—"}</span>
                           <span className="text-[8px] uppercase tracking-widest text-white/50">Mag.</span>
                         </button>
                       </div>
@@ -1218,6 +1344,157 @@ export function PersonnageDetailMobile({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* ATTAQUES & CAPACITÉS SPÉCIALES — Mode Monstre */}
+            {isSimpleCombatant && (
+              <div className="space-y-3 mt-1">
+
+                {/* Attaques */}
+                <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1">
+                      <Sword className="w-3 h-3" /> Attaques
+                    </p>
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAttaques(prev => [...prev, { nom: '', bonus: '', degats: '', description: '' }])}
+                        className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/70 border border-[#E3CCCD]/30 rounded-full px-2 py-0.5 hover:bg-white/5 transition-colors"
+                      >
+                        + Ajouter
+                      </button>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    editAttaques.length === 0 ? (
+                      <p className="text-[11px] text-white/30 italic">Aucune attaque.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {editAttaques.map((att, idx) => (
+                          <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-2.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={att.nom}
+                                onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, nom: e.target.value } : a))}
+                                placeholder="Nom de l'attaque..."
+                                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-white text-[11px] outline-none focus:border-[#E3CCCD]/50"
+                              />
+                              <button type="button" onClick={() => setEditAttaques(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <span className="text-[8px] uppercase tracking-widest text-white/40">Bonus Att.</span>
+                                <input
+                                  value={att.bonus}
+                                  onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, bonus: e.target.value } : a))}
+                                  placeholder="+5"
+                                  className="w-full bg-white/5 border border-white/15 rounded-lg px-2 py-1 text-white text-[11px] outline-none focus:border-[#E3CCCD]/50"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <span className="text-[8px] uppercase tracking-widest text-white/40">Dégâts</span>
+                                <input
+                                  value={att.degats}
+                                  onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, degats: e.target.value } : a))}
+                                  placeholder="2d6+3"
+                                  className="w-full bg-white/5 border border-white/15 rounded-lg px-2 py-1 text-white text-[11px] outline-none focus:border-[#E3CCCD]/50"
+                                />
+                              </div>
+                            </div>
+                            <input
+                              value={att.description}
+                              onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, description: e.target.value } : a))}
+                              placeholder="Description (optionnel)..."
+                              className="w-full bg-white/5 border border-white/15 rounded-lg px-2 py-1 text-white text-[11px] outline-none focus:border-[#E3CCCD]/50 placeholder:text-white/25"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    (pj.stats?.attaques as any[] ?? []).length === 0 ? (
+                      <p className="text-[11px] text-white/30 italic">Aucune attaque définie.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(pj.stats?.attaques as any[] ?? []).map((att: any, idx: number) => (
+                          <div key={idx} className="rounded-lg border border-white/10 bg-white/4 px-2.5 py-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium text-[12px] text-white">{att.nom || 'Attaque'}</span>
+                              {att.bonus && <span className="text-[10px] font-mono text-orange-400/80 border border-orange-400/25 rounded px-1.5 py-0.5">{att.bonus}</span>}
+                              {att.degats && <span className="text-[10px] font-mono text-red-400/80 border border-red-400/25 rounded px-1.5 py-0.5">{att.degats}</span>}
+                            </div>
+                            {att.description && <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">{att.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {/* Capacités spéciales */}
+                <div className="rounded-lg border border-violet-400/20 bg-violet-400/5 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[9px] uppercase tracking-[0.2em] text-violet-400/60 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Capacités spéciales
+                    </p>
+                    {isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setEditCapacites(prev => [...prev, { nom: '', description: '' }])}
+                        className="text-[9px] uppercase tracking-widest text-violet-400/70 border border-violet-400/30 rounded-full px-2 py-0.5 hover:bg-violet-400/10 transition-colors"
+                      >
+                        + Ajouter
+                      </button>
+                    )}
+                  </div>
+                  {isEditing ? (
+                    editCapacites.length === 0 ? (
+                      <p className="text-[11px] text-white/30 italic">Aucune capacité.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {editCapacites.map((cap, idx) => (
+                          <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-2.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                value={cap.nom}
+                                onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, nom: e.target.value } : c))}
+                                placeholder="Nom de la capacité..."
+                                className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2 py-1.5 text-white text-[11px] outline-none focus:border-violet-400/50"
+                              />
+                              <button type="button" onClick={() => setEditCapacites(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <textarea
+                              value={cap.description}
+                              onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))}
+                              placeholder="Description de la capacité..."
+                              rows={2}
+                              className="w-full bg-white/5 border border-white/15 rounded-lg px-2 py-1 text-white text-[11px] outline-none focus:border-violet-400/50 resize-none placeholder:text-white/25"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    (pj.stats?.capacites_speciales as any[] ?? []).length === 0 ? (
+                      <p className="text-[11px] text-violet-400/30 italic">Aucune capacité spéciale.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {(pj.stats?.capacites_speciales as any[] ?? []).map((cap: any, idx: number) => (
+                          <div key={idx} className="rounded-lg border border-violet-400/15 bg-violet-400/5 px-2.5 py-2">
+                            <p className="font-medium text-[12px] text-violet-200">{cap.nom || 'Capacité'}</p>
+                            {cap.description && <p className="text-[11px] text-violet-100/60 mt-0.5 leading-relaxed">{cap.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             )}
