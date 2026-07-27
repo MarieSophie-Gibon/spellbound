@@ -610,7 +610,7 @@ export function PersonnageDetailMobile({
           label: type === "pnj" ? "Description" : "Lore",
           icon: BookOpen,
         },
-        { key: "familiers", label: "Familiers", icon: PawPrint },
+        { key: "familiers", label: "Familiers & Alliés", icon: PawPrint },
       );
     }
   }

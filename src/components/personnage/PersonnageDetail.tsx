@@ -502,7 +502,7 @@ export function PersonnageDetail({
     if (!technicalSheetOnly) {
       mobileNavItems.push(
         { key: "lore", label: type === "pnj" ? "Description" : "Lore", icon: BookOpen },
-        { key: "familiers", label: "Familiers", icon: PawPrint },
+        { key: "familiers", label: "Familiers & Alliés", icon: PawPrint },
       );
     }
   }
@@ -566,7 +566,7 @@ export function PersonnageDetail({
       <div className={`flex flex-col mb-4 shrink-0 gap-3 ${isMobile ? "rounded-xl border border-[#E3CCCD]/16 bg-[#1E1941]/38 backdrop-blur-md p-2" : "gap-4 mt-1"}`}>
         {/* Titre et Boutons d'édition */}
         <div className={`flex justify-between px-1 gap-2 ${isMobile ? "items-start" : "flex-col sm:flex-row sm:items-center"}`}>
-          <div className="flex items-center sm:items-baseline flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
             {isEditing ? (
               <>
                 <input
@@ -598,7 +598,7 @@ export function PersonnageDetail({
                   {pj.name}
                 </h1>
                 {!isNonCombatantPNJ && (
-                  <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-2.5 py-0.5 shrink-0">
+                  <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-3 py-1 shrink-0">
                     Niv. {currentLevel}
                   </span>
                 )}
@@ -772,7 +772,7 @@ export function PersonnageDetail({
                       : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
                   }`}
                 >
-                  🐾 Familiers
+                  🐾 Familiers & Alliés
                 </button>
               </>
             )}

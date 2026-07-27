@@ -22,7 +22,7 @@ export interface FamilierData {
 
 interface Familier {
   id: string;
-  monster_id: string;
+  monster_id: string | null;
   monster_nom: string;
   monster_image_url: string | null;
   custom_name: string | null;
@@ -30,6 +30,13 @@ interface Familier {
   pv_max: number;
   notes: string | null;
   data: FamilierData | null;
+}
+
+interface PnjAllyResult {
+  id: string;
+  name: string;
+  image_url: string | null;
+  stats: any;
 }
 
 interface MonsterResult {
@@ -131,9 +138,12 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   const [loadingDataId, setLoadingDataId] = useState<string | null>(null);
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [searchMode, setSearchMode] = useState<'bestiaire' | 'pnj'>('bestiaire');
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<MonsterResult[]>([]);
+  const [pnjResults, setPnjResults] = useState<PnjAllyResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isSearchingPnj, setIsSearchingPnj] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -178,9 +188,13 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   useEffect(() => {
     if (!expandedId) return;
     const f = familiersByIdRef.current.get(expandedId);
-    if (!f || f.data || !f.monster_id) return;
+    if (!f || f.data) return;
 
     let cancelled = false;
+
+    if (!f.monster_id) return;
+
+    // Cas bestiaire (PNJ alliés ont déjà data pré-rempli à l'insertion)
     const monsterId = f.monster_id;
     const familierPvMax = f.pv_max;
 
@@ -208,7 +222,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   }, [expandedId]);
 
   useEffect(() => {
-    if (!isAddOpen) return;
+    if (!isAddOpen || searchMode !== 'bestiaire') return;
     const timer = setTimeout(async () => {
       setIsSearching(true);
       let query = supabase
@@ -222,7 +236,61 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
       setIsSearching(false);
     }, searchTerm.trim() ? 250 : 0);
     return () => clearTimeout(timer);
-  }, [isAddOpen, searchTerm, campaignId]);
+  }, [isAddOpen, searchTerm, campaignId, searchMode]);
+
+  useEffect(() => {
+    if (!isAddOpen || searchMode !== 'pnj') return;
+    const timer = setTimeout(async () => {
+      setIsSearchingPnj(true);
+      let query = supabase
+        .from("pnj")
+        .select("id, name, image_url, stats")
+        .eq("campaign_id", campaignId)
+        .order("name").limit(50);
+      if (searchTerm.trim()) query = query.ilike("name", `%${searchTerm}%`);
+      const { data } = await query;
+      setPnjResults((data as PnjAllyResult[]) ?? []);
+      setIsSearchingPnj(false);
+    }, searchTerm.trim() ? 250 : 0);
+    return () => clearTimeout(timer);
+  }, [isAddOpen, searchTerm, campaignId, searchMode]);
+
+  const handleAddPnj = async (pnj: PnjAllyResult) => {
+    setAddingId(pnj.id);
+    setAddError(null);
+    const pvMax = Number(pnj.stats?.pv_max ?? pnj.stats?.pv ?? 10);
+    const col = type === "pj" ? "pj_id" : "pnj_id";
+    // On stocke l'id du PNJ dans monster_id (pas de FK vers bestiaire)
+    // et on pré-remplit data avec type_creature="PNJ" pour distinguer les alliés
+    const snapshotData: FamilierData = {
+      nom: pnj.name,
+      nc: String(pnj.stats?.niveau ?? "1"),
+      type_creature: "PNJ",
+      taille: "Moyenne",
+      description: pnj.stats?.notes_capacites ?? "",
+      stats: DEFAULT_STATS,
+      combat: {
+        pv: pvMax, pv_max: pvMax,
+        defense: Number(pnj.stats?.defense ?? 10),
+        initiative: Number(pnj.stats?.initiative ?? 10),
+        rd: 0, attaque_magique: null,
+      },
+      attaques: [],
+      capacites: [],
+    };
+    const { error } = await supabase.from("pj_familiers").insert({
+      [col]: ownerId,
+      monster_id: pnj.id,
+      monster_nom: pnj.name,
+      monster_image_url: pnj.image_url ?? null,
+      pv: pvMax,
+      pv_max: pvMax,
+      data: snapshotData,
+    });
+    setAddingId(null);
+    if (error) { setAddError(error.message); }
+    else { setIsAddOpen(false); setSearchTerm(""); setPnjResults([]); setAddError(null); void fetchFamiliers(); }
+  };
 
   const handleAdd = async (monster: MonsterResult) => {
     setAddingId(monster.id);
@@ -291,7 +359,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
     <div className="animate-in fade-in duration-200 space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
-          <PawPrint className="w-3.5 h-3.5" /> Familiers ({familiers.length})
+          <PawPrint className="w-3.5 h-3.5" /> Familiers & Alliés ({familiers.length})
         </p>
         {!readOnly && (
           <button onClick={() => setIsAddOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest border border-[#E3CCCD]/30 text-[#E3CCCD]/70 hover:text-[#E3CCCD] hover:bg-[#E3CCCD]/10 transition-all">
@@ -303,7 +371,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
       {familiers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
           <PawPrint className="w-10 h-10 text-white/10" />
-          <p className="text-white/30 text-sm italic">Aucun familier associé.</p>
+          <p className="text-white/30 text-sm italic">Aucun familier ou allié associé.</p>
           
         </div>
       ) : (
@@ -436,36 +504,79 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-[#12102E] border border-[#E3CCCD]/20 rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#E3CCCD]/15">
-              <p className="font-serif text-lg text-[#E3CCCD]">Associer un familier</p>
-              <button onClick={() => { setIsAddOpen(false); setSearchTerm(""); setSearchResults([]); }} className="p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button>
+              <p className="font-serif text-lg text-[#E3CCCD]">Associer un familier ou allié</p>
+              <button onClick={() => { setIsAddOpen(false); setSearchTerm(""); setSearchResults([]); setPnjResults([]); setSearchMode('bestiaire'); }} className="p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"><X className="w-4 h-4" /></button>
+            </div>
+            {/* Source toggle */}
+            <div className="flex gap-1 px-5 py-3 border-b border-[#E3CCCD]/10">
+              <button
+                onClick={() => { setSearchMode('bestiaire'); setSearchTerm(""); }}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${
+                  searchMode === 'bestiaire'
+                    ? 'bg-[#E3CCCD]/15 text-[#E3CCCD] border border-[#E3CCCD]/30'
+                    : 'text-white/40 border border-white/10 hover:text-white/70 hover:bg-white/5'
+                }`}
+              >
+                Bestiaire
+              </button>
+              <button
+                onClick={() => { setSearchMode('pnj'); setSearchTerm(""); }}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${
+                  searchMode === 'pnj'
+                    ? 'bg-violet-400/15 text-violet-300 border border-violet-400/30'
+                    : 'text-white/40 border border-white/10 hover:text-white/70 hover:bg-white/5'
+                }`}
+              >
+                PNJ de la campagne
+              </button>
             </div>
             <div className="px-5 py-3 border-b border-[#E3CCCD]/10">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
-                <input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Rechercher un monstre..." className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl pl-9 pr-4 py-2 text-white text-sm outline-none transition-colors placeholder:text-white/30" />
+                <input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={searchMode === 'pnj' ? "Rechercher un PNJ..." : "Rechercher un monstre..."} className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl pl-9 pr-4 py-2 text-white text-sm outline-none transition-colors placeholder:text-white/30" />
               </div>
             </div>
             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5 scrollbar-thin scrollbar-thumb-white/10">
               {addError && <div className="mb-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-[12px]">Erreur : {addError}</div>}
-              {isSearching
-                ? <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-white/30" /></div>
-                : searchResults.length === 0
-                  ? <p className="text-center text-white/30 text-sm py-8 italic">{searchTerm ? "Aucun monstre trouvé." : "Tapez pour rechercher..."}</p>
-                  : searchResults.map((m) => (
-                    <button key={m.id} onClick={() => handleAdd(m)} disabled={addingId === m.id} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/8 transition-colors text-left group disabled:opacity-50">
-                      <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/10 bg-black/20 shrink-0">
-                        <img src={m.image_url ?? "/default-avatar.png"} alt={m.nom} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm group-hover:text-[#E3CCCD] transition-colors truncate">{m.nom}</p>
-                        {m.combat?.pv_max && <p className="text-[11px] text-white/35">{m.combat.pv_max} PV max</p>}
-                      </div>
-                      {addingId === m.id
-                        ? <Loader2 className="w-4 h-4 text-[#E3CCCD]/70 shrink-0 animate-spin" />
-                        : <Plus className="w-4 h-4 text-white/30 group-hover:text-[#E3CCCD]/70 shrink-0 transition-colors" />}
-                    </button>
-                  ))
-              }
+              {searchMode === 'bestiaire' ? (
+                isSearching
+                  ? <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-white/30" /></div>
+                  : searchResults.length === 0
+                    ? <p className="text-center text-white/30 text-sm py-8 italic">{searchTerm ? "Aucun monstre trouvé." : "Tapez pour rechercher..."}</p>
+                    : searchResults.map((m) => (
+                      <button key={m.id} onClick={() => handleAdd(m)} disabled={addingId === m.id} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/8 transition-colors text-left group disabled:opacity-50">
+                        <div className="w-9 h-9 rounded-lg overflow-hidden border border-white/10 bg-black/20 shrink-0">
+                          <img src={m.image_url ?? "/default-avatar.png"} alt={m.nom} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm group-hover:text-[#E3CCCD] transition-colors truncate">{m.nom}</p>
+                          {m.combat?.pv_max && <p className="text-[11px] text-white/35">{m.combat.pv_max} PV max</p>}
+                        </div>
+                        {addingId === m.id
+                          ? <Loader2 className="w-4 h-4 text-[#E3CCCD]/70 shrink-0 animate-spin" />
+                          : <Plus className="w-4 h-4 text-white/30 group-hover:text-[#E3CCCD]/70 shrink-0 transition-colors" />}
+                      </button>
+                    ))
+              ) : (
+                isSearchingPnj
+                  ? <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-white/30" /></div>
+                  : pnjResults.length === 0
+                    ? <p className="text-center text-white/30 text-sm py-8 italic">{searchTerm ? "Aucun PNJ trouvé." : "Tapez pour rechercher..."}</p>
+                    : pnjResults.map((p) => (
+                      <button key={p.id} onClick={() => handleAddPnj(p)} disabled={addingId === p.id} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-violet-400/8 transition-colors text-left group disabled:opacity-50">
+                        <div className="w-9 h-9 rounded-lg overflow-hidden border border-violet-400/20 bg-black/20 shrink-0">
+                          <img src={p.image_url ?? "/default-avatar.png"} alt={p.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-sm group-hover:text-violet-300 transition-colors truncate">{p.name}</p>
+                          {p.stats?.niveau && <p className="text-[11px] text-white/35">Niv. {p.stats.niveau}</p>}
+                        </div>
+                        {addingId === p.id
+                          ? <Loader2 className="w-4 h-4 text-violet-300/70 shrink-0 animate-spin" />
+                          : <Plus className="w-4 h-4 text-white/30 group-hover:text-violet-300/70 shrink-0 transition-colors" />}
+                      </button>
+                    ))
+              )}
             </div>
           </div>
         </div>
