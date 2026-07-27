@@ -172,6 +172,8 @@ export function PersonnageDetailMobile({
   // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
   const [pendingEditWeaponId, setPendingEditWeaponId] = useState<string | null>(null);
+  const [hasFamiliers, setHasFamiliers] = useState(false);
+  const [peupleNom, setPeupleNom] = useState<string | null>(null);
 
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
@@ -313,6 +315,21 @@ export function PersonnageDetailMobile({
     setActiveTab("stats");
     setIsLevelingUp(false);
   }, [technicalSheetOnly]);
+
+  // Vérification existence familiers + peuple (pour PNJ non combattant)
+  useEffect(() => {
+    if (!pj?.id || type !== 'pnj') { setHasFamiliers(false); return; }
+    supabase.from('pj_familiers').select('id', { count: 'exact', head: true }).eq('pnj_id', pj.id)
+      .then(({ count }) => setHasFamiliers((count ?? 0) > 0));
+    const peupleId = (pj as any)?.peuple_id ?? null;
+    if (peupleId) {
+      supabase.from('peuples').select('nom').eq('id', peupleId).single()
+        .then(({ data }) => setPeupleNom(data?.nom ?? null));
+    } else {
+      setPeupleNom(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pj?.id, type]);
 
   // Chargement des armes depuis l'inventaire
   useEffect(() => {
@@ -890,35 +907,64 @@ export function PersonnageDetailMobile({
         {/* VUE UNIQUE : PNJ NON COMBATTANT                           */}
         {/* ========================================================= */}
         {isNonCombatantPNJ && (
-          <div className="flex flex-col gap-6 items-stretch animate-in fade-in duration-200 mt-2">
-            <div className="relative shrink-0 mx-auto">
-              <MagicCard imageUrl={displayImageUrl} title={pj.name} />
-              {isEditing && (
-                <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
-                  <UploadCloud className="w-8 h-8 text-white/80" />
-                  <span className="text-[12px] text-white/70">
-                    Changer l'image
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      const reader = new FileReader();
-                      reader.onload = (ev) =>
-                        setImagePreview(ev.target?.result as string);
-                      reader.readAsDataURL(f);
-                    }}
-                  />
-                </label>
-              )}
-            </div>
+          <div className="flex flex-col gap-4 animate-in fade-in duration-200 mt-2">
 
-            <div className="flex-1 space-y-6">
-              {isEditing ? (
-                <>
+            {/* VUE LECTURE : image gauche + infos droite */}
+            {!isEditing && (
+              <>
+                <div className="flex gap-3 items-start">
+                  <div className="relative shrink-0 w-35 h-55">
+                    <MagicCard imageUrl={displayImageUrl} title={pj.name} size="fluid" className="w-full! h-full!" />
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="rounded-xl border border-[#E3CCCD]/15 bg-white/5 divide-y divide-white/8">
+                      {pj.stats?.sexe && (
+                        <div className="flex items-center justify-between px-3 py-1.5">
+                          <span className="text-[9px] uppercase tracking-widest text-white/40">Genre</span>
+                          <span className="text-[12px] text-white/80 font-medium">{pj.stats.sexe}</span>
+                        </div>
+                      )}
+                      {pj.stats?.age && (
+                        <div className="flex items-center justify-between px-3 py-1.5">
+                          <span className="text-[9px] uppercase tracking-widest text-white/40">Âge</span>
+                          <span className="text-[12px] text-white/80 font-medium">{pj.stats.age}</span>
+                        </div>
+                      )}
+                      {peupleNom && (
+                        <div className="flex items-center justify-between px-3 py-1.5">
+                          <span className="text-[9px] uppercase tracking-widest text-white/40">Peuple</span>
+                          <span className="text-[12px] text-[#E3CCCD]/90 font-medium">{peupleNom}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-3 text-[12px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner">
+                      {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
+                    </div>
+                  </div>
+                </div>
+                {isMJ && (
+                  <div className="space-y-1">
+                    <p className="text-[9px] uppercase tracking-widest text-sky-400/60">Notes MJ</p>
+                    <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-3 text-[12px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner">
+                      {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note...</span>}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* VUE ÉDITION */}
+            {isEditing && (
+              <>
+                <div className="relative shrink-0 mx-auto">
+                  <MagicCard imageUrl={displayImageUrl} title={pj.name} />
+                  <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
+                    <UploadCloud className="w-8 h-8 text-white/80" />
+                    <span className="text-[12px] text-white/70">Changer l'image</span>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = (ev) => setImagePreview(ev.target?.result as string); r.readAsDataURL(f); }} />
+                  </label>
+                </div>
                   <div className="flex flex-col gap-4">
                     <div className="flex-1 space-y-1.5">
                       <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
@@ -997,47 +1043,11 @@ export function PersonnageDetailMobile({
                     )}
                   </div>
                 </>
-              ) : (
-                <>
-                  {(pj.stats?.sexe || pj.stats?.age) && (
-                    <div className="flex items-center gap-2 text-[12px] text-[#E3CCCD]/60 uppercase tracking-widest font-medium">
-                      {pj.stats.sexe}{" "}
-                      {pj.stats.age ? ` · ${pj.stats.age}` : ""}
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <h3 className="font-serif text-xl text-[#E3CCCD]">
-                      Description
-                    </h3>
-                    <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-24">
-                      {pj.stats?.description || (
-                        <span className="text-white/30 italic">
-                          Aucune description...
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {isMJ && (
-                    <div className="space-y-2">
-                      <h3 className="font-serif text-xl text-sky-400">
-                        Notes du MJ
-                      </h3>
-                      <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24">
-                        {pj.stats?.notes || (
-                          <span className="text-sky-200/40 italic">
-                            Aucune note secrète...
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            )}
           </div>
         )}
 
-        {isNonCombatantPNJ && !isEditing && (
+        {isNonCombatantPNJ && !isEditing && hasFamiliers && (
           <div className="mt-2">
             <FamilierTab
               pjId=""
