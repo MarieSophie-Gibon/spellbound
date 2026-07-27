@@ -1,6 +1,6 @@
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
-import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch, Bell, X } from "lucide-react";
+import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch, Bell, X, Users } from "lucide-react";
 import { CampaignHomeMobile } from "@/components/campaign/CampaignHomeMobile";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { PJList } from "@/components/campaign/PJList";
@@ -29,6 +29,23 @@ export function CampaignHome({ campaign, activityLog = [], onClearActivity }: Ca
     const [copied, setCopied] = useState(false);
     const [selectedPnjId, setSelectedPnjId] = useState<string | null>(null);
     const [selectedPnjVoies, setSelectedPnjVoies] = useState<Array<{ id: string; nom: string; rang: number }>>([]);
+    const [membres, setMembres] = useState<Array<{ id: string; pseudo: string }>>([]);
+
+    useEffect(() => {
+        supabase
+            .from('campaign_members')
+            .select('user_id')
+            .eq('campaign_id', campaign.id)
+            .then(async ({ data: rows }) => {
+                if (!rows?.length) { setMembres([]); return; }
+                const ids = rows.map(r => r.user_id).filter(Boolean);
+                const { data: users } = await supabase
+                    .from('utilisateurs')
+                    .select('id, pseudo')
+                    .in('id', ids);
+                setMembres((users ?? []).map((u: { id: string; pseudo: string }) => ({ id: u.id, pseudo: u.pseudo })));
+            });
+    }, [campaign.id]);
 
     const selectedPnj = (revealedPnjs ?? []).find((pnj) => pnj.id === selectedPnjId) ?? null;
 
@@ -244,6 +261,24 @@ export function CampaignHome({ campaign, activityLog = [], onClearActivity }: Ca
                                     >
                                         <X className="w-2.5 h-2.5" />
                                     </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Joueurs de la campagne */}
+                {membres.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm px-4 py-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-white/50">
+                            <Users className="w-3.5 h-3.5" />
+                            <span className="text-[11px] uppercase tracking-widest">Joueurs ({membres.length})</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            {membres.map(m => (
+                                <div key={m.id} className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0" />
+                                    <span className="text-[12px] text-white/80">{m.pseudo}</span>
                                 </div>
                             ))}
                         </div>
