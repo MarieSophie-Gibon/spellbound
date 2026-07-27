@@ -29,6 +29,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { VoieBlock } from "@/components/ui/VoieBlock";
+import type { VoieSection } from "@/components/ui/RangCard";
 import { EditNumField } from "@/components/ui/EditNumField";
 
 import InventoryTabMobile from "@/components/personnage/InventoryTabMobile";
@@ -192,6 +193,9 @@ export function PersonnageDetailMobile({
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignUserId, setAssignUserId] = useState("");
+  const [voieFilters, setVoieFilters] = useState<Set<VoieSection>>(
+    () => new Set<VoieSection>(['action', 'bonus', 'capacite', 'familier', 'legacy']),
+  );
 
   // Fermer le header menu si clic en dehors
   useEffect(() => {
@@ -1222,9 +1226,33 @@ export function PersonnageDetailMobile({
             {pj.pathways?.length > 0 && (
               <div className="space-y-2 mt-0">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">
-                    Voies
-                  </span>
+                  <div className="flex gap-1 flex-wrap">
+                  {([
+                    { key: 'action'   as VoieSection, label: 'Actions',   activeClass: 'text-[#f4a261] border-[#f4a261]/50 bg-[#f4a261]/10' },
+                    { key: 'bonus'    as VoieSection, label: 'Bonus',     activeClass: 'text-[#e9c46a] border-[#e9c46a]/50 bg-[#e9c46a]/10' },
+                    { key: 'capacite' as VoieSection, label: 'Capacités', activeClass: 'text-[#90e0ef] border-[#90e0ef]/50 bg-[#90e0ef]/10' },
+                    { key: 'familier' as VoieSection, label: 'Familiers', activeClass: 'text-[#6ee7b7] border-[#6ee7b7]/50 bg-[#6ee7b7]/10' },
+                    { key: 'legacy'   as VoieSection, label: 'Legacy',    activeClass: 'text-[#c084fc] border-[#c084fc]/50 bg-[#c084fc]/10' },
+                  ] as const).map(opt => {
+                    const active = voieFilters.has(opt.key);
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setVoieFilters(prev => {
+                          const next = new Set(prev);
+                          if (next.has(opt.key)) next.delete(opt.key); else next.add(opt.key);
+                          return next;
+                        })}
+                        className={`text-[8px] uppercase tracking-wider border rounded px-1.5 py-0.5 transition-colors ${
+                          active ? opt.activeClass : 'text-white/35 border-white/15 hover:text-white/60'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
                   {!readOnly && (
                     <button
                       type="button"
@@ -1236,6 +1264,7 @@ export function PersonnageDetailMobile({
                     </button>
                   )}
                 </div>
+                
                 {(pj.pathways as any[]).map((pathway, i) => {
                   const voie = voieDetails.find((v) => v.id === pathway.voie_id);
                   const maxRang = Math.max(...(pathway.rangs_acquis || [1]));
@@ -1258,6 +1287,7 @@ export function PersonnageDetailMobile({
                       capacites={filteredCapacites}
                       rangsAcquis={pathway.rangs_acquis ?? []}
                       defaultOpen={i === 0}
+                      sections={voieFilters}
                     />
                   );
                 })}

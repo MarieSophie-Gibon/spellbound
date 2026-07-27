@@ -2,15 +2,17 @@ import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";
+import type { VoieSection } from "@/components/ui/RangCard";
 
 interface VoieBlockProps {
   voieNom: string;
   capacites?: Record<string, unknown>;
   rangsAcquis: number[];
   defaultOpen?: boolean;
+  sections?: Set<VoieSection>;
 }
 
-export function VoieBlock({ voieNom, capacites, rangsAcquis, defaultOpen }: VoieBlockProps) {
+export function VoieBlock({ voieNom, capacites, rangsAcquis, defaultOpen, sections }: VoieBlockProps) {
   const [open, setOpen] = useState(defaultOpen ?? false);
   return (
     <div className="bg-[#29206A]/20 border border-[#E3CCCD]/20 rounded-2xl overflow-hidden">
@@ -38,7 +40,7 @@ export function VoieBlock({ voieNom, capacites, rangsAcquis, defaultOpen }: Voie
               const rang = normalizeVoieRang(capacites[`rang${rangNum}`]);
               if (!hasRangContent(rang)) return null;
               const isAcquired = rangsAcquis.includes(rangNum);
-              return <RangCard key={rangNum} rang={rang} rangNum={rangNum} isAcquired={isAcquired} />;
+              return <RangCard key={rangNum} rang={rang} rangNum={rangNum} isAcquired={isAcquired} sections={sections} />;
             })
           ) : (
             <p className="text-[12px] text-white/30 italic">Détails de la voie indisponibles.</p>

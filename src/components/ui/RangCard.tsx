@@ -1,6 +1,6 @@
 import type { NormalizedVoieRang } from "@/lib/voieRanks";
 
-export type VoieSection = 'bonus' | 'capacite' | 'action' | 'familier';
+export type VoieSection = 'bonus' | 'capacite' | 'action' | 'familier' | 'legacy';
 
 interface RangCardProps {
   rang: NormalizedVoieRang;
@@ -91,7 +91,7 @@ export function RangCard({ rang, rangNum, isAcquired, hideLegacy, sections }: Ra
   const familiers = rang.familiers.filter(f => [f.titre, f.description].some(isNonEmpty));
   const legacies = rang.legacies.filter(l => [l.titre, l.description].some(isNonEmpty));
   const showFamilier = familiers.length > 0 && inFilter('familier');
-  const showLegacy = legacies.length > 0;
+  const showLegacy = legacies.length > 0 && inFilter('legacy');
 
   // Mode "sections" : rang avec bonus / capacités / actions
   return (
@@ -228,7 +228,29 @@ export function RangCard({ rang, rangNum, isAcquired, hideLegacy, sections }: Ra
         </div>
       )}
 
-      {showLegacy && !hideLegacy && (
+      {showLegacy && !hideLegacy && !sections && (
+        <div className="border-l-2 border-[#c084fc]/50 pl-2 space-y-1">
+          {legacies.map((l, idx) => (
+            <div key={idx}>
+              {l.titre ? (
+                <>
+                  <p className="text-[12px] text-white/90 flex flex-wrap items-center gap-1.5">
+                    <NeonBadge label="Legacy" color={COLORS.legacy} />
+                    <span className="font-medium">{l.titre}</span>
+                  </p>
+                  {l.description && <p className="text-[12px] text-white/55 leading-relaxed">{l.description}</p>}
+                </>
+              ) : (
+                <p className="text-[12px] text-white/75 flex flex-wrap items-start gap-1.5">
+                  <NeonBadge label="Legacy" color={COLORS.legacy} />
+                  {l.description && <span className="text-white/70 leading-relaxed">{l.description}</span>}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {showLegacy && !!sections && (
         <div className="border-l-2 border-[#c084fc]/50 pl-2 space-y-1">
           {legacies.map((l, idx) => (
             <div key={idx}>

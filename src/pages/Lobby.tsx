@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { useCampaigns, useDeleteCampaign, useDuplicateCampaign, useJoinCampaignByCode, useLeaveCampaign } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
