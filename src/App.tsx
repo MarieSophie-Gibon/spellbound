@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Login } from "@/components/auth/Login";
 import { SideNav } from "@/components/layout/SideNav";
@@ -20,10 +20,13 @@ import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy, Loader2, Bell, X } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { useProfile } from "@/hooks/useProfile";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { supabase } from "@/lib/supabase";
+
+interface CampaignNotif { id: string; pseudo: string; }
 
 function normalizeRole(value: unknown): "mj" | "player" {
   const raw = String(value ?? "")
@@ -58,6 +61,62 @@ function App() {
   const isGlobalEditor = role === "mj" || normalizeRole(profile?.role) === "mj";
   const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
+
+  // ── Notifications de connexion à la campagne ─────────────────────────────
+  const [campaignNotifs, setCampaignNotifs] = useState<CampaignNotif[]>([]);
+  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  useEffect(() => {
+    const campaignId = activeCampaign?.id;
+    const userId = session?.user?.id;
+    if (!campaignId || !userId) {
+      presenceChannelRef.current?.unsubscribe();
+      presenceChannelRef.current = null;
+      return;
+    }
+
+    const isOwner =
+      activeCampaign.owner_id === userId ||
+      activeCampaign.access_type === "owner";
+    const myPseudo =
+      profile?.pseudo ??
+      session.user.user_metadata?.pseudo ??
+      session.user.email?.split("@")[0] ??
+      "Voyageur";
+
+    // Unsubscribe from previous campaign channel
+    presenceChannelRef.current?.unsubscribe();
+
+    const channel = supabase.channel(`campaign-presence:${campaignId}`, {
+      config: { presence: { key: userId } },
+    });
+
+    if (isOwner) {
+      channel.on("presence", { event: "join" }, ({ key, newPresences }) => {
+        if (key === userId) return; // ignore own join
+        const p = (newPresences as Array<{ pseudo?: string }>)[0];
+        const pseudo = p?.pseudo ?? "Un joueur";
+        const notifId = `${key}-${Date.now()}`;
+        setCampaignNotifs((prev) => [...prev, { id: notifId, pseudo }]);
+        setTimeout(() => {
+          setCampaignNotifs((prev) => prev.filter((n) => n.id !== notifId));
+        }, 6000);
+      });
+    }
+
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ userId, pseudo: myPseudo });
+      }
+    });
+
+    presenceChannelRef.current = channel;
+    return () => {
+      channel.unsubscribe();
+      presenceChannelRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCampaign?.id, session?.user?.id]);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [showDeleteCampaignConfirm, setShowDeleteCampaignConfirm] = useState(false);
   const deleteCampaign = useDeleteCampaign();
@@ -432,6 +491,32 @@ function App() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Notifications de connexion campagne ───────────────────────── */}
+      {campaignNotifs.length > 0 && (
+        <div className="fixed bottom-6 right-4 z-9999 flex flex-col gap-2 pointer-events-none">
+          {campaignNotifs.map((notif) => (
+            <div
+              key={notif.id}
+              className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border border-[#E3CCCD]/20 bg-[#1E1941]/95 backdrop-blur-xl shadow-2xl animate-in slide-in-from-right-4 fade-in duration-300 max-w-xs"
+            >
+              <div className="shrink-0 w-8 h-8 rounded-full bg-[#E3CCCD]/10 border border-[#E3CCCD]/20 flex items-center justify-center">
+                <Bell className="w-3.5 h-3.5 text-[#E3CCCD]/70" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-semibold text-[#E3CCCD] truncate">{notif.pseudo}</p>
+                <p className="text-[11px] text-white/45 leading-tight">vient d&apos;accéder à votre campagne</p>
+              </div>
+              <button
+                onClick={() => setCampaignNotifs((prev) => prev.filter((n) => n.id !== notif.id))}
+                className="shrink-0 p-1 rounded-full text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
