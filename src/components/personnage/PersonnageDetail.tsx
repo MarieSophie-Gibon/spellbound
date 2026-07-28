@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   User,
   Pencil,
@@ -132,6 +132,7 @@ export function PersonnageDetail({
   onEditSuccess,
 }: PersonnageDetailProps) {
   const isMobile = useIsMobile();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [voieDetails, setVoieDetails] = useState<VoieDetail[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -188,6 +189,12 @@ export function PersonnageDetail({
   // PNJ Lore
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
+
+  useEffect(() => {
+    if (isEditingVoies && containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+  }, [isEditingVoies]);
 
   useEffect(() => {
     if (!pj?.pathways?.length) {
@@ -538,7 +545,7 @@ export function PersonnageDetail({
   }
 
   return (
-    <div className={`flex-1 flex flex-col h-full min-h-0 scrollbar-thin scrollbar-thumb-white/10 relative ${isEditingVoies ? "overflow-hidden" : "overflow-y-auto"} ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
+    <div ref={containerRef} className={`flex-1 flex flex-col h-full min-h-0 scrollbar-thin scrollbar-thumb-white/10 relative ${isEditingVoies ? "overflow-hidden" : "overflow-y-auto"} ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
       {isEditingVoies && !readOnly && (
         <VoieEditModal
