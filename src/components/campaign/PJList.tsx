@@ -63,6 +63,7 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
           }
           const profil = profils.find((pr) => pr.id === profilId);
 
+          const player = players.find((pl) => pl.id === pj.user_id);
           const isOwnPJ = pj.user_id === currentUserId;
           const canAccess = isMJ || isOwnPJ;
 
@@ -79,7 +80,7 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
             >
               <div className="absolute inset-0 z-0">
                 <img
-                  src={pj.image_url || '/default-avatar.png'}
+                  src={pj.image_url || '/default-bg.jpg'}
                   alt={pj.name}
                   className="w-full h-full object-cover opacity-72 group-hover:opacity-78 transition-opacity"
                   style={{ objectPosition: 'center 20%' }}
@@ -90,7 +91,7 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
               <div className="relative z-20 flex items-center gap-3 p-2">
                 <div className="w-12 h-12 rounded-md overflow-hidden border border-[#E3CCCD]/45 bg-white/18 shrink-0">
                   <img
-                    src={pj.image_url || '/default-avatar.png'}
+                    src={pj.image_url || '/default-bg.jpg'}
                     alt={pj.name}
                     className="w-full h-full object-cover"
                   />
@@ -108,6 +109,12 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
                     <span className="text-white/45">•</span>
                     <span className="text-white/92 truncate">{profil?.nom || 'Profil'}</span>
                   </div>
+                  {player && (
+                    <div className="mt-0.5 flex items-center gap-1 text-[10px] text-white/45">
+                      <User className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate">{player.pseudo}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -132,7 +139,7 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
       <div className="flex flex-wrap gap-1">
         {sortedPjs.map((pj) => {
           const peuple = peuples.find((p) => p.id === pj.peuple_id);
-          const player = players.find((pl) => pl.id === pj.player_id);
+          const player = players.find((pl) => pl.id === pj.user_id);
           
           let profilId = pj.profils_id || pj.stats?.profils_id;
           if (!profilId && Array.isArray(pj.pathways)) {
@@ -183,7 +190,7 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
                 {/* 2. Image en plein écran (Background) */}
                 <div className="absolute inset-0 z-0">
                   <img 
-                    src={pj.image_url || '/default-avatar.png'} 
+                    src={pj.image_url || '/default-bg.jpg'} 
                     alt={pj.name} 
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
                   />
@@ -210,10 +217,12 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
                   </span>
 
                   {/* Badge du Joueur */}
-                  <div className="mt-3 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-2.5 py-1 flex items-center justify-center gap-1.5 w-[90%] group-hover:bg-black/60 transition-colors shadow-lg">
-                    <User className="w-3 h-3 text-[#E3CCCD]" />
-                    <span className="text-[9px] text-white/90 truncate">{player?.pseudo || 'Joueur'}</span>
-                  </div>
+                  {player && (
+                    <div className="mt-3 bg-black/40 backdrop-blur-md border border-white/20 rounded-full px-2.5 py-1 flex items-center justify-center gap-1.5 w-[90%] group-hover:bg-black/60 transition-colors shadow-lg">
+                      <User className="w-3 h-3 text-[#E3CCCD]" />
+                      <span className="text-[9px] text-white/90 truncate">{player.pseudo}</span>
+                    </div>
+                  )}
 
                 </div>
 

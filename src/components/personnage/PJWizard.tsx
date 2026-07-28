@@ -231,7 +231,6 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
   const [armesDistance, setArmesDistance] = useState<EquipItem[]>([]);
   const [armures, setArmures] = useState<EquipItem[]>([]);
   const [selectedEquipItems, setSelectedEquipItems] = useState<EquipItem[]>([]);
-  const [_eqSearch, _setEqSearch] = useState("");
   const [eqDropdownOpen, setEqDropdownOpen] = useState(false);
   const eqDropdownRef = useRef<HTMLDivElement>(null);
   const [derived, setDerived] = useState(() =>
