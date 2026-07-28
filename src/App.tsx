@@ -4,6 +4,7 @@ import { Login } from "@/components/auth/Login";
 import { SideNav } from "@/components/layout/SideNav";
 import { SideNavMobile } from "@/components/layout/SideNavMobile";
 import { Footer } from "@/components/layout/Footer";
+import { CampaignProgressBar } from "@/components/campaign/CampaignProgressBar";
 import { Lobby } from "./pages/Lobby";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useDeleteCampaign, useDuplicateCampaign } from "@/hooks/useCampaigns";
@@ -146,6 +147,7 @@ function App() {
   // Determine active tab from route
   // Détermine les onglets visibles selon la route
   const isCampaignRoute = location.pathname.startsWith("/campaign");
+  const isCampaignDashboardRoute = /^\/campaign\/?$/.test(location.pathname);
   const isCombatRoute = location.pathname.startsWith("/campaign/combat");
   const canManageActiveCampaign =
     !!activeCampaign &&
@@ -409,6 +411,11 @@ function App() {
           showMenuTitles={!isCampaignRoute}
           tabs={getTabs()}
         />
+      )}
+
+      {/* BARRE DE PROGRESSION CAMPAGNE (pleine largeur, au-dessus du footer) */}
+      {!isMobile && isCampaignDashboardRoute && activeCampaign && (
+        <CampaignProgressBar campaignId={activeCampaign.id} />
       )}
 
       {/* FOOTER (Prend 100% de la largeur de l'écran en bas) */}
