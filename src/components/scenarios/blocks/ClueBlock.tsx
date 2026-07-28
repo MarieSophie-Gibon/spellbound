@@ -1,13 +1,26 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
-import { Search, User, Package, Dices, X, ChevronDown, ChevronUp, Plus, Loader2 } from "lucide-react";
+import { Search, User, Package, Dices, X, ChevronDown, ChevronUp, Plus, Sword, Target, Shield } from "lucide-react";
+import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
+import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
+
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, cb: () => void) {
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) cb();
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [ref, cb]);
+}
 
 const STATS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"];
 
 export interface ClueBlockData {
   title: string;
   text: string;
-  npcs?: { id: string; name: string }[];
+  npcs?: { id: string; name: string; note?: string }[];
   items?: { id?: string; nom: string }[];
   testEnabled?: boolean;
   testStat?: string;
@@ -25,10 +38,14 @@ interface ClueBlockProps {
 // ── Mini fiche PNJ ─────────────────────────────────────────────────────────────
 function PnjMiniCard({
   npc,
+  note,
+  onNoteChange,
   onRemove,
   isEditing,
 }: {
   npc: { id: string; name: string };
+  note?: string;
+  onNoteChange?: (v: string) => void;
   onRemove?: () => void;
   isEditing?: boolean;
 }) {
@@ -47,41 +64,61 @@ function PnjMiniCard({
   }, [npc.id]);
 
   return (
-    <div className="relative rounded-lg border border-violet-400/25 bg-violet-500/8 p-2.5 flex items-start gap-3">
-      <div className="w-10 h-10 rounded-md overflow-hidden bg-violet-500/20 border border-violet-400/20 shrink-0">
-        {details?.image_url ? (
-          <img src={details.image_url} alt={npc.name} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <User className="w-4 h-4 text-violet-300/40" />
-          </div>
-        )}
-      </div>
-      <div className="flex-1 min-w-0 pr-5">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-[13px] font-semibold text-violet-100">{npc.name}</p>
-          {details?.stats?.niveau !== undefined && (
-            <span className="text-[9px] uppercase tracking-widest text-violet-300/60 border border-violet-400/25 rounded-full px-1.5 py-0.5">
-              Niv. {details.stats.niveau}
-            </span>
+    <div className="relative rounded-lg border border-violet-400/25 bg-violet-500/8 p-2.5 flex flex-col gap-2">
+      {/* Ligne : avatar + infos + bouton suppr */}
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-md overflow-hidden bg-violet-500/20 border border-violet-400/20 shrink-0">
+          {details?.image_url ? (
+            <img src={details.image_url} alt={npc.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <User className="w-4 h-4 text-violet-300/40" />
+            </div>
           )}
         </div>
-        {(details?.stats?.sexe || details?.stats?.age) && (
-          <p className="text-[10px] text-violet-200/50 mt-0.5">
-            {[details.stats?.sexe, details.stats?.age].filter(Boolean).join(" · ")}
-          </p>
-        )}
-        {details?.stats?.description && (
-          <p className="text-[11px] text-violet-100/60 mt-1 line-clamp-2 leading-relaxed">
-            {details.stats.description}
-          </p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[13px] font-semibold text-violet-100">{npc.name}</p>
+            {details?.stats?.niveau !== undefined && (
+              <span className="text-[9px] uppercase tracking-widest text-violet-300/60 border border-violet-400/25 rounded-full px-1.5 py-0.5">
+                Niv. {details.stats.niveau}
+              </span>
+            )}
+          </div>
+          {(details?.stats?.sexe || details?.stats?.age) && (
+            <p className="text-[10px] text-violet-200/50 mt-0.5">
+              {[details.stats?.sexe, details.stats?.age].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {details?.stats?.description && (
+            <p className="text-[11px] text-violet-100/60 mt-1 leading-relaxed whitespace-pre-wrap">
+              {details.stats.description}
+            </p>
+          )}
+        </div>
+        {isEditing && onRemove && (
+          <button type="button" onClick={onRemove} className="text-white/25 hover:text-red-400 transition-colors shrink-0 mt-0.5">
+            <X className="w-3 h-3" />
+          </button>
         )}
       </div>
-      {isEditing && onRemove && (
-        <button type="button" onClick={onRemove} className="absolute top-2 right-2 text-white/25 hover:text-red-400 transition-colors">
-          <X className="w-3 h-3" />
-        </button>
-      )}
+
+      {/* Note : pleine largeur sous la ligne avatar */}
+      {isEditing && onNoteChange !== undefined ? (
+        <textarea
+          value={note ?? ""}
+          onChange={(e) => {
+            onNoteChange(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = `${e.target.scrollHeight}px`;
+          }}
+          placeholder="Note contextuelle sur ce PNJ..."
+          rows={1}
+          className="w-full bg-violet-500/10 border border-violet-400/20 focus:border-violet-400/50 rounded-md px-2.5 py-1.5 text-violet-100/80 text-[12px] leading-relaxed outline-none resize-none overflow-hidden placeholder:text-violet-200/25"
+        />
+      ) : note ? (
+        <p className="text-[12px] text-violet-100/70 leading-relaxed whitespace-pre-wrap border-t border-violet-400/15 pt-1.5">{note}</p>
+      ) : null}
     </div>
   );
 }
@@ -92,9 +129,13 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
   const [npcSearch, setNpcSearch] = useState("");
   const [npcResults, setNpcResults] = useState<{ id: string; name: string }[]>([]);
   const [itemSearch, setItemSearch] = useState("");
-  const [itemResults, setItemResults] = useState<{ id: string; nom: string }[]>([]);
-  const [isCreatingItem, setIsCreatingItem] = useState(false);
+  const [itemResults, setItemResults] = useState<{ id: string; nom: string; table: string }[]>([]);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [wizardType, setWizardType] = useState<EquipementType | null>(null);
   const [showTest, setShowTest] = useState(data.testEnabled ?? false);
+  const itemDropdownRef = useRef<HTMLDivElement>(null);
+  const [itemDropdownOpen, setItemDropdownOpen] = useState(false);
+  useClickOutside(itemDropdownRef, () => { setItemDropdownOpen(false); setShowTypePicker(false); });
 
   const linkedNpcs = data.npcs ?? [];
   const linkedItems = data.items ?? [];
@@ -114,13 +155,24 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
       .then(({ data: res }) => setNpcResults(res ?? []));
   }, [npcSearch, campaignId]);
 
-  // Recherche objets compendium
+  // Recherche objets — toutes les tables d'équipement
   useEffect(() => {
     if (itemSearch.length < 2) return;
-    supabase.from("equipements").select("id, nom")
-      .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
-      .ilike("nom", `%${itemSearch}%`).limit(6)
-      .then(({ data: res }) => setItemResults(res ?? []));
+    const q = `%${itemSearch}%`;
+    const filter = `campaign_id.is.null,campaign_id.eq.${campaignId}`;
+    Promise.all([
+      supabase.from("equipements").select("id, nom").or(filter).ilike("nom", q).limit(5),
+      supabase.from("armes_contact").select("id, nom").or(filter).ilike("nom", q).limit(4),
+      supabase.from("armes_distance").select("id, nom").or(filter).ilike("nom", q).limit(4),
+      supabase.from("armures").select("id, nom").or(filter).ilike("nom", q).limit(4),
+    ]).then(([eq, ac, ad, ar]) =>
+      setItemResults([
+        ...(eq.data ?? []).map(i => ({ ...i, table: "equipements" })),
+        ...(ac.data ?? []).map(i => ({ ...i, table: "armes_contact" })),
+        ...(ad.data ?? []).map(i => ({ ...i, table: "armes_distance" })),
+        ...(ar.data ?? []).map(i => ({ ...i, table: "armures" })),
+      ])
+    );
   }, [itemSearch, campaignId]);
 
   const addNpc = (npc: { id: string; name: string }) => {
@@ -129,25 +181,20 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
     setNpcSearch(""); setNpcResults([]);
   };
   const removeNpc = (id: string) => onChange({ npcs: linkedNpcs.filter((n) => n.id !== id) });
-  const addItem = (item: { id?: string; nom: string }) => {
+  const updateNpcNote = (id: string, note: string) =>
+    onChange({ npcs: linkedNpcs.map((n) => n.id === id ? { ...n, note } : n) });
+  const addItem = (item: { id?: string; nom: string; table?: string }) => {
     onChange({ items: [...linkedItems, item] });
-    setItemSearch(""); setItemResults([]);
+    setItemSearch(""); setItemResults([]); setItemDropdownOpen(false);
   };
   const removeItem = (idx: number) => onChange({ items: linkedItems.filter((_, i) => i !== idx) });
 
-  const createAndLinkItem = async () => {
-    const nom = itemSearch.trim();
-    if (!nom) return;
-    setIsCreatingItem(true);
-    try {
-      const { data: created, error } = await supabase.from("equipements").insert({ nom, campaign_id: campaignId }).select("id, nom").single();
-      if (error) throw error;
-      addItem({ id: created.id, nom: created.nom });
-    } catch {
-      addItem({ nom });
-    } finally {
-      setIsCreatingItem(false);
-    }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleWizardCreated = (newItem?: any) => {
+    if (!newItem || !wizardType) { setWizardType(null); return; }
+    addItem({ id: String(newItem.id), nom: newItem.nom, table: wizardType === "arme_contact" ? "armes_contact" : wizardType === "arme_distance" ? "armes_distance" : wizardType === "armure" ? "armures" : "equipements" });
+    setWizardType(null);
+    setShowTypePicker(false);
   };
 
   /* ── VUE LECTURE ──────────────────────────────────────────────────────────── */
@@ -168,15 +215,19 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
         )}
         {linkedNpcs.length > 0 && (
           <div className="px-4 pb-3 space-y-2">
-            {linkedNpcs.map((npc) => <PnjMiniCard key={npc.id} npc={npc} />)}
+            {linkedNpcs.map((npc) => <PnjMiniCard key={npc.id} npc={npc} note={npc.note} />)}
           </div>
         )}
         {data.testEnabled && data.testStat && (
-          <div className="mx-4 mb-3 flex items-center gap-3 rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2">
-            <Dices className="w-4 h-4 text-sky-400/70 shrink-0" />
-            <span className="text-[12px] font-bold text-sky-200">{data.testStat}</span>
-            <span className="text-[11px] text-sky-300/70 font-mono">DD {data.testDd ?? 10}</span>
-            {data.testDescription && <span className="text-[11px] text-white/55 truncate">{data.testDescription}</span>}
+          <div className="mx-4 mb-3 rounded-lg border border-sky-400/25 bg-sky-500/10 px-3 py-2 space-y-1">
+            <div className="flex items-center gap-3">
+              <Dices className="w-4 h-4 text-sky-400/70 shrink-0" />
+              <span className="text-[12px] font-bold text-sky-200">{data.testStat}</span>
+              <span className="text-[11px] text-sky-300/70 font-mono">DD {data.testDd ?? 10}</span>
+            </div>
+            {data.testDescription && (
+              <p className="text-[11px] text-white/70 leading-relaxed pl-7">{data.testDescription}</p>
+            )}
           </div>
         )}
       </div>
@@ -185,9 +236,10 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
 
   /* ── MODE ÉDITION ─────────────────────────────────────────────────────────── */
   return (
-    <div className="rounded-xl border border-sky-400/30 bg-sky-500/5 overflow-hidden">
+    <>
+    <div className="rounded-xl border border-sky-400/30 bg-sky-500/5">
       {/* Titre */}
-      <div className="px-4 py-2.5 border-b border-sky-400/15 bg-sky-500/10">
+      <div className="px-4 py-2.5 border-b border-sky-400/15 bg-sky-500/10 rounded-t-xl">
         <input type="text" value={data.title ?? ""} onChange={(e) => onChange({ title: e.target.value })}
           placeholder="Titre de l'indice..."
           className="w-full bg-transparent text-sky-100 font-semibold text-[14px] outline-none placeholder:text-sky-200/30" />
@@ -212,7 +264,7 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
       {/* Mini fiches PNJ */}
       {linkedNpcs.length > 0 && (
         <div className="px-4 pb-3 space-y-2 border-t border-sky-400/10 pt-3">
-          {linkedNpcs.map((npc) => <PnjMiniCard key={npc.id} npc={npc} onRemove={() => removeNpc(npc.id)} isEditing />)}
+          {linkedNpcs.map((npc) => <PnjMiniCard key={npc.id} npc={npc} note={npc.note} onNoteChange={(v) => updateNpcNote(npc.id, v)} onRemove={() => removeNpc(npc.id)} isEditing />)}
         </div>
       )}
 
@@ -257,23 +309,49 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
               ))}
             </div>
           )}
-          <div className="relative">
-            <input type="text" value={itemSearch} onChange={(e) => setItemSearch(e.target.value)}
+          <div className="relative" ref={itemDropdownRef}>
+            <input type="text" value={itemSearch} onChange={(e) => { setItemSearch(e.target.value); setItemDropdownOpen(true); }}
+              onFocus={() => setItemDropdownOpen(true)}
               placeholder="Rechercher dans le compendium..."
               className="w-full bg-white/5 border border-white/15 focus:border-amber-400/50 rounded-lg px-2.5 py-1.5 text-white/80 text-[12px] outline-none placeholder:text-white/25" />
-            {itemSearch.length >= 2 && (
+            {itemDropdownOpen && itemSearch.length >= 2 && (
               <div className="absolute z-50 left-0 right-0 top-full mt-1 rounded-lg border border-white/15 bg-[#1E1941]/98 shadow-xl overflow-hidden">
                 {itemResults.filter((r) => !linkedItems.some((i) => i.id === r.id)).map((item) => (
-                  <button key={item.id} type="button" onClick={() => addItem({ id: item.id, nom: item.nom })}
+                  <button key={`${item.table}-${item.id}`} type="button" onClick={() => addItem({ id: item.id, nom: item.nom, table: item.table })}
                     className="w-full text-left px-3 py-2 text-[12px] text-white/80 hover:bg-white/10 transition-colors">
                     {item.nom}
                   </button>
                 ))}
-                <button type="button" onClick={createAndLinkItem} disabled={isCreatingItem}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-amber-300/80 hover:bg-amber-500/10 border-t border-white/8 transition-colors disabled:opacity-50">
-                  {isCreatingItem ? <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" /> : <Plus className="w-3.5 h-3.5 shrink-0" />}
-                  Créer "{itemSearch}"
-                </button>
+                {/* Séparateur + création */}
+                <div className="border-t border-white/8">
+                  {!showTypePicker ? (
+                    <button type="button" onClick={() => setShowTypePicker(true)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-amber-300/80 hover:bg-amber-500/10 transition-colors">
+                      <Plus className="w-3.5 h-3.5 shrink-0" /> Créer un nouvel objet...
+                    </button>
+                  ) : (
+                    <div className="p-2 space-y-1">
+                      <p className="text-[10px] uppercase tracking-widest text-white/40 px-1 mb-1.5">Quel type d'objet ?</p>
+                      <div className="grid grid-cols-2 gap-1">
+                        {([
+                          { type: "equipement" as EquipementType, label: "Objet magique", icon: <Package className="w-3 h-3" /> },
+                          { type: "arme_contact" as EquipementType, label: "Arme contact", icon: <Sword className="w-3 h-3" /> },
+                          { type: "arme_distance" as EquipementType, label: "Arme distance", icon: <Target className="w-3 h-3" /> },
+                          { type: "armure" as EquipementType, label: "Armure", icon: <Shield className="w-3 h-3" /> },
+                        ]).map(({ type, label, icon }) => (
+                          <button key={type} type="button" onClick={() => setWizardType(type)}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-amber-400/25 bg-amber-500/8 text-[11px] text-amber-200 hover:bg-amber-500/18 transition-colors">
+                            {icon}{label}
+                          </button>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => setShowTypePicker(false)}
+                        className="w-full text-[10px] text-white/35 hover:text-white/60 pt-1 transition-colors">
+                        Annuler
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -281,36 +359,63 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
       </div>
 
       {/* Test associé */}
-      <div className="px-4 pb-3 border-t border-sky-400/10 pt-3">
+      <div className="px-4 pb-3 border-t border-sky-400/10 pt-3 flex items-center justify-between gap-3">
         <button type="button" onClick={() => { const next = !showTest; setShowTest(next); onChange({ testEnabled: next }); }}
-          className="flex items-center gap-2 text-[11px] text-sky-300/70 hover:text-sky-200 transition-colors">
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all ${
+            showTest
+              ? "border-sky-400/50 bg-sky-500/15 text-sky-200"
+              : "border-sky-500/20 bg-sky-900/30 text-sky-400/60 hover:text-sky-300 hover:border-sky-400/35"
+          }`}>
           <Dices className="w-3.5 h-3.5" />
           Test associé
-          {showTest ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {showTest ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
         </button>
+
+        {/* Pill stat+DD alignée à droite quand le test est ouvert */}
         {showTest && (
-          <div className="mt-2.5 flex flex-wrap gap-2 items-end">
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-sky-300/50">Caract.</label>
-              <select value={data.testStat ?? "PER"} onChange={(e) => onChange({ testStat: e.target.value })}
-                className="bg-sky-900/40 border border-sky-500/30 focus:border-sky-400/60 rounded-lg px-2.5 py-1.5 text-sky-100 text-[12px] outline-none cursor-pointer appearance-none">
-                {STATS.map((s) => <option key={s} value={s} className="bg-[#1E1941]">{s}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-sky-300/50">DD</label>
+          <div className="inline-flex items-center rounded-full border border-sky-400/30 bg-sky-900/60 overflow-hidden divide-x divide-sky-500/25">
+            <select value={data.testStat ?? "PER"} onChange={(e) => onChange({ testStat: e.target.value })}
+              className="bg-transparent pl-3.5 pr-2.5 py-1.5 text-sky-100 text-[11px] font-bold uppercase tracking-widest outline-none cursor-pointer appearance-none">
+              {STATS.map((s) => <option key={s} value={s} className="bg-[#1E1941] normal-case tracking-normal font-normal">{s}</option>)}
+            </select>
+            <div className="flex items-center gap-1.5 px-3 py-1.5">
+              <span className="text-[9px] text-sky-400/55 font-mono uppercase tracking-widest">DD</span>
               <input type="number" value={data.testDd ?? 10} onChange={(e) => onChange({ testDd: parseInt(e.target.value) || 10 })}
-                className="w-16 text-center bg-sky-900/40 border border-sky-500/30 focus:border-sky-400/60 rounded-lg px-2 py-1.5 text-sky-100 text-[12px] outline-none" />
-            </div>
-            <div className="flex-1 min-w-32 space-y-1">
-              <label className="text-[9px] uppercase tracking-widest text-sky-300/50">Description</label>
-              <input type="text" value={data.testDescription ?? ""} onChange={(e) => onChange({ testDescription: e.target.value })}
-                placeholder="Ce que révèle ce test..."
-                className="w-full bg-sky-900/40 border border-sky-500/30 focus:border-sky-400/60 rounded-lg px-2.5 py-1.5 text-sky-100 text-[12px] outline-none placeholder:text-sky-200/25" />
+                className="w-8 text-center bg-transparent text-sky-100 text-[12px] font-bold outline-none" />
             </div>
           </div>
         )}
       </div>
+
+      {showTest && (
+        <div className="px-4 pb-3 -mt-1">
+          <textarea
+            value={data.testDescription ?? ""}
+            onChange={(e) => {
+              onChange({ testDescription: e.target.value });
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+            placeholder="Ce que révèle ce test..."
+            rows={2}
+            className="w-full bg-sky-900/40 border border-sky-500/30 focus:border-sky-400/60 rounded-lg px-2.5 py-1.5 text-sky-100 text-[12px] outline-none resize-none overflow-hidden placeholder:text-sky-200/25 leading-relaxed"
+          />
+        </div>
+      )}
     </div>
+
+    {/* Wizard création objet */}
+    {wizardType && createPortal(
+      <div className="fixed inset-0 z-200">
+        <EquipementWizard
+          selectedType={wizardType}
+          campaignId={campaignId}
+          onClose={() => setWizardType(null)}
+          onSuccess={handleWizardCreated}
+        />
+      </div>,
+      document.body
+    )}
+    </>
   );
 }

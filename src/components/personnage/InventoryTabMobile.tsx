@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
+import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
 interface InventoryTabMobileProps {
   pjId: string;
@@ -67,6 +69,21 @@ export default function InventoryTabMobile({
   const [isAdding, setIsAdding] = useState(false);
   const [compendiumItems, setCompendiumItems] = useState<any[]>([]);
   const [isFetchingCompendium, setIsFetchingCompendium] = useState(false);
+
+  // Wizard création objet
+  const [wizardType, setWizardType] = useState<EquipementType | null>(null);
+
+  const handleWizardCreated = (newItem?: any) => {
+    if (!newItem || !wizardType) { setWizardType(null); return; }
+    let desc = newItem.data?.description || "";
+    if (wizardType === "arme_contact" || wizardType === "arme_distance") desc = [newItem.dm, newItem.type_de_dm].filter(Boolean).join(" ");
+    if (wizardType === "armure") desc = newItem.bonus_def ? `Déf. +${newItem.bonus_def}` : "";
+    setAddItemId(newItem.id);
+    setAddNom(newItem.nom);
+    setAddDesc(desc);
+    setCompendiumItems(prev => [...prev.filter(i => i.id !== newItem.id), newItem]);
+    setWizardType(null);
+  };
 
   useEffect(() => {
     setPa(pjStats?.bourse_pa ?? 0);
@@ -416,6 +433,18 @@ export default function InventoryTabMobile({
         )}
       </div>
 
+      {/* WIZARD création objet compendium */}
+      {wizardType && createPortal(
+        <div className="fixed inset-0 z-200">
+          <EquipementWizard
+            selectedType={wizardType}
+            onClose={() => setWizardType(null)}
+            onSuccess={handleWizardCreated}
+          />
+        </div>,
+        document.body
+      )}
+
       {/* ── BOTTOM SHEET : ÉDITION D'UN OBJET ── */}
       {editItem && !readOnly && createPortal(
         <div
@@ -583,7 +612,16 @@ export default function InventoryTabMobile({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60">Objet du Compendium</label>
-                  <span className="text-[10px] text-white/35 font-mono">{compendiumItems.length}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-white/35 font-mono">{compendiumItems.length}</span>
+                    <button
+                      type="button"
+                      onClick={() => setWizardType(addType as EquipementType)}
+                      className="flex items-center gap-1 text-[10px] text-[#E3CCCD]/70 border border-[#E3CCCD]/25 bg-[#E3CCCD]/8 hover:bg-[#E3CCCD]/15 rounded px-2 py-0.5 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> Créer
+                    </button>
+                  </div>
                 </div>
                 <Select
                   value={addItemId?.toString() || "custom"}

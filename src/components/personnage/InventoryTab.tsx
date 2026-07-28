@@ -2,9 +2,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { Coins, Package, Shield, Sword, Target, Backpack, Loader2, Plus, Pencil, Trash2, X, Save } from "lucide-react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
+import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
 
 interface InventoryTabProps {
   pjId: string;
@@ -41,6 +44,19 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
   // Nouveaux états pour le Compendium dans la modale
   const [compendiumItems, setCompendiumItems] = useState<any[]>([]);
   const [isFetchingCompendium, setIsFetchingCompendium] = useState(false);
+
+  // Wizard de création d'objet compendium
+  const [wizardType, setWizardType] = useState<EquipementType | null>(null);
+
+  const handleWizardCreated = (newItem?: any) => {
+    if (!newItem || !wizardType) { setWizardType(null); return; }
+    let desc = newItem.data?.description || "";
+    if (wizardType === "arme_contact" || wizardType === "arme_distance") desc = [newItem.dm, newItem.type_de_dm].filter(Boolean).join(" ");
+    if (wizardType === "armure") desc = newItem.bonus_def ? `Déf. +${newItem.bonus_def}` : "";
+    setFormData(prev => ({ ...prev, item_id: newItem.id, nom_custom: newItem.nom, description_custom: desc }));
+    setCompendiumItems(prev => [...prev.filter(i => i.id !== newItem.id), newItem]);
+    setWizardType(null);
+  };
 
   const [formData, setFormData] = useState({
     item_type: "arme_contact" as ItemType,
@@ -366,7 +382,16 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[10px] uppercase tracking-widest text-[#E3CCCD]/60">Objet du Compendium</label>
-                  <span className="text-[10px] text-white/35 font-mono">{compendiumItems.length}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-white/35 font-mono">{compendiumItems.length}</span>
+                    <button
+                      type="button"
+                      onClick={() => setWizardType(formData.item_type as EquipementType)}
+                      className="flex items-center gap-1 text-[10px] text-[#E3CCCD]/70 border border-[#E3CCCD]/25 bg-[#E3CCCD]/8 hover:bg-[#E3CCCD]/15 rounded px-2 py-0.5 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> Créer
+                    </button>
+                  </div>
                 </div>
 
                 <Select
@@ -429,6 +454,18 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
             </div>
           </div>
         </div>
+      )}
+
+      {/* WIZARD création objet compendium (s'ouvre par-dessus la modale) */}
+      {wizardType && createPortal(
+        <div className="fixed inset-0 z-200">
+          <EquipementWizard
+            selectedType={wizardType}
+            onClose={() => setWizardType(null)}
+            onSuccess={handleWizardCreated}
+          />
+        </div>,
+        document.body
       )}
 
       {itemToDelete && !readOnly && (
