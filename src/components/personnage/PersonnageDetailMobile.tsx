@@ -25,6 +25,8 @@ import {
   Dices,
   Plus,
   Minus,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -70,6 +72,10 @@ interface PersonnageDetailMobileProps {
   technicalSheetOnly?: boolean;
   isMJ?: boolean;
   showFullscreenToggle?: boolean;
+  /** IDs des PNJ déjà révélés aux joueurs (seulement si isMJ && type === "pnj") */
+  revealedPnjIds?: Set<string>;
+  /** Callback pour basculer la visibilité d'un PNJ */
+  onToggleRevealPnj?: (pnjId: string, isCurrentlyRevealed: boolean) => void;
   onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
@@ -118,6 +124,8 @@ export function PersonnageDetailMobile({
   technicalSheetOnly = false,
   isMJ = false,
   showFullscreenToggle = true,
+  revealedPnjIds,
+  onToggleRevealPnj,
   onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
@@ -655,7 +663,7 @@ export function PersonnageDetailMobile({
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative p-2 pb-5 [scrollbar-gutter:stable]">
+    <div className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 relative px-2 pb-5 [scrollbar-gutter:stable] ${mobileNavItems.length === 0 ? 'pt-8' : 'pt-2'}`}>
       {isEditingVoies && !readOnly && createPortal(
         <VoieEditModal
           pj={pj}
@@ -754,6 +762,20 @@ export function PersonnageDetailMobile({
                 title="Retour à la liste"
               >
                 <Package className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {isMJ && type === "pnj" && onToggleRevealPnj && pj && !isEditing && (
+              <button
+                onClick={() => onToggleRevealPnj(pj.id, revealedPnjIds?.has(pj.id) ?? false)}
+                title={revealedPnjIds?.has(pj.id) ? "Masquer aux joueurs" : "Révéler aux joueurs"}
+                className={`p-1.5 rounded-full transition-colors ${
+                  revealedPnjIds?.has(pj.id)
+                    ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                    : "text-white/40 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                {revealedPnjIds?.has(pj.id) ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
               </button>
             )}
 

@@ -23,6 +23,8 @@ import {
   Maximize2,
   Minimize2,
   PawPrint,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -71,6 +73,10 @@ interface PersonnageDetailProps {
   technicalSheetOnly?: boolean;
   isMJ?: boolean;
   showFullscreenToggle?: boolean;
+  /** IDs des PNJ déjà révélés aux joueurs (seulement si isMJ && type === "pnj") */
+  revealedPnjIds?: Set<string>;
+  /** Callback pour basculer la visibilité d'un PNJ (seulement si isMJ && type === "pnj") */
+  onToggleRevealPnj?: (pnjId: string, isCurrentlyRevealed: boolean) => void;
   onToggleFullscreen: () => void;
   onDeleteClick: () => void;
   onCreateClick: () => void;
@@ -119,6 +125,8 @@ export function PersonnageDetail({
   technicalSheetOnly = false,
   isMJ = false,
   showFullscreenToggle = true,
+  revealedPnjIds,
+  onToggleRevealPnj,
   onToggleFullscreen,
   onDeleteClick,
   onEditSuccess,
@@ -667,6 +675,22 @@ export function PersonnageDetail({
               </>
             ) : (
               <>
+                {isMJ && type === "pnj" && onToggleRevealPnj && pj && (
+                  <>
+                    <button
+                      onClick={() => onToggleRevealPnj(pj.id, revealedPnjIds?.has(pj.id) ?? false)}
+                      title={revealedPnjIds?.has(pj.id) ? "Masquer aux joueurs" : "Révéler aux joueurs"}
+                      className={`p-2 sm:p-1 rounded-full transition-colors ${
+                        revealedPnjIds?.has(pj.id)
+                          ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                          : "text-white/40 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      {revealedPnjIds?.has(pj.id) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </button>
+                    <div className="w-px h-4 bg-white/20 mx-1" />
+                  </>
+                )}
                 {!readOnly && (
                   <button
                     onClick={() => setIsEditing(true)}

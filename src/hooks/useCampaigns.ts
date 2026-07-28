@@ -422,6 +422,22 @@ export function useRevealedPnjs(campaignId: string) {
 
 // ── Monstres révélés aux joueurs ──────────────────────────────────────────────
 
+/** Retourne uniquement les IDs des PNJ révélés (sans join FK, compatible avec tout schéma) */
+export function useRevealedPnjIds(campaignId: string) {
+  return useQuery({
+    queryKey: ['revealedPnjIds', campaignId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from('campaign_revealed_pnjs')
+        .select('pnj_id')
+        .eq('campaign_id', campaignId)
+      if (error) throw error
+      return (data ?? []).map((row: { pnj_id: string }) => row.pnj_id)
+    },
+    enabled: !!campaignId,
+  })
+}
+
 export function useRevealedMonstres(campaignId: string) {
   return useQuery({
     queryKey: ['revealedMonstres', campaignId],
@@ -467,6 +483,50 @@ export function useToggleRevealedMonstre() {
     },
     onSuccess: (_data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: ['revealedMonstres', campaignId] })
+    },
+  })
+}
+
+export function useToggleRevealedPnj() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      campaignId,
+      pnjId,
+      isRevealed,
+    }: {
+      campaignId: string
+      pnjId: string
+      isRevealed: boolean
+    }) => {
+      if (isRevealed) {
+        const { error } = await supabase
+          .from('campaign_revealed_pnjs')
+          .delete()
+          .eq('campaign_id', campaignId)
+          .eq('pnj_id', pnjId)
+        if (error) throw error
+      } else {
+        // Check first to avoid 409 duplicate-key errors when the row was
+        // already inserted automatically (e.g. via scenario chapter completion)
+        const { data: existing } = await supabase
+          .from('campaign_revealed_pnjs')
+          .select('pnj_id')
+          .eq('campaign_id', campaignId)
+          .eq('pnj_id', pnjId)
+          .maybeSingle()
+        if (!existing) {
+          const { error } = await supabase
+            .from('campaign_revealed_pnjs')
+            .insert({ campaign_id: campaignId, pnj_id: pnjId })
+          if (error) throw error
+        }
+      }
+    },
+    onSuccess: (_data, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['revealedPnjIds', campaignId] })
+      queryClient.invalidateQueries({ queryKey: ['revealedPnjs', campaignId] })
     },
   })
 }

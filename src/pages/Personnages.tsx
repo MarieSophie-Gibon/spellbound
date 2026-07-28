@@ -9,6 +9,7 @@ import { PersonnageDetailMobile } from "@/components/personnage/PersonnageDetail
 import { AlertTriangle, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useRevealedPnjIds, useToggleRevealedPnj } from "@/hooks/useCampaigns";
 
 interface PersonnagesProps {
   campaignId: string;
@@ -95,6 +96,15 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "detail">("list");
 
+  // PNJ révélés aux joueurs (uniquement dans le contexte d'une campagne MJ)
+  const { data: revealedPnjData = [] } = useRevealedPnjIds(campaignId);
+  const revealedPnjIds = new Set(revealedPnjData);
+  const toggleRevealPnj = useToggleRevealedPnj();
+
+  const handleToggleRevealPnj = (pnjId: string, isCurrentlyRevealed: boolean) => {
+    toggleRevealPnj.mutate({ campaignId, pnjId, isRevealed: isCurrentlyRevealed });
+  };
+
   // Récupère les PJ ET les PNJ
   const fetchData = useCallback(async () => {
     const [pjRes, pnjRes] = await Promise.all([
@@ -137,6 +147,9 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
   const selectedCharacter = selectedType === "pj" 
     ? pjs.find(p => p.id === selectedId) ?? null 
     : pnjs.find(p => p.id === selectedId) ?? null;
+
+  // Pour les joueurs (non-MJ), on n'affiche que les PNJ révélés par le MJ
+  const visiblePnjs = isMJ ? pnjs : pnjs.filter((p) => revealedPnjIds.has(p.id));
 
   useEffect(() => {
     if (!isLoading && !selectedCharacter && mobileView === "detail") {
@@ -205,7 +218,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
             {mobileView === "list" ? (
               <PersonnageSidebar
                 pjs={pjs}
-                pnjs={pnjs}
+                pnjs={visiblePnjs}
                 isLoading={isLoading}
                 selectedId={selectedId}
                 readOnly={!isMJ}
@@ -230,6 +243,8 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
                   technicalSheetOnly={technicalSheetOnly}
                   isMJ={isMJ}
                   showFullscreenToggle={false}
+                  revealedPnjIds={isMJ ? revealedPnjIds : undefined}
+                  onToggleRevealPnj={isMJ ? handleToggleRevealPnj : undefined}
                   onToggleFullscreen={() => setMobileView("list")}
                   onDeleteClick={() => setShowDeleteConfirm(true)}
                   onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
@@ -249,7 +264,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
           sidebar={
             <PersonnageSidebar
               pjs={pjs}
-              pnjs={pnjs}
+              pnjs={visiblePnjs}
               isLoading={isLoading}
               selectedId={selectedId}
               readOnly={!isMJ}
@@ -272,6 +287,8 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
             readOnly={effectiveReadOnly}
             technicalSheetOnly={technicalSheetOnly}
             isMJ={isMJ}
+            revealedPnjIds={isMJ ? revealedPnjIds : undefined}
+            onToggleRevealPnj={isMJ ? handleToggleRevealPnj : undefined}
             onToggleFullscreen={() => setIsFullscreen((v) => !v)}
             onDeleteClick={() => setShowDeleteConfirm(true)}
             onCreateClick={() => selectedType === "pj" ? setShowPJWizard(true) : setShowPNJWizard(true)}
