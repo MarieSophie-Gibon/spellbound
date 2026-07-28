@@ -5,7 +5,7 @@ import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
   Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote,
-  Bookmark, BookmarkCheck, Navigation, Bold
+  Bookmark, BookmarkCheck, Navigation, Bold, Copy, ClipboardPaste
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { PersistedCombatState } from "./combat/types";
@@ -50,6 +50,25 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   // Menu d'ajout volant (Side Tab)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
+  // Presse-papiers (localStorage pour persister entre chapitres)
+  const CLIPBOARD_KEY = "spellbound_block_clipboard";
+  const [clipboardBlock, setClipboardBlock] = useState<Block | null>(() => {
+    try { const s = localStorage.getItem(CLIPBOARD_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+  });
+  const copyBlock = (block: Block) => {
+    const copy = { ...block, id: "" };
+    setClipboardBlock(copy);
+    localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(copy));
+  };
+  const pasteBlock = () => {
+    if (!clipboardBlock) return;
+    const newBlock: Block = { ...clipboardBlock, id: crypto.randomUUID(), data: { ...clipboardBlock.data, isRepere: false } };
+    setBlocks(prev => [...prev, newBlock]);
+    setHasChanges(true);
+    setIsAddMenuOpen(false);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  };
 
   // Repères (bookmarks)
   const [isReperesOpen, setIsReperesOpen] = useState(false);
@@ -895,6 +914,13 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                           </button>
                         )}
                         <button
+                          onClick={() => copyBlock(block)}
+                          className="p-1 md:p-1.5 text-white/40 hover:text-sky-400 hover:bg-sky-400/10 rounded"
+                          title="Copier ce bloc"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => removeBlock(block.id)}
                           className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
                           title="Supprimer ce bloc"
@@ -960,6 +986,12 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#E3CCCD]/50 border-b border-white/5 mb-1 font-bold">
                 Ajouter un bloc
               </div>
+              {clipboardBlock && (
+                <button onClick={pasteBlock} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/15 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left border border-sky-500/20 mb-1">
+                  <ClipboardPaste className="w-4 h-4 text-sky-400/70" />
+                  Coller — {clipboardBlock.type === 'text' ? 'Texte' : clipboardBlock.type === 'quote' ? 'Citation' : clipboardBlock.type === 'image' ? 'Image' : clipboardBlock.type === 'location' ? 'Lieu' : clipboardBlock.type === 'loot' ? 'Trésor' : clipboardBlock.type === 'investigation' ? 'Enquête' : clipboardBlock.type === 'npc' ? 'PNJ' : clipboardBlock.type === 'enemy' ? 'Ennemi' : clipboardBlock.type === 'clue' ? 'Indice' : 'Bloc'}
+                </button>
+              )}
               <button onClick={() => addBlock('text')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-xl text-[12px] text-white/80 transition-colors w-full text-left">
                 <Type className="w-4 h-4 text-white/40" /> Texte
               </button>
