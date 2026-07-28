@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { ArrowUpCircle, X, Star, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getRankPrimaryDescription, getRankTitle, hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
+import { RangCard } from "@/components/ui/RangCard";
 
 interface VoieDetail {
   id: string;
@@ -405,12 +406,13 @@ export default function LevelUpOverlay({
           const displayedRank = getDisplayedRank(nextRank, voie);
           const isPeuplePathBlockedByMage = hasMagePath && !!voie.peuple_id && !isMageVoie(voie);
           const nextRankCapacite = getRankCapacite(voie, nextRank);
+          const normalizedRang = normalizeVoieRang(getCapacitesObject(voie)[`rang${nextRank}`]);
+          const hasContent = hasRangContent(normalizedRang);
           const isPending = isPendingRank(pathway.voie_id, nextRank);
           const isUnavailable = !isPending && (isPeuplePathBlockedByMage || isLocked);
           const rankDescKey = `${pathway.voie_id}-${nextRank}`;
           const isRankDescriptionExpanded = !!expandedRankDescriptions[rankDescKey];
           const capName = nextRankCapacite?.nom || `Capacité de rang ${displayedRank}`;
-          const capDescription = nextRankCapacite?.description || "";
 
           return (
             <div
@@ -471,7 +473,7 @@ export default function LevelUpOverlay({
                     </span>
                   </button>
 
-                  {!!capDescription && (
+                  {hasContent && (
                     <button
                       type="button"
                       onClick={() => toggleRankDescription(rankDescKey)}
@@ -487,10 +489,8 @@ export default function LevelUpOverlay({
                   )}
                 </div>
 
-                {!!capDescription && isRankDescriptionExpanded && (
-                  <div className="rounded-md border border-white/18 bg-white/10 px-3 py-2">
-                    <p className="text-xs text-white/78 leading-relaxed">{capDescription}</p>
-                  </div>
+                {hasContent && isRankDescriptionExpanded && (
+                  <RangCard rang={normalizedRang} rangNum={displayedRank} />
                 )}
 
                 {isPeuplePathBlockedByMage && (
@@ -568,7 +568,6 @@ export default function LevelUpOverlay({
                         const unlockRanks = getUnlockRanksForVoieId(v.id);
 
                         return unlockRanks.map((rank) => {
-                          const rankCapacite = getRankCapacite(v, rank);
                           const unlockCost = getCostForRank(rank, v);
                           const displayedRank = getDisplayedRank(rank, v);
                           const isLocked = isLevelLocked(rank, targetLevel, v);
@@ -577,7 +576,8 @@ export default function LevelUpOverlay({
                           const isDisabled = (isLocked && !isPending) || isRankBlockedByPrerequisite;
                           const rankDescKey = `other-${v.id}-${rank}`;
                           const isRankDescriptionExpanded = !!expandedRankDescriptions[rankDescKey];
-                          const capDescription = rankCapacite?.description || "";
+                          const normalizedRang = normalizeVoieRang(getCapacitesObject(v)[`rang${rank}`]);
+                          const hasContent = hasRangContent(normalizedRang);
 
                           return (
                             <div key={`${v.id}-${rank}`} className="space-y-1">
@@ -618,7 +618,7 @@ export default function LevelUpOverlay({
                                   </span>
                                 </button>
 
-                                {!!capDescription && (
+                                {hasContent && (
                                   <button
                                     type="button"
                                     onClick={() => toggleRankDescription(rankDescKey)}
@@ -634,10 +634,8 @@ export default function LevelUpOverlay({
                                 )}
                               </div>
 
-                              {!!capDescription && isRankDescriptionExpanded && (
-                                <div className="rounded-md border border-white/18 bg-white/10 px-3 py-2">
-                                  <p className="text-xs text-white/78 leading-relaxed">{capDescription}</p>
-                                </div>
+                              {hasContent && isRankDescriptionExpanded && (
+                                <RangCard rang={normalizedRang} rangNum={displayedRank} />
                               )}
                             </div>
                           );
@@ -681,7 +679,6 @@ export default function LevelUpOverlay({
                             const unlockRanks = getUnlockRanksForVoieId(v.id);
 
                             return unlockRanks.map((rank) => {
-                              const rankCapacite = getRankCapacite(v, rank);
                               const unlockCost = getCostForRank(rank, v);
                               const displayedRank = getDisplayedRank(rank, v);
                               const isLocked = isLevelLocked(rank, targetLevel, v);
@@ -690,7 +687,8 @@ export default function LevelUpOverlay({
                               const isDisabled = (isLocked && !isPending) || isRankBlockedByPrerequisite;
                               const rankDescKey = `hybrid-${v.id}-${rank}`;
                               const isRankDescriptionExpanded = !!expandedRankDescriptions[rankDescKey];
-                              const capDescription = rankCapacite?.description || "";
+                              const normalizedRang = normalizeVoieRang(getCapacitesObject(v)[`rang${rank}`]);
+                              const hasContent = hasRangContent(normalizedRang);
 
                               return (
                                 <div key={`${v.id}-${rank}`} className="space-y-1">
@@ -731,7 +729,7 @@ export default function LevelUpOverlay({
                                       </span>
                                     </button>
 
-                                    {!!capDescription && (
+                                    {hasContent && (
                                       <button
                                         type="button"
                                         onClick={() => toggleRankDescription(rankDescKey)}
@@ -747,10 +745,8 @@ export default function LevelUpOverlay({
                                     )}
                                   </div>
 
-                                  {!!capDescription && isRankDescriptionExpanded && (
-                                    <div className="rounded-md border border-white/18 bg-white/10 px-3 py-2">
-                                      <p className="text-xs text-white/78 leading-relaxed">{capDescription}</p>
-                                    </div>
+                                  {hasContent && isRankDescriptionExpanded && (
+                                    <RangCard rang={normalizedRang} rangNum={displayedRank} />
                                   )}
                                 </div>
                               );
@@ -780,7 +776,8 @@ export default function LevelUpOverlay({
                       const rankDescKey = `unlock-${v.id}-${rank}`;
                       const isRankDescriptionExpanded = !!expandedRankDescriptions[rankDescKey];
                       const capName = rankCapacite?.nom || `Capacité de rang ${displayedRank}`;
-                      const capDescription = rankCapacite?.description || "";
+                      const normalizedRang = normalizeVoieRang(getCapacitesObject(v)[`rang${rank}`]);
+                      const hasContent = hasRangContent(normalizedRang);
 
                       return (
                         <div key={`${v.id}-${rank}`} className="space-y-1">
@@ -822,7 +819,7 @@ export default function LevelUpOverlay({
                               </span>
                             </button>
 
-                            {!!capDescription && (
+                            {hasContent && (
                               <button
                                 type="button"
                                 onClick={() => toggleRankDescription(rankDescKey)}
@@ -838,10 +835,8 @@ export default function LevelUpOverlay({
                             )}
                           </div>
 
-                          {!!capDescription && isRankDescriptionExpanded && (
-                            <div className="rounded-md border border-white/18 bg-white/10 px-3 py-2">
-                              <p className="text-xs text-white/78 leading-relaxed">{capDescription}</p>
-                            </div>
+                          {hasContent && isRankDescriptionExpanded && (
+                            <RangCard rang={normalizedRang} rangNum={displayedRank} />
                           )}
                         </div>
                       );
