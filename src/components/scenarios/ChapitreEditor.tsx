@@ -15,6 +15,7 @@ import { InvestigationBlock } from "./blocks/InvestigationBlock";
 import { NpcBlock } from "./blocks/NpcBlock";
 import { EnemyBlock } from "./blocks/EnemyBlock";
 import { MJBlock } from "./blocks/MJBlock";
+import { ClueBlock } from "./blocks/ClueBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -26,7 +27,7 @@ interface ChapitreEditorProps {
   onOpenCombatDashboard?: (chapitreId: string, enemyBlockId?: string) => void;
 }
 
-type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note';
+type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note' | 'clue';
 
 interface Block {
   id: string;
@@ -227,7 +228,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     const newBlock: Block = {
       id: crypto.randomUUID(),
       type,
-      data: type === 'text' ? { text: "" }
+      data: type === 'text' ? { title: "", text: "" }
         : type === 'quote' ? { text: "", author: "" }
         : type === 'image' ? { url: "", caption: "" }
         : type === 'location' ? { title: "", description: "", imageUrl: "" }
@@ -236,6 +237,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         : type === 'npc' ? { npcId: undefined, nom: undefined, imageUrl: undefined }
         : type === 'enemy' ? { enemyId: undefined, nom: undefined, imageUrl: undefined }
         : type === 'mj_note' ? { session: "", note: "", anchorBlockId: "", position: "below" }
+        : type === 'clue' ? { title: "", text: "", npcs: [], items: [], testEnabled: false, testStat: "PER", testDd: 10, testDescription: "" }
         : {},
     };
     setBlocks([...blocks, newBlock]);
@@ -411,6 +413,13 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       case 'text':
         return isEditing ? (
           <div className="w-full space-y-2">
+            <input
+              type="text"
+              value={block.data.title ?? ""}
+              onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { title: e.target.value }))}
+              placeholder="Titre (optionnel)"
+              className="w-full bg-transparent text-white/75 text-[18px] font-semibold font-serif tracking-wide outline-none border-b border-white/10 focus:border-[#E3CCCD]/35 pb-1 placeholder:text-white/15 transition-colors"
+            />
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -442,8 +451,15 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
             />
           </div>
         ) : (
-          <div className="w-full text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap wrap-break-word px-2 py-1">
-            {block.data.text ? renderTextWithBold(block.data.text) : <span className="italic text-white/30">Texte vide...</span>}
+          <div className="w-full space-y-1 px-2 py-1">
+            {block.data.title && (
+              <h3 className="font-serif text-white text-[19px] font-semibold tracking-wide leading-snug">
+                {block.data.title}
+              </h3>
+            )}
+            <div className="text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap wrap-break-word">
+              {block.data.text ? renderTextWithBold(block.data.text) : <span className="italic text-white/30">Texte vide...</span>}
+            </div>
           </div>
         );
 
@@ -620,6 +636,16 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           />
         );
       }
+
+      case 'clue':
+        return (
+          <ClueBlock
+            campaignId={campaignId}
+            data={block.data}
+            onChange={(newData) => updateBlock(block.id, newData)}
+            isEditing={isEditing}
+          />
+        );
 
         default:
         return (
@@ -961,6 +987,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               </button>
               <button onClick={() => addBlock('mj_note')} className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-200 transition-colors w-full text-left">
                 <StickyNote className="w-4 h-4 text-amber-300/70" /> Note MJ (Post-it)
+              </button>
+              <button onClick={() => addBlock('clue')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left">
+                <Search className="w-4 h-4 text-sky-400/70" /> Indice / Clue
               </button>
             </div>
           </div>
