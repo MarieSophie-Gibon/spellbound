@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch } from "lucide-react";
+import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch, Users } from "lucide-react";
 import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
@@ -23,8 +23,30 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
   const [copied, setCopied] = useState(false);
   const [selectedPnjId, setSelectedPnjId] = useState<string | null>(null);
   const [selectedPnjVoies, setSelectedPnjVoies] = useState<Array<{ id: string; nom: string; rang: number }>>([]);
+  const [membres, setMembres] = useState<Array<{ id: string; pseudo: string }>>([]);
 
   const selectedPnj = (revealedPnjs ?? []).find((pnj) => pnj.id === selectedPnjId) ?? null;
+
+  useEffect(() => {
+    supabase
+      .from("campaign_members")
+      .select("user_id")
+      .eq("campaign_id", campaign.id)
+      .then(async ({ data: rows }) => {
+        if (!rows?.length) {
+          setMembres([]);
+          return;
+        }
+
+        const ids = rows.map((r) => r.user_id).filter(Boolean);
+        const { data: users } = await supabase
+          .from("utilisateurs")
+          .select("id, pseudo")
+          .in("id", ids);
+
+        setMembres((users ?? []).map((u: { id: string; pseudo: string }) => ({ id: u.id, pseudo: u.pseudo })));
+      });
+  }, [campaign.id]);
 
   useEffect(() => {
     const loadVoies = async () => {
@@ -169,6 +191,23 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
           <PJList campaignId={campaign.id} isMJ={isMJ} />
         </div>
       </section>
+
+      {membres.length > 0 && (
+        <section className="rounded-2xl border border-white/10 bg-[#1E1941]/55 backdrop-blur-lg p-4">
+          <div className="flex items-center gap-2 mb-3 text-white/60">
+            <Users className="w-4 h-4" />
+            <h3 className="text-[10px] uppercase tracking-widest font-semibold">Joueurs ({membres.length})</h3>
+          </div>
+          <div className="space-y-1.5">
+            {membres.map((m) => (
+              <div key={m.id} className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0" />
+                <span className="text-[12px] text-white/80">{m.pseudo}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {selectedPnj && (
         <div className="fixed inset-0 z-60 bg-black/65 backdrop-blur-sm p-3 flex items-center justify-center" onClick={() => setSelectedPnjId(null)}>
