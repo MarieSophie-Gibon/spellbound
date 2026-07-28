@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
+import { RangCard } from "@/components/ui/RangCard";
+import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
 import type {
   Sexe,
   StatKey,
@@ -833,6 +835,18 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
                       <div className="flex-1 min-w-0 space-y-2 py-1 overflow-y-auto max-h-95 scrollbar-thin scrollbar-thumb-white/10">
                         {selectedPeuple.description && <p className="text-[11px] text-white/50 leading-relaxed">{selectedPeuple.description}</p>}
                         {selectedPeuple.data?.traits && <p className="text-[11px] text-white/40 leading-relaxed"><span className="text-white/25">Traits ·</span> {selectedPeuple.data.traits}</p>}
+                        {selectedPeuple.voie && (
+                          <div className="space-y-1.5 pt-2 border-t border-white/8">
+                            <p className="text-[10px] uppercase tracking-[0.12em] text-[#E3CCCD]/50">{selectedPeuple.voie.nom}</p>
+                            <div className="space-y-1.5">
+                              {[1, 2, 3, 4, 5].map((rangNum) => {
+                                const rang = normalizeVoieRang(selectedPeuple.voie!.capacites?.[`rang${rangNum}`]);
+                                if (!hasRangContent(rang)) return null;
+                                return <RangCard key={rangNum} rang={rang} rangNum={rangNum} />;
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (

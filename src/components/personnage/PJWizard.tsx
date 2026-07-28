@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { MagicCard } from "@/components/ui/MagicCard";
+import { RangCard } from "@/components/ui/RangCard";
+import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
 import type {
   Sexe,
   StatKey,
@@ -992,7 +994,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
               )}
               <div className="flex gap-3 pt-1">
                 {/* Liste */}
-                <div className="flex flex-col gap-1 w-44 shrink-0 h-95 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
+                <div className="flex flex-col gap-1 w-44 shrink-0 h-102 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
                   {peuples
                     .filter((p) => !p.nom.toLowerCase().includes("mage"))
                     .map((p) => (
@@ -1073,34 +1075,10 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
                             </p>
                             {selectedPeuple.voie.capacites && (
                               <div className="space-y-1.5">
-                                {[1, 2, 3, 4, 5].map((rang) => {
-                                  const cap =
-                                    selectedPeuple.voie!.capacites?.[
-                                      `rang${rang}`
-                                    ];
-                                  if (!cap) return null;
-                                  return (
-                                    <div key={rang} className="space-y-0.5">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[10px] text-white/25 font-mono shrink-0">
-                                          R{rang}
-                                        </span>
-                                        <span className="text-[11px] text-white/65 font-medium">
-                                          {cap.nom}
-                                        </span>
-                                        {cap.type && (
-                                          <span className="text-[10px] text-white/25 italic">
-                                            ({cap.type})
-                                          </span>
-                                        )}
-                                      </div>
-                                      {cap.description && (
-                                        <p className="text-[10px] text-white/35 leading-relaxed pl-5">
-                                          {cap.description}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
+                                {[1, 2, 3, 4, 5].map((rangNum) => {
+                                  const rang = normalizeVoieRang(selectedPeuple.voie!.capacites?.[`rang${rangNum}`]);
+                                  if (!hasRangContent(rang)) return null;
+                                  return <RangCard key={rangNum} rang={rang} rangNum={rangNum} />;
                                 })}
                               </div>
                             )}
@@ -1537,45 +1515,29 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
                   </div>
 
                   {selectedDemiElfVoieId && (
-                    <div className="pt-2 mt-2 border-t border-white/10">
+                    <div className="pt-2 mt-2 border-t border-white/10 space-y-2">
                       {(() => {
                         const heritage = heritagesDisponibles.find(h => h.voie_id === selectedDemiElfVoieId);
-                        const cap = heritage?.voie?.capacites?.rang1;
-                        if (!cap) return null;
-                        return (
-                          <>
-                            <p className="text-[12px] text-white/60">
-                              <span className="text-white/40">Rang 1 ·</span> {cap.nom}
-                            </p>
-                            {cap.description && (
-                              <p className="text-[11px] mt-1 leading-relaxed text-white/45">
-                                {cap.description}
-                              </p>
-                            )}
-                          </>
-                        );
+                        if (!heritage?.voie?.capacites) return null;
+                        return [1, 2, 3, 4, 5].map((rangNum) => {
+                          const rang = normalizeVoieRang(heritage.voie!.capacites?.[`rang${rangNum}`]);
+                          if (!hasRangContent(rang)) return null;
+                          return <RangCard key={rangNum} rang={rang} rangNum={rangNum} />;
+                        });
                       })()}
                     </div>
                   )}
                 </div>
               ) : selectedPeuple?.voie ? (
-                <div className="p-4 rounded-xl border border-[#E3CCCD]/20 bg-[#E3CCCD]/5">
-                  <p className="text-[10px] uppercase tracking-[0.12em] mb-1 text-[#E3CCCD]/45">
+                <div className="p-4 rounded-xl border border-[#E3CCCD]/20 bg-[#E3CCCD]/5 space-y-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-[#E3CCCD]/45">
                     {selectedPeuple.voie.nom}
                   </p>
-                  {selectedPeuple.voie.capacites?.rang1 && (
-                    <>
-                      <p className="text-[12px] text-white/60">
-                        <span className="text-white/40">Rang 1 ·</span>{" "}
-                        {selectedPeuple.voie.capacites.rang1.nom}
-                      </p>
-                      {selectedPeuple.voie.capacites.rang1.description && (
-                        <p className="text-[11px] mt-1 leading-relaxed text-white/45">
-                          {selectedPeuple.voie.capacites.rang1.description}
-                        </p>
-                      )}
-                    </>
-                  )}
+                  {[1, 2, 3, 4, 5].map((rangNum) => {
+                    const rang = normalizeVoieRang(selectedPeuple.voie!.capacites?.[`rang${rangNum}`]);
+                    if (!hasRangContent(rang)) return null;
+                    return <RangCard key={rangNum} rang={rang} rangNum={rangNum} />;
+                  })}
                 </div>
               ) : (
                 <p className="text-[12px] text-white/25 italic">
@@ -1606,15 +1568,12 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
                       <p className="text-[11.5px] text-violet-200/80 leading-relaxed mb-3">
                         La Voie du Mage s'ajoute et remplace l'évolution future de votre peuple. Vous conservez uniquement la capacité de Rang 1 de votre origine (affichée ci-dessus), et débloquez la Voie de la Magie :
                       </p>
-                      <div className="pt-2 border-t border-violet-500/20">
-                        <p className="text-[12px] text-violet-100">
-                          <span className="text-violet-400/60">Rang 1 ·</span> {magePeuple.voie.capacites?.rang1?.nom}
-                        </p>
-                        {magePeuple.voie.capacites?.rang1?.description && (
-                          <p className="text-[11px] text-violet-200/70 mt-1 leading-relaxed">
-                            {magePeuple.voie.capacites.rang1.description}
-                          </p>
-                        )}
+                      <div className="pt-2 border-t border-violet-500/20 space-y-1.5">
+                        {[1, 2, 3, 4, 5].map((rangNum) => {
+                          const rang = normalizeVoieRang(magePeuple.voie!.capacites?.[`rang${rangNum}`]);
+                          if (!hasRangContent(rang)) return null;
+                          return <RangCard key={rangNum} rang={rang} rangNum={rangNum} />;
+                        })}
                       </div>
                     </div>
                   )}
