@@ -56,7 +56,7 @@ function App() {
   const isBattlemapRoute = location.pathname === "/battlemap";
   const isLobbyRoute = location.pathname === "/";
 
-  const { session, isLoading, initializeAuth } = useAuthStore();
+  const { session, isLoading, isPasswordRecovery, initializeAuth } = useAuthStore();
   const role = useAuthStore((s) => s.role);
   const profile = useProfile();
   const isGlobalEditor = role === "mj" || normalizeRole(profile?.role) === "mj";
@@ -225,7 +225,7 @@ function App() {
         )}
 
         <main className={`flex-1 overflow-hidden flex flex-col ${isMobile && shouldShowNav && !isLobbyRoute ? "pb-19" : ""}`}>
-          {!session ? (
+          {(!session || isPasswordRecovery) ? (
             <Login />
           ) : (
             <Routes>

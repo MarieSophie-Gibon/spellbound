@@ -78,8 +78,10 @@ interface AuthState {
   user: User | null
   role: 'mj' | 'player'
   isLoading: boolean
+  isPasswordRecovery: boolean
   isMJ: () => boolean
   initializeAuth: () => (() => void)
+  clearPasswordRecovery: () => void
   signOut: () => Promise<void>
 }
 
@@ -87,9 +89,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   user: null,
   role: 'player',
-  isLoading: true, // true par défaut le temps que Supabase vérifie la session active
+  isLoading: true,
+  isPasswordRecovery: false,
 
   isMJ: () => get().role === 'mj',
+
+  clearPasswordRecovery: () => set({ isPasswordRecovery: false }),
 
   initializeAuth: () => {
     // 1. Récupération de la session initiale
@@ -107,7 +112,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     })
 
     // 2. Écoute des événements (connexion, déconnexion, expiration du token)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       void (async () => {
         const user = session?.user ?? null
         const role = await resolveRole(user)
@@ -116,6 +121,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           user,
           role,
           isLoading: false,
+          // Active le flag à la réception d'un lien de récupération.
+          // Le formulaire de reset l'effacera explicitement après succès.
+          isPasswordRecovery: event === 'PASSWORD_RECOVERY'
+            ? true
+            : (event === 'USER_UPDATED' || event === 'SIGNED_IN' || event === 'SIGNED_OUT')
+              ? false
+              : get().isPasswordRecovery,
         })
       })()
     })

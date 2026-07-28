@@ -5,9 +5,12 @@ import { Eye, EyeOff, Mail, MoreHorizontal, Zap } from 'lucide-react'
 import { theme } from '@/lib/theme'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { LoginMobile } from '@/components/auth/LoginMobile'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 export function Login() {
   const isMobile = useIsMobile()
+  const isPasswordRecovery = useAuthStore((s) => s.isPasswordRecovery)
+  const clearPasswordRecovery = useAuthStore((s) => s.clearPasswordRecovery)
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>('login')
   const [pseudo, setPseudo] = useState('')
   const [email, setEmail] = useState('')
@@ -45,12 +48,14 @@ export function Login() {
       return
     }
 
-    if (hash.includes('type=recovery')) {
+    // Le hash peut déjà avoir été consommé par Supabase JS avant le montage
+    // de ce composant — on se rabat sur le flag du store.
+    if (hash.includes('type=recovery') || isPasswordRecovery) {
       setMode('reset')
       setError(null)
       setInfo("Définissez un nouveau mot de passe pour finaliser la récupération.")
     }
-  }, [])
+  }, [isPasswordRecovery])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -112,6 +117,7 @@ export function Login() {
       if (error) {
         setError(error.message)
       } else {
+        clearPasswordRecovery()
         setInfo("Mot de passe mis à jour. Vous pouvez maintenant vous connecter.")
         setMode('login')
         setPassword('')
