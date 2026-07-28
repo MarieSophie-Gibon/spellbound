@@ -2,6 +2,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { X, Save, RefreshCw, ChevronDown, ChevronUp, Trash2, Check, Plus, Star } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { RangCard } from "@/components/ui/RangCard";
+import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
 
 interface VoieDetail {
   id: string;
@@ -57,14 +59,6 @@ function getTypeBadgeClass(type: string) {
   if (t === "peuple") return "bg-amber-400/15 text-amber-300 border-amber-400/30";
   if (t === "prestige") return "bg-violet-400/15 text-violet-300 border-violet-400/30";
   return "bg-sky-400/15 text-sky-300 border-sky-400/30";
-}
-
-function getCapaciteName(voie: VoieDetail | undefined, rang: number): string {
-  if (!voie) return `Rang ${rang}`;
-  const caps = voie.capacites;
-  if (!caps) return `Rang ${rang}`;
-  const cap = caps[`rang${rang}`];
-  return cap?.nom || `Rang ${rang}`;
 }
 
 function normalizeText(value: string | null | undefined) {
@@ -625,8 +619,9 @@ export default function VoieEditModal({
                 <div className="px-3 pb-3 pt-1 space-y-1 border-t border-white/8">
                   {allRangsInVoie.map((rang) => {
                     const acquired = ep.rangs_acquis.includes(rang);
-                    const capName = getCapaciteName(voie, rang);
-                    const capDescription = voie?.capacites?.[`rang${rang}`]?.description || "";
+                    const normalizedRang = normalizeVoieRang(voie?.capacites?.[`rang${rang}`]);
+                    const hasContent = hasRangContent(normalizedRang);
+                    const rangTitle = normalizedRang.titre || normalizedRang.nom || `Rang ${rang}`;
                     const rankDescKey = `${idx}-${rang}`;
                     const isRankDescriptionExpanded = !!expandedRankDescriptions[rankDescKey];
                     return (
@@ -650,18 +645,16 @@ export default function VoieEditModal({
                             >
                               {acquired && <Check className="w-2.5 h-2.5 text-emerald-400" />}
                             </div>
-                            <span className="text-[10px] text-white/55 font-mono shrink-0 w-10">
-                              Rang {rang}
+                            <span className="text-[9px] text-white/35 font-mono shrink-0 w-5 text-center">
+                              R{rang}
                             </span>
-                            <span
-                              className={`text-xs truncate ${acquired ? "text-white/90" : "text-white/45"}`}
-                            >
-                              {capName}
+                            <span className={`text-xs truncate ${acquired ? "text-white/90" : "text-white/45"}`}>
+                              {rangTitle}
                             </span>
 
                           </button>
 
-                          {!!capDescription && (
+                          {hasContent && (
                             <button
                               type="button"
                               onClick={() => toggleRankDescription(idx, rang)}
@@ -677,10 +670,8 @@ export default function VoieEditModal({
                           )}
                         </div>
 
-                        {!!capDescription && isRankDescriptionExpanded && (
-                          <div className="rounded-md border border-white/18 bg-white/10 px-2 py-1.5">
-                            <p className="text-[11px] text-white/78 leading-relaxed">{capDescription}</p>
-                          </div>
+                        {hasContent && isRankDescriptionExpanded && (
+                          <RangCard rang={normalizedRang} rangNum={rang} />
                         )}
                       </div>
                     );
@@ -783,12 +774,14 @@ export default function VoieEditModal({
                                 {ranks.length === 0 ? (
                                   <p className="text-white/30 text-[10px] italic">Aucune capacité renseignée.</p>
                                 ) : (
-                                  ranks.map(([rang, cap]) => (
-                                    <div key={rang} className="flex items-start gap-2">
-                                      <span className="text-[9px] font-bold text-[#E3CCCD]/70 bg-[#E3CCCD]/10 rounded px-1.5 py-0.5 shrink-0">R{rang}</span>
-                                      <span className="text-[10px] text-white/60 leading-relaxed">{cap.nom || "—"}</span>
-                                    </div>
-                                  ))
+                                  ranks.map(([key]) => {
+                                    const rangMatch = key.match(/rang(\d+)/);
+                                    const rangNum = rangMatch ? parseInt(rangMatch[1], 10) : null;
+                                    if (!rangNum) return null;
+                                    const rang = normalizeVoieRang(v.capacites?.[key]);
+                                    if (!hasRangContent(rang)) return null;
+                                    return <RangCard key={key} rang={rang} rangNum={rangNum} />;
+                                  })
                                 )}
                               </div>
                             )}

@@ -1357,16 +1357,13 @@ export function PersonnageDetail({
                     (v) => v.id === pathway.voie_id,
                   );
                   
-                  // On filtre les capacités pour ne garder que celles qui ont été acquises
-                  const maxRang = Math.max(...(pathway.rangs_acquis || [1]));
-                  const filteredCapacites = voie?.capacites 
+                  // On filtre les capacités pour ne garder que celles explicitement acquises
+                  const rangsAcquis: number[] = pathway.rangs_acquis ?? [];
+                  const filteredCapacites = voie?.capacites
                     ? Object.fromEntries(
                         Object.entries(voie.capacites).filter(([key]) => {
                           const rangMatch = key.match(/rang(\d+)/);
-                          if (rangMatch) {
-                            return parseInt(rangMatch[1], 10) <= maxRang;
-                          }
-                          return false;
+                          return rangMatch ? rangsAcquis.includes(parseInt(rangMatch[1], 10)) : false;
                         })
                       )
                     : {};
@@ -1376,7 +1373,7 @@ export function PersonnageDetail({
                       key={i}
                       voieNom={voie?.nom ?? `Voie ${i + 1}`}
                       capacites={filteredCapacites}
-                      rangsAcquis={pathway.rangs_acquis ?? []}
+                      rangsAcquis={rangsAcquis}
                       defaultOpen={i === 0}
                     />
                   );
