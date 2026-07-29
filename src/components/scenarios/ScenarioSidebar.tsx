@@ -1,4 +1,4 @@
-import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2, CheckCircle2 } from "lucide-react";
+import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2, CheckCircle2, GripVertical } from "lucide-react";
 
 interface Chapitre {
   id: string;
@@ -30,6 +30,12 @@ interface ScenarioSidebarProps {
   onDeleteScenario: (id: string, title: string) => void;
   onDeleteChapitre: (id: string, title: string) => void;
   onToggleCompleted: (id: string, current: boolean) => void;
+  draggedChapitreId: string | null;
+  dragOverChapitreId: string | null;
+  onChapitreDragStart: (e: React.DragEvent, chapitreId: string) => void;
+  onChapitreDragOver: (e: React.DragEvent, targetChapitreId: string) => void;
+  onChapitreDragEnd: () => void;
+  onChapitreDrop: (e: React.DragEvent, targetChapitreId: string) => void;
   onBack: () => void;
 }
 
@@ -48,6 +54,12 @@ export function ScenarioSidebar({
   onDeleteScenario,
   onDeleteChapitre,
   onToggleCompleted,
+  draggedChapitreId,
+  dragOverChapitreId,
+  onChapitreDragStart,
+  onChapitreDragOver,
+  onChapitreDragEnd,
+  onChapitreDrop,
   onBack,
 }: ScenarioSidebarProps) {
   return (
@@ -124,14 +136,24 @@ export function ScenarioSidebar({
                       return (
                         <div
                           key={chapitre.id}
+                          draggable
+                          onDragStart={(e) => onChapitreDragStart(e, chapitre.id)}
+                          onDragOver={(e) => onChapitreDragOver(e, chapitre.id)}
+                          onDrop={(e) => onChapitreDrop(e, chapitre.id)}
+                          onDragEnd={onChapitreDragEnd}
                           onClick={() => onSelectChapitre(chapitre.id)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-[12px] group/item cursor-pointer ${
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-[12px] group/item cursor-grab active:cursor-grabbing ${
+                            draggedChapitreId === chapitre.id ? "opacity-35" : ""
+                          } ${
+                            dragOverChapitreId === chapitre.id ? "bg-white/6" : ""
+                          } ${
                             isSelected
                               ? "bg-[#E3CCCD]/10 text-[#E3CCCD] font-medium"
                               : "text-white/50 hover:bg-white/4 hover:text-white/80"
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <GripVertical className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]/60" : "text-white/20"}`} />
                             <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
                             <span className={`wrap-break-word min-w-0 ${chapitre.completed ? "line-through text-white/30" : ""}`}>{chapitre.title}</span>
                           </div>

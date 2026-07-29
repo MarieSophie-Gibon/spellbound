@@ -79,6 +79,8 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
   const [chapitreModalConfig, setChapitreModalConfig] = useState<{ isOpen: boolean; scenarioId: string }>({ isOpen: false, scenarioId: "" });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'scenario' | 'chapitre'; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [draggedChapitreId, setDraggedChapitreId] = useState<string | null>(null);
+  const [dragOverChapitreId, setDragOverChapitreId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const { data: scData } = await supabase
@@ -170,6 +172,85 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
     setExpandedScenarios((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleChapitreDragStart = (e: React.DragEvent, chapitreId: string) => {
+    e.stopPropagation();
+    setDraggedChapitreId(chapitreId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleChapitreDragOver = (e: React.DragEvent, targetChapitreId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (dragOverChapitreId !== targetChapitreId) {
+      setDragOverChapitreId(targetChapitreId);
+    }
+  };
+
+  const handleChapitreDragEnd = () => {
+    setDraggedChapitreId(null);
+    setDragOverChapitreId(null);
+  };
+
+  const handleChapitreDrop = async (e: React.DragEvent, targetChapitreId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!draggedChapitreId || draggedChapitreId === targetChapitreId) {
+      setDraggedChapitreId(null);
+      setDragOverChapitreId(null);
+      return;
+    }
+
+    const draggedChapitre = chapitres.find((c) => c.id === draggedChapitreId);
+    const targetChapitre = chapitres.find((c) => c.id === targetChapitreId);
+
+    if (!draggedChapitre || !targetChapitre || draggedChapitre.scenario_id !== targetChapitre.scenario_id) {
+      setDraggedChapitreId(null);
+      setDragOverChapitreId(null);
+      return;
+    }
+
+    const scenarioId = draggedChapitre.scenario_id;
+    const scenarioChapitres = chapitres
+      .filter((c) => c.scenario_id === scenarioId)
+      .sort((a, b) => a.ordre - b.ordre);
+
+    const fromIndex = scenarioChapitres.findIndex((c) => c.id === draggedChapitreId);
+    const toIndex = scenarioChapitres.findIndex((c) => c.id === targetChapitreId);
+
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+      setDraggedChapitreId(null);
+      setDragOverChapitreId(null);
+      return;
+    }
+
+    const reordered = [...scenarioChapitres];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    const updatedForScenario = reordered.map((c, index) => ({ ...c, ordre: index }));
+
+    setChapitres((prev) => prev.map((c) => {
+      const updated = updatedForScenario.find((u) => u.id === c.id);
+      return updated ? { ...c, ordre: updated.ordre } : c;
+    }));
+
+    setDraggedChapitreId(null);
+    setDragOverChapitreId(null);
+
+    const updates = updatedForScenario.map((c) =>
+      supabase.from("chapitres").update({ ordre: c.ordre }).eq("id", c.id)
+    );
+
+    const results = await Promise.all(updates);
+    const firstError = results.find((r) => r.error)?.error;
+    if (firstError) {
+      console.error("Erreur réorganisation chapitres:", firstError.message);
+      fetchData();
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -213,6 +294,12 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       onDeleteScenario={(id, title) => setDeleteTarget({ id, type: 'scenario', title })}
       onDeleteChapitre={(id, title) => setDeleteTarget({ id, type: 'chapitre', title })}
       onToggleCompleted={handleToggleCompleted}
+      draggedChapitreId={draggedChapitreId}
+      dragOverChapitreId={dragOverChapitreId}
+      onChapitreDragStart={handleChapitreDragStart}
+      onChapitreDragOver={handleChapitreDragOver}
+      onChapitreDragEnd={handleChapitreDragEnd}
+      onChapitreDrop={handleChapitreDrop}
       onBack={onBack}
     />
   );
