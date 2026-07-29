@@ -180,6 +180,7 @@ export function PersonnageDetail({
 
   // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
+  const [weaponsRefreshKey, setWeaponsRefreshKey] = useState(0);
   
   // PJ Lore
   const [editIdeal, setEditIdeal] = useState("");
@@ -308,7 +309,7 @@ export function PersonnageDetail({
         .eq('is_equipped', true)
         .then(({ data }) => setWeapons(data ?? []));
     }
-  }, [pj?.id, type]);
+  }, [pj?.id, type, weaponsRefreshKey]);
 
   const handleSave = async () => {
     if (!pj) return;
@@ -1391,6 +1392,7 @@ export function PersonnageDetail({
             profilId={pj.stats?.profil_id || voieDetails.find(v => v.profil_id)?.profil_id} 
             pjStats={pj.stats}
             readOnly={readOnly || technicalSheetOnly}
+            onInventoryChange={() => setWeaponsRefreshKey(k => k + 1)}
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
               await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);

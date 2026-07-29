@@ -16,6 +16,7 @@ interface InventoryTabProps {
   pjStats: any;
   onUpdateStats: (newStats: any) => void;
   readOnly?: boolean;
+  onInventoryChange?: () => void;
 }
 
 type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
@@ -29,7 +30,7 @@ const normalizeItemIdForDb = (value: string | number | null) => {
   return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
 };
 
-export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false }: InventoryTabProps) {
+export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false, onInventoryChange }: InventoryTabProps) {
   const isPnj = !!pnjId;
   const ownerId = pnjId || pjId;
   const [isLoading, setIsLoading] = useState(true);
@@ -195,6 +196,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
       }
       setIsModalOpen(false);
       fetchEverything();
+      onInventoryChange?.();
     } catch (error: any) {
       alert("Impossible d'enregistrer cet objet: " + (error?.message ?? "erreur inconnue"));
     }
@@ -214,6 +216,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
     setIsDeleting(false);
     setItemToDelete(null);
     fetchEverything();
+    onInventoryChange?.();
   };
 
   const toggleEquip = async (item: any) => {
@@ -227,6 +230,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
       await supabase.from("pj_inventaire").update({ is_equipped: !item.is_equipped }).eq("id", item.id);
     }
     fetchEverything();
+    onInventoryChange?.();
   };
 
   const weaponsAndArmor = unifiedItems.filter(i => ["arme_contact", "arme_distance", "armure"].includes(i.item_type));

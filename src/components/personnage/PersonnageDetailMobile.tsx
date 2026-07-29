@@ -178,7 +178,9 @@ export function PersonnageDetailMobile({
   const [editCapacites, setEditCapacites] = useState<Array<{nom: string; description: string}>>([]); 
 
   // Armes affichées dans la fiche technique
+  // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
+  const [weaponsRefreshKey, setWeaponsRefreshKey] = useState(0);
   const [pendingEditWeaponId, setPendingEditWeaponId] = useState<string | null>(null);
   const [hasFamiliers, setHasFamiliers] = useState(false);
   const [peupleNom, setPeupleNom] = useState<string | null>(null);
@@ -355,7 +357,7 @@ export function PersonnageDetailMobile({
         .eq('is_equipped', true)
         .then(({ data }) => setWeapons(data ?? []));
     }
-  }, [pj?.id, type]);
+  }, [pj?.id, type, weaponsRefreshKey]);
 
   useEffect(() => {
     if (!pj) return;
@@ -1668,6 +1670,7 @@ export function PersonnageDetailMobile({
             pjStats={pj.stats}
             readOnly={readOnly || technicalSheetOnly}
             autoOpenItemId={pendingEditWeaponId}
+            onInventoryChange={() => setWeaponsRefreshKey(k => k + 1)}
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
               await supabase

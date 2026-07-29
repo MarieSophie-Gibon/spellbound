@@ -20,6 +20,7 @@ interface InventoryTabMobileProps {
   readOnly?: boolean;
   /** Si défini, ouvre directement le panneau d'édition de cet item au chargement */
   autoOpenItemId?: string | null;
+  onInventoryChange?: () => void;
 }
 
 type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
@@ -33,7 +34,7 @@ const normalizeItemIdForDb = (value: string | number | null) => {
 };
 
 export default function InventoryTabMobile({
-  pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false, autoOpenItemId,
+  pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false, autoOpenItemId, onInventoryChange,
 }: InventoryTabMobileProps) {
   const isPnj = !!pnjId;
   const ownerId = pnjId || pjId;
@@ -176,6 +177,7 @@ export default function InventoryTabMobile({
       }
       setEditItem(null);
       fetchItems();
+      onInventoryChange?.();
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -197,6 +199,7 @@ export default function InventoryTabMobile({
       }
       setEditItem(null);
       fetchItems();
+      onInventoryChange?.();
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -215,6 +218,7 @@ export default function InventoryTabMobile({
       await supabase.from("pj_inventaire").update({ is_equipped: !item.is_equipped }).eq("id", item.id);
     }
     fetchItems();
+    onInventoryChange?.();
   };
 
   const handleAdd = async () => {
@@ -246,6 +250,7 @@ export default function InventoryTabMobile({
       setAddItemId(null);
       setAddIsEquipped(false);
       fetchItems();
+      onInventoryChange?.();
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -499,7 +504,7 @@ export default function InventoryTabMobile({
                   <SelectTrigger className="w-full h-10 bg-white/8 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 disabled:opacity-50">
                     <SelectValue placeholder="Objet personnalisé…" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-60 **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-60 z-10000 **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
                     <SelectItem value="custom" className="text-white! hover:bg-white/10">Objet personnalisé…</SelectItem>
                     {editCompendiumItems.map(ci => (
                       <SelectItem key={ci.id} value={ci.id.toString()} className="text-white! hover:bg-white/10">{ci.nom}</SelectItem>
@@ -631,7 +636,7 @@ export default function InventoryTabMobile({
                   <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 focus-visible:border-[#E3CCCD]/55 disabled:opacity-50">
                     <SelectValue placeholder="Objet personnalisé..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden z-10000 **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
                     <SelectItem value="custom" className={selectItemClass}>Objet personnalisé...</SelectItem>
                     {compendiumItems.map((item) => (
                       <SelectItem key={item.id} value={item.id.toString()} className={selectItemClass}>
