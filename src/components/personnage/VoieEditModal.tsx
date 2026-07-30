@@ -437,7 +437,7 @@ export default function VoieEditModal({
     { key: "ownProfile", label: "Profil", disabled: !currentProfileId },
     { key: "profile", label: "Famille", disabled: otherFamilyProfileIds.length === 0 },
     { key: "hybrid", label: "Hybride" },
-    ...(characterLevel > 5 ? [{ key: "prestige", label: "Prestige" }] : []),
+    ...(characterLevel >= 5 ? [{ key: "prestige", label: "Prestige" }] : []),
   ];
 
   return (

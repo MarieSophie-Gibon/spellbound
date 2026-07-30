@@ -57,7 +57,7 @@ const isLevelLocked = (
   newLevel: number,
   voie?: VoieDetail | null,
 ) => {
-  if (isPrestigeVoie(voie)) return newLevel <= 5;
+  if (isPrestigeVoie(voie)) return newLevel < 5;
   if (storedRank === 4 && newLevel < 5) return true;
   if (storedRank === 5 && newLevel < 7) return true;
   return false;
@@ -222,13 +222,13 @@ export default function LevelUpOverlay({
     if (v.peuple_id) return false;
 
     // Les voies de prestige ne sont proposées que via l'onglet prestige,
-    // et uniquement après avoir atteint le niveau 5.
+    // et uniquement à partir du niveau 5.
     if (isPrestigeVoie(v)) {
       if (unlockType !== "prestige") return false;
-      if (targetLevel <= 5) return false;
+      if (targetLevel < 5) return false;
     }
 
-    if (unlockType === "prestige") return v.type === "prestige" && targetLevel > 5;
+    if (unlockType === "prestige") return v.type === "prestige" && targetLevel >= 5;
     if (unlockType === "ownProfile") return !!currentProfileId && v.profil_id === currentProfileId;
     if (unlockType === "profile") return !!v.profil_id && otherFamilyProfileIds.includes(v.profil_id);
     if (unlockType === "hybrid") return !!v.profil_id && hybridProfileIds.includes(v.profil_id);
@@ -286,7 +286,7 @@ export default function LevelUpOverlay({
     { key: "ownProfile", label: "Profil" },
     { key: "profile", label: "Famille" },
     { key: "hybrid", label: "Hybride" },
-    ...(targetLevel > 5 ? [{ key: "prestige", label: "Prestige" }] : []),
+    ...(targetLevel >= 5 ? [{ key: "prestige", label: "Prestige" }] : []),
   ];
 
   const groupedOtherProfileVoies = filteredAvailableVoies

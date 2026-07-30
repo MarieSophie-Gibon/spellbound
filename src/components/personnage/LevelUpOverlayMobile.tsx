@@ -64,7 +64,7 @@ const isLevelLocked = (
   newLevel: number,
   voie?: VoieDetail | null,
 ) => {
-  if (isPrestigeVoie(voie)) return newLevel <= 5;
+  if (isPrestigeVoie(voie)) return newLevel < 5;
   if (storedRank === 4 && newLevel < 5) return true;
   if (storedRank === 5 && newLevel < 7) return true;
   return false;
@@ -250,11 +250,11 @@ export default function LevelUpOverlayMobile({
 
     if (isPrestigeVoie(v)) {
       if (unlockType !== "prestige") return false;
-      if (targetLevel <= 5) return false;
+      if (targetLevel < 5) return false;
     }
 
     if (unlockType === "prestige")
-      return v.type === "prestige" && targetLevel > 5;
+      return v.type === "prestige" && targetLevel >= 5;
     if (unlockType === "ownProfile")
       return !!currentProfileId && v.profil_id === currentProfileId;
     if (unlockType === "profile")
@@ -321,7 +321,7 @@ export default function LevelUpOverlayMobile({
     { key: "ownProfile", label: "Profil" },
     { key: "profile", label: "Famille" },
     { key: "hybrid", label: "Hybride" },
-    ...(targetLevel > 5 ? [{ key: "prestige", label: "Prestige" }] : []),
+    ...(targetLevel >= 5 ? [{ key: "prestige", label: "Prestige" }] : []),
   ];
 
   const groupedOtherProfileVoies = filteredAvailableVoies
