@@ -325,7 +325,7 @@ export default function InventoryTabMobile({
                 onChange={(e) => {
                   const v = parseInt(e.target.value) || 0;
                   set(v);
-                  onUpdateStats({ ...pjStats, bourse_pa: label === "PA" ? v : pa, bourse_po: label === "PO" ? v : po, bourse_pc: label === "PC" ? v : pc });
+                  onUpdateStats({ ...(pjStats ?? {}), bourse_pa: label === "PA" ? v : pa, bourse_po: label === "PO" ? v : po, bourse_pc: label === "PC" ? v : pc });
                 }}
                 onKeyDown={(e) => e.stopPropagation()}
                 className="w-9 bg-transparent font-mono text-xs text-right outline-none disabled:opacity-50"

@@ -181,6 +181,7 @@ export function PersonnageDetailMobile({
   // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
   const [weaponsRefreshKey, setWeaponsRefreshKey] = useState(0);
+  const [localStats, setLocalStats] = useState<Record<string, any> | null>(pj?.stats ?? null);
   const [pendingEditWeaponId, setPendingEditWeaponId] = useState<string | null>(null);
   const [hasFamiliers, setHasFamiliers] = useState(false);
   const [peupleNom, setPeupleNom] = useState<string | null>(null);
@@ -1684,16 +1685,17 @@ export function PersonnageDetailMobile({
               pj.stats?.profil_id ||
               voieDetails.find((v) => v.profil_id)?.profil_id
             }
-            pjStats={pj.stats}
+            pjStats={localStats ?? pj.stats}
             readOnly={readOnly || technicalSheetOnly}
             autoOpenItemId={pendingEditWeaponId}
             onInventoryChange={() => setWeaponsRefreshKey(k => k + 1)}
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
-              await supabase
+              const { error } = await supabase
                 .from(table)
                 .update({ stats: newStats })
                 .eq("id", pj.id);
+              if (!error) setLocalStats(newStats);
             }}
           />
         )}

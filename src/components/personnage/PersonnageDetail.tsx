@@ -181,6 +181,7 @@ export function PersonnageDetail({
   // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
   const [weaponsRefreshKey, setWeaponsRefreshKey] = useState(0);
+    const [localStats, setLocalStats] = useState<Record<string, any> | null>(pj?.stats ?? null);
   
   // PJ Lore
   const [editIdeal, setEditIdeal] = useState("");
@@ -1389,12 +1390,13 @@ export function PersonnageDetail({
             pjId={type === "pj" ? pj.id : ""}
             pnjId={type === "pnj" ? pj.id : null}
             profilId={pj.stats?.profil_id || voieDetails.find(v => v.profil_id)?.profil_id} 
-            pjStats={pj.stats}
+            pjStats={localStats ?? pj.stats}
             readOnly={readOnly || technicalSheetOnly}
             onInventoryChange={() => setWeaponsRefreshKey(k => k + 1)}
             onUpdateStats={async (newStats) => {
               const table = type === "pnj" ? "pnj" : "pj";
-              await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);
+              const { error } = await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);
+              if (!error) setLocalStats(newStats);
               // Ne pas appeler onEditSuccess() ici : cela rechargerait le pj et resetterait l'onglet actif
             }}
           />

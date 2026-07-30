@@ -259,15 +259,15 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         <div className="flex gap-4">
           <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
             <span className="text-white/40 text-[10px] font-bold">PA</span>
-            <input type="number" disabled={readOnly} value={pa} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPa(v); onUpdateStats({ ...pjStats, bourse_pa: v, bourse_po: po, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none disabled:opacity-50" />
+            <input type="number" disabled={readOnly} value={pa} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPa(v); onUpdateStats({ ...(pjStats ?? {}), bourse_pa: v, bourse_po: po, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
           <div className="flex items-center gap-2 bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
             <span className="text-yellow-500/60 text-[10px] font-bold">PO</span>
-            <input type="number" disabled={readOnly} value={po} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPo(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: v, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
+            <input type="number" disabled={readOnly} value={po} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPo(v); onUpdateStats({ ...(pjStats ?? {}), bourse_pa: pa, bourse_po: v, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
           <div className="flex items-center gap-2 bg-orange-400/10 px-3 py-1.5 rounded-lg border border-orange-400/20">
             <span className="text-orange-500/60 text-[10px] font-bold">PC</span>
-            <input type="number" disabled={readOnly} value={pc} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPc(v); onUpdateStats({ ...pjStats, bourse_pa: pa, bourse_po: po, bourse_pc: v }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
+            <input type="number" disabled={readOnly} value={pc} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPc(v); onUpdateStats({ ...(pjStats ?? {}), bourse_pa: pa, bourse_po: po, bourse_pc: v }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
         </div>
       </div>
