@@ -409,7 +409,6 @@ export function PersonnageDetailMobile({
     setIsInlineSaving(true);
     try {
       const table = type === "pnj" ? "pnj" : "pj";
-      const derivedAttacksForSave = getDerivedAttacks(editNiveau, editCaract as unknown as Record<string, number>);
       const normalizedPvMaxForSave = Math.max(Number(editPvMax ?? 0), Number(editPv ?? 0));
       const statsToSave = type === "pnj" ? {
         ...pj.stats,
@@ -431,9 +430,9 @@ export function PersonnageDetailMobile({
             bonus_caracteristiques: editBonusCaract,
             pc: editPc,
             pm: editPm,
-            att_contact: derivedAttacksForSave.contact,
-            att_distance: derivedAttacksForSave.distance,
-            att_magie: derivedAttacksForSave.magie,
+            att_contact: editAttContact,
+            att_distance: editAttDistance,
+            att_magie: editAttMagie,
             niveau: editNiveau,
           } : {
             att_contact: editAttContact,
@@ -443,7 +442,25 @@ export function PersonnageDetailMobile({
             capacites_speciales: editCapacites,
           })
         } : {})
-      } : { ...pj.stats };
+      } : {
+        ...pj.stats,
+        sexe: editSexe,
+        age: editAge,
+        caracteristiques: editCaract,
+        bonus_caracteristiques: editBonusCaract,
+        pv: editPv,
+        pv_max: normalizedPvMaxForSave,
+        dr_qty: editDrQty,
+        dr_de: editDrDe,
+        pc: editPc,
+        pm: editPm,
+        initiative: editInitiative,
+        defense: editDefense,
+        att_contact: editAttContact,
+        att_distance: editAttDistance,
+        att_magie: editAttMagie,
+        niveau: editNiveau,
+      };
       await supabase.from(table).update({ stats: statsToSave }).eq("id", pj.id);
       setIsEditing(false);
       onEditSuccess();
@@ -623,9 +640,9 @@ export function PersonnageDetailMobile({
     Number(pj.stats?.pv_max ?? 0),
     Number(pj.stats?.pv ?? 0),
   );
-  const displayAttContact = isSimpleCombatant && !isEditing ? (pj.stats?.att_contact ?? 0) : derivedCurrentAttacks.contact;
-  const displayAttDistance = isSimpleCombatant && !isEditing ? (pj.stats?.att_distance ?? 0) : derivedCurrentAttacks.distance;
-  const displayAttMagie = isSimpleCombatant && !isEditing ? (pj.stats?.att_magie ?? 0) : derivedCurrentAttacks.magie;
+  const displayAttContact = typeof pj.stats?.att_contact === "number" ? pj.stats.att_contact : derivedCurrentAttacks.contact;
+  const displayAttDistance = typeof pj.stats?.att_distance === "number" ? pj.stats.att_distance : derivedCurrentAttacks.distance;
+  const displayAttMagie = typeof pj.stats?.att_magie === "number" ? pj.stats.att_magie : derivedCurrentAttacks.magie;
   const derivedCurrentPcMax = Math.max(
     Number(pj.stats?.pc_max ?? pj.stats?.pc ?? 0),
     Number(pj.stats?.pc ?? 0),
