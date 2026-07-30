@@ -253,7 +253,16 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
 
   const placedCombatantIds = useMemo(() => new Set(mapTokens.map((t) => t.combatantId)), [mapTokens]);
 
-  const openPlayerView = () => { window.open("/battlemap", "_blank", "noopener"); setPlayerTabOpen(true); };
+  const openPlayerView = () => {
+    if (!fogEnabled) {
+      setFogEnabled(true);
+      const nextState: BattleMapBroadcast = { ...stateRef.current, fogEnabled: true };
+      stateRef.current = nextState;
+      channelRef.current?.postMessage(nextState);
+    }
+    window.open("/battlemap", "_blank", "noopener");
+    setPlayerTabOpen(true);
+  };
 
   // ── Calcul du rect image-aligné (coordonnées locales innerRef) ───────────────
   const updateImgRect = useCallback(() => {

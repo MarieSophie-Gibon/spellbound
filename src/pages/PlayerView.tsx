@@ -54,7 +54,7 @@ export function PlayerView() {
         tokenSizePct: incoming.tokenSizePct,
         zoom: incoming.zoom ?? 1,
         pan: incoming.pan ?? { x: 0, y: 0 },
-        fogEnabled: incoming.fogEnabled ?? false,
+        fogEnabled: incoming.fogEnabled ?? true,
         fogReveals: incoming.fogReveals ?? [],
         showNameTags: incoming.showNameTags ?? true,
         dragPreviewToken: incoming.dragPreviewToken ?? null,
