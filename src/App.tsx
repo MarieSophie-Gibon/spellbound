@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Login } from "@/components/auth/Login";
@@ -61,7 +62,25 @@ function App() {
   const role = useAuthStore((s) => s.role);
   const profile = useProfile();
   const isGlobalEditor = role === "mj" || normalizeRole(profile?.role) === "mj";
-  const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(null);
+const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
+    const saved = localStorage.getItem("spellbound_active_campaign");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  useEffect(() => {
+    if (activeCampaign) {
+      localStorage.setItem("spellbound_active_campaign", JSON.stringify(activeCampaign));
+    } else {
+      localStorage.removeItem("spellbound_active_campaign");
+    }
+  }, [activeCampaign]);
+  
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
 
   // ── Notifications de connexion à la campagne ─────────────────────────────

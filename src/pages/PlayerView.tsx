@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { BookMarked, Map, Shield, Swords, Users, Wand2, X, Zap } from "lucide-react";
+import { Swords } from "lucide-react";
 import type { Combatant, EncounterEntry, MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
 import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
-import { useAuthStore } from "@/stores/useAuthStore";
 
 interface LiveState {
   imageUrl: string | null;
@@ -22,12 +21,9 @@ interface LiveState {
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
-type Tab = "map" | "combatants" | "encounter";
 
 export function PlayerView() {
   const [state, setState] = useState<LiveState | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("map");
-  const [selectedEncounterKey, setSelectedEncounterKey] = useState<string | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -35,8 +31,6 @@ export function PlayerView() {
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const [smoothedTokenPositions, setSmoothedTokenPositions] = useState<Record<string, { x: number; y: number }>>({});
   const smoothRafRef = useRef<number | null>(null);
-  const role = useAuthStore((s) => s.role);
-  const isMJ = role === "mj";
 
   useEffect(() => {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
@@ -114,29 +108,6 @@ export function PlayerView() {
   }, [imgRect, state?.fogEnabled, state?.fogReveals]);
 
   const activeCombatant = state?.combatants.find(c => c.id === state.activeCombatantId);
-  const visibleCombatants = (state?.combatants ?? []).filter((c) => !c.hidden);
-  const getEncounterNpcCombatant = useCallback((entry: EncounterEntry): Combatant | null => {
-    if (!state || entry.type !== "npc") return null;
-    if (entry.entityId) {
-      const byEntity = state.combatants.find((c) => c.type === "npc" && c.entityId === entry.entityId);
-      if (byEntity) return byEntity;
-    }
-    const byName = state.combatants.find((c) => c.type === "npc" && c.name === entry.name);
-    return byName ?? null;
-  }, [state]);
-
-  const selectedEncounterNpc = useMemo(() => {
-    if (!selectedEncounterKey || !state) return null;
-    const entry = state.encounters.find((e) => e.key === selectedEncounterKey);
-    if (!entry) return null;
-    return getEncounterNpcCombatant(entry);
-  }, [selectedEncounterKey, state, getEncounterNpcCombatant]);
-
-  useEffect(() => {
-    if (!selectedEncounterKey || selectedEncounterNpc) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedEncounterKey(null);
-  }, [selectedEncounterKey, selectedEncounterNpc]);
 
   const targetTokenPositions = useMemo(() => {
     const targets: Record<string, { x: number; y: number }> = {};
@@ -208,82 +179,6 @@ export function PlayerView() {
     return state.tokenSize;
   }, [state, imgRect]);
 
-  const renderCombatantsTab = () => {
-    if (visibleCombatants.length === 0) {
-      return <p className="text-white/30 text-sm italic text-center pt-12">Aucun combattant visible</p>;
-    }
-
-    return visibleCombatants.map((c) => {
-      const isActive = c.id === state?.activeCombatantId;
-      const pct = c.pvMax > 0 ? Math.max(0, Math.min(100, (c.pv / c.pvMax) * 100)) : 0;
-      const barColor = pct > 60 ? "bg-emerald-400" : pct > 25 ? "bg-amber-400" : "bg-red-500";
-      const activeConditions = CONDITION_OPTIONS.filter((o) => c.conditions.includes(o.key));
-      const canSeePv = isMJ || c.type === "pj";
-
-      return (
-        <div key={c.id} className={`rounded-xl border p-3 flex items-center gap-3 transition-colors ${isActive ? "border-amber-400/40 bg-amber-400/5" : "border-white/10 bg-white/3"}`}>
-          <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shrink-0 ${tokenRingClass(c.type)}`}>
-            <img src={c.imageUrl || "/default-avatar.png"} alt={c.name} className="w-full h-full object-cover" />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              {isActive && <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />}
-              <span className="text-sm font-medium text-white truncate">{c.name}</span>
-              {activeConditions.length > 0 && (
-                <span className="flex gap-0.5 ml-auto shrink-0">
-                  {activeConditions.slice(0, 4).map((o) => <span key={o.key} title={o.label} className="text-sm">{o.icon}</span>)}
-                </span>
-              )}
-            </div>
-
-            {canSeePv ? (
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
-                  <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
-                </div>
-                <span className="text-[11px] text-white/50 shrink-0 tabular-nums">{c.pv} / {c.pvMax}</span>
-              </div>
-            ) : (
-              <span className="text-[11px] text-white/35 italic">PV cachés</span>
-            )}
-          </div>
-        </div>
-      );
-    });
-  };
-
-  const renderEncounterTab = () => {
-    const encounters = state?.encounters ?? [];
-    if (encounters.length === 0) {
-      return <p className="text-white/30 text-sm italic text-center pt-12">Aucun encounter pour le moment</p>;
-    }
-
-    return encounters.map((entry) => {
-      const canOpenNpcSheet = entry.type === "npc" && !!getEncounterNpcCombatant(entry);
-      return (
-        <button
-          key={entry.key}
-          type="button"
-          onClick={() => {
-            if (!canOpenNpcSheet) return;
-            setSelectedEncounterKey(entry.key);
-          }}
-          className={`w-full rounded-xl border p-3 flex items-center gap-3 text-left transition-colors ${canOpenNpcSheet ? "border-white/10 bg-white/3 hover:bg-white/8" : "border-white/10 bg-white/3"}`}
-        >
-          <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shrink-0 ${tokenRingClass(entry.type)}`}>
-            <img src={entry.imageUrl || "/default-avatar.png"} alt={entry.name} className="w-full h-full object-cover" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm text-white font-medium truncate">{entry.name}</p>
-            <p className="text-[10px] text-white/35 uppercase tracking-wide">{entry.type === "monster" ? "Monstre" : "PNJ"}</p>
-          </div>
-          <span className="text-[10px] text-white/30 shrink-0">{canOpenNpcSheet ? "Fiche technique" : "Rencontré"}</span>
-        </button>
-      );
-    });
-  };
-
   return (
     <div className="fixed inset-0 bg-black flex flex-col select-none overflow-hidden">
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 sm:px-6 py-3 bg-linear-to-b from-black/80 to-transparent pointer-events-none">
@@ -300,80 +195,80 @@ export function PlayerView() {
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col">
-        <div className={`flex-1 min-h-0 ${activeTab === "map" ? "flex" : "hidden"}`}>
+        <div className="flex-1 min-h-0 flex">
           {state?.imageUrl ? (
             <div ref={containerRef} className="relative flex-1 w-full overflow-hidden flex items-center justify-center">
-          <div
-            className="absolute inset-0"
-            style={{
-              transform: `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`,
-              transformOrigin: "center",
-            }}
-          >
-            <img
-              ref={imgRef}
-              src={state.imageUrl}
-              alt="Carte de combat"
-              className="h-full w-full object-contain"
-              onLoad={updateImgRect}
-              draggable={false}
-            />
-
-            <div
-              className="absolute pointer-events-none"
-              style={imgRect ? {
-                left: imgRect.left,
-                top: imgRect.top,
-                width: imgRect.width,
-                height: imgRect.height,
-              } : { inset: 0 }}
-            >
-              {state.mapTokens.map(token => {
-                const combatant = state.combatants.find(c => c.id === token.combatantId);
-                if (!combatant || combatant.hidden) return null;
-                const isActive = combatant.id === state.activeCombatantId;
-                const target = targetTokenPositions[token.combatantId] ?? { x: token.x, y: token.y };
-                const smoothed = smoothedTokenPositions[token.combatantId] ?? target;
-                const sz = mapTokenSize;
-                const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
-                return (
-                  <div
-                    key={token.combatantId}
-                    className="absolute z-10"
-                    style={{ left: `${smoothed.x}%`, top: `${smoothed.y}%`, transform: "translate(-50%, -50%)" }}
-                  >
-                    {isActive && (
-                      <div className="absolute rounded-full border-2 border-amber-400 animate-ping opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
-                    )}
-                    <div
-                      className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
-                      style={{ width: sz, height: sz }}
-                    >
-                      <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover" draggable={false} />
-                      {activeConditions.length > 0 && (
-                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-wrap content-center gap-0.5 pointer-events-none" style={{ padding: sz * 0.08 }}>
-                          {activeConditions.map(opt => (
-                            <span key={opt.key} title={opt.label} style={{ fontSize: sz * 0.28, lineHeight: 1 }}>{opt.icon}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {(() => { const m = combatant.name.match(/^(.*?) #(\d+)$/); return m ? (
-                      <div className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full bg-black/80 border border-white/30 flex items-center justify-center z-30 pointer-events-none">
-                        <span className="text-[8px] font-bold text-white leading-none">{m[2]}</span>
-                      </div>
-                    ) : null; })()}
-                  </div>
-                );
-              })}
-
-              <canvas
-                ref={fogCanvasRef}
+              <div
                 className="absolute inset-0"
-                style={{ opacity: 1 }}
-              />
-            </div>
-          </div>
+                style={{
+                  transform: `translate(${state.pan.x}px, ${state.pan.y}px) scale(${state.zoom})`,
+                  transformOrigin: "center",
+                }}
+              >
+                <img
+                  ref={imgRef}
+                  src={state.imageUrl}
+                  alt="Carte de combat"
+                  className="h-full w-full object-contain"
+                  onLoad={updateImgRect}
+                  draggable={false}
+                />
+
+                <div
+                  className="absolute pointer-events-none"
+                  style={imgRect ? {
+                    left: imgRect.left,
+                    top: imgRect.top,
+                    width: imgRect.width,
+                    height: imgRect.height,
+                  } : { inset: 0 }}
+                >
+                  {state.mapTokens.map(token => {
+                    const combatant = state.combatants.find(c => c.id === token.combatantId);
+                    if (!combatant || combatant.hidden) return null;
+                    const isActive = combatant.id === state.activeCombatantId;
+                    const target = targetTokenPositions[token.combatantId] ?? { x: token.x, y: token.y };
+                    const smoothed = smoothedTokenPositions[token.combatantId] ?? target;
+                    const sz = mapTokenSize;
+                    const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
+                    return (
+                      <div
+                        key={token.combatantId}
+                        className="absolute z-10"
+                        style={{ left: `${smoothed.x}%`, top: `${smoothed.y}%`, transform: "translate(-50%, -50%)" }}
+                      >
+                        {isActive && (
+                          <div className="absolute rounded-full border-2 border-amber-400 animate-ping opacity-75" style={{ inset: -6, width: sz + 12, height: sz + 12 }} />
+                        )}
+                        <div
+                          className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
+                          style={{ width: sz, height: sz }}
+                        >
+                          <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover" draggable={false} />
+                          {activeConditions.length > 0 && (
+                            <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-wrap content-center gap-0.5 pointer-events-none" style={{ padding: sz * 0.08 }}>
+                              {activeConditions.map(opt => (
+                                <span key={opt.key} title={opt.label} style={{ fontSize: sz * 0.28, lineHeight: 1 }}>{opt.icon}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {(() => { const m = combatant.name.match(/^(.*?) #(\d+)$/); return m ? (
+                          <div className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-0.5 rounded-full bg-black/80 border border-white/30 flex items-center justify-center z-30 pointer-events-none">
+                            <span className="text-[8px] font-bold text-white leading-none">{m[2]}</span>
+                          </div>
+                        ) : null; })()}
+                      </div>
+                    );
+                  })}
+
+                  <canvas
+                    ref={fogCanvasRef}
+                    className="absolute inset-0"
+                    style={{ opacity: 1 }}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-6">
@@ -397,91 +292,7 @@ export function PlayerView() {
             </div>
           )}
         </div>
-
-        <div className={`flex-1 min-h-0 overflow-y-auto px-4 pt-16 pb-4 space-y-3 ${activeTab === "combatants" ? "block" : "hidden"}`}>
-          {renderCombatantsTab()}
-        </div>
-
-        <div className={`flex-1 min-h-0 overflow-y-auto px-4 pt-16 pb-4 space-y-3 ${activeTab === "encounter" ? "block" : "hidden"}`}>
-          {renderEncounterTab()}
-        </div>
       </div>
-
-      <div className="shrink-0 flex border-t border-white/10 bg-black/80 backdrop-blur-xl">
-        <button onClick={() => setActiveTab("map")} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${activeTab === "map" ? "text-amber-300" : "text-white/35 hover:text-white/60"}`}>
-          <Map className="w-4 h-4" />
-          <span className="text-[10px] uppercase tracking-wide font-medium">Carte</span>
-        </button>
-        <button onClick={() => setActiveTab("combatants")} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${activeTab === "combatants" ? "text-amber-300" : "text-white/35 hover:text-white/60"}`}>
-          <Users className="w-4 h-4" />
-          <span className="text-[10px] uppercase tracking-wide font-medium">Combattants</span>
-        </button>
-        <button onClick={() => setActiveTab("encounter")} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors ${activeTab === "encounter" ? "text-amber-300" : "text-white/35 hover:text-white/60"}`}>
-          <BookMarked className="w-4 h-4" />
-          <span className="text-[10px] uppercase tracking-wide font-medium">Encounter</span>
-        </button>
-      </div>
-
-      {selectedEncounterNpc && (
-        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm p-4 flex items-center justify-center">
-          <div className="w-full max-w-xl rounded-2xl border border-white/15 bg-[#131125]/95 shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/10 flex items-start gap-3">
-              <div className={`w-12 h-12 rounded-full border-2 overflow-hidden shrink-0 ${tokenRingClass("npc")}`}>
-                <img src={selectedEncounterNpc.imageUrl || "/default-avatar.png"} alt={selectedEncounterNpc.name} className="w-full h-full object-cover" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] uppercase tracking-widest text-white/40">Fiche technique PNJ</p>
-                <h3 className="text-lg font-semibold text-white truncate">{selectedEncounterNpc.name}</h3>
-              </div>
-              <button type="button" onClick={() => setSelectedEncounterKey(null)} className="p-1.5 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors" aria-label="Fermer la fiche">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Zap className="w-3 h-3" /> Initiative</p>
-                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">{selectedEncounterNpc.pjStats?.initiative ?? selectedEncounterNpc.initiative ?? 0}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Shield className="w-3 h-3" /> Defense</p>
-                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">{selectedEncounterNpc.defense ?? selectedEncounterNpc.pjStats?.caracteristiques?.DEF ?? 0}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Swords className="w-3 h-3" /> Niveau</p>
-                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">{selectedEncounterNpc.pjStats?.niveau ?? 1}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45">Att. contact</p>
-                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{selectedEncounterNpc.pjStats?.att_contact ?? 0}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45">Att. distance</p>
-                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{selectedEncounterNpc.pjStats?.att_distance ?? 0}</p>
-                </div>
-                <div className="rounded-lg border border-white/10 bg-white/5 p-2.5">
-                  <p className="text-[10px] uppercase tracking-wide text-white/45 flex items-center gap-1"><Wand2 className="w-3 h-3" /> Att. magie</p>
-                  <p className="text-sm text-white font-semibold mt-1 tabular-nums">+{selectedEncounterNpc.pjStats?.att_magie ?? 0}</p>
-                </div>
-              </div>
-
-              {selectedEncounterNpc.voies && selectedEncounterNpc.voies.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-white/45">Voies connues</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedEncounterNpc.voies.map((voie) => (
-                      <span key={voie.id} className="text-[11px] px-2.5 py-1 rounded-full border border-white/15 bg-white/6 text-white/80">
-                        {voie.nom}{voie.rangsAcquis.length > 0 ? ` (R${Math.max(...voie.rangsAcquis)})` : ""}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -505,15 +505,15 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
   }, [searchType, searchTerm, campaignId]);
 
   // --- Helpers ---
-  const upsertCombatants = useCallback((newEntries: Combatant[]) => {
-    if (newEntries.length === 0) return;
-    setCombatants((prev) => {
-      const existingKeys = new Set(prev.map((c) => `${c.type}:${c.entityId ?? c.id}`));
-      const unique = newEntries.filter((c) => !existingKeys.has(`${c.type}:${c.entityId ?? c.id}`));
-      return unique.length > 0 ? [...prev, ...unique] : prev;
-    });
-    setIsMenuOpen(false);
-  }, []);
+  // const upsertCombatants = useCallback((newEntries: Combatant[]) => {
+  //   if (newEntries.length === 0) return;
+  //   setCombatants((prev) => {
+  //     const existingKeys = new Set(prev.map((c) => `${c.type}:${c.entityId ?? c.id}`));
+  //     const unique = newEntries.filter((c) => !existingKeys.has(`${c.type}:${c.entityId ?? c.id}`));
+  //     return unique.length > 0 ? [...prev, ...unique] : prev;
+  //   });
+  //   setIsMenuOpen(false);
+  // }, []);
 
   // --- Hydratation : re-fetch TOUJOURS les stats fraîches des PJs depuis la DB ---
   useEffect(() => {
@@ -619,26 +619,128 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       const { data, error } = await supabase.from("chapitres").select("content").eq("id", chapitreId).single();
       if (error) throw error;
       const blocks = (data?.content ?? []) as ChapitreBlock[];
-      const created: Combatant[] = [];
-      for (const block of blocks.filter((b) => b.type === "enemy" && !!b.data?.combatEngaged && !!b.data?.entityId)) {
-        if (!block.data?.entityId || !block.data.entityType) continue;
-        if (block.data.entityType === "monster") {
-          const { data: monster } = await supabase.from("bestiaire").select("id, nom, image_url, combat, stats, attaques, capacites").eq("id", block.data.entityId).single();
-          if (!monster) continue;
-          const pvMax = toNumber(monster.combat?.pv_max ?? monster.combat?.pv, 10);
-          created.push({ id: makeCombatantId(), entityId: monster.id, type: "monster", name: monster.nom, imageUrl: monster.image_url ?? block.data.imageUrl, initiative: toNumber(monster.combat?.initiative, 0), pv: pvMax, pvMax, defense: toNumber(monster.combat?.defense, 0), conditions: [], tactics: block.data.comportement, notes: block.data.notes, details: { stats: monster.stats, combat: monster.combat, attaques: monster.attaques, capacites: monster.capacites } });
-        } else {
-          const { data: npc } = await supabase.from("pnj").select("id, name, image_url, stats, pathways").eq("id", block.data.entityId).single();
-          if (!npc) continue;
-          const pvMax = toNumber(npc.stats?.pv_max ?? npc.stats?.pv, 10);
-          const voies = await fetchVoiesForPathways(npc.pathways);
-          created.push({ id: makeCombatantId(), entityId: npc.id, type: "npc", name: npc.name, imageUrl: npc.image_url ?? block.data.imageUrl, initiative: toNumber(npc.stats?.initiative, 0), pv: pvMax, pvMax, defense: toNumber(npc.stats?.defense, 0), conditions: [], tactics: block.data.comportement, notes: block.data.notes, voies, pjStats: buildPJStats({ stats: npc.stats }) });
+
+      const monsterIds = new Set<string>();
+      const npcIds = new Set<string>();
+
+      // 1. On liste tous les monstres/PNJs DÉJÀ PRÉSENTS dans le dashboard
+      combatants.forEach(c => {
+        if (c.entityId) {
+          if (c.type === "monster") monsterIds.add(c.entityId);
+          if (c.type === "npc") npcIds.add(c.entityId);
         }
+      });
+
+      // 2. On ajoute ceux issus des blocs marqués comme "engagés"
+      blocks.forEach(b => {
+        if (b.type === "enemy" && b.data?.combatEngaged && b.data?.entityId) {
+          if (b.data.entityType === "monster") monsterIds.add(b.data.entityId);
+          if (b.data.entityType === "npc") npcIds.add(b.data.entityId);
+        }
+      });
+
+      // 3. Fetch groupé des données fraîches (évite le spam N+1 requêtes)
+      const [monstersRes, npcsRes] = await Promise.all([
+        monsterIds.size > 0 
+          ? supabase.from("bestiaire").select("id, nom, image_url, combat, stats, attaques, capacites").in("id", Array.from(monsterIds)) 
+          : Promise.resolve({ data: [] }),
+        npcIds.size > 0 
+          ? supabase.from("pnj").select("id, name, image_url, stats, pathways").in("id", Array.from(npcIds)) 
+          : Promise.resolve({ data: [] })
+      ]);
+
+      const monstersMap = new Map((monstersRes.data ?? []).map(m => [m.id, m]));
+      const npcsMap = new Map((npcsRes.data ?? []).map(n => [n.id, n]));
+
+      const npcsVoies = new Map<string, VoieEntry[]>();
+      if (npcsRes.data && npcsRes.data.length > 0) {
+        await Promise.all(npcsRes.data.map(async (n) => {
+          npcsVoies.set(n.id, await fetchVoiesForPathways(n.pathways));
+        }));
       }
-      upsertCombatants(created);
-    } catch (err) { console.error("Error importing engaged enemies", err); }
-    finally { setImportingEngaged(false); }
-  }, [chapitreId, fetchVoiesForPathways, upsertCombatants]);
+
+      setCombatants((prev) => {
+        const next = [...prev];
+        const existingKeys = new Set<string>();
+
+        // 4. MISE À JOUR des existants avec les nouvelles stats du bestiaire
+        for (let i = 0; i < next.length; i++) {
+          const c = next[i];
+          if (!c.entityId) continue;
+          
+          existingKeys.add(`${c.type}:${c.entityId}`);
+
+          const m = monstersMap.get(c.entityId);
+          const n = npcsMap.get(c.entityId);
+
+          if (c.type === "monster" && m) {
+            const pvMax = toNumber(m.combat?.pv_max ?? m.combat?.pv, c.pvMax);
+            next[i] = {
+              ...c,
+              imageUrl: m.image_url ?? c.imageUrl,
+              pvMax,
+              defense: toNumber(m.combat?.defense, c.defense),
+              // On conserve 'c.pv' et 'c.initiative' pour ne pas ruiner le combat en cours
+              details: { stats: m.stats, combat: m.combat, attaques: m.attaques, capacites: m.capacites }
+            };
+          } else if (c.type === "npc" && n) {
+            const pvMax = toNumber(n.stats?.pv_max ?? n.stats?.pv, c.pvMax);
+            next[i] = {
+              ...c,
+              imageUrl: n.image_url ?? c.imageUrl,
+              pvMax,
+              defense: toNumber(n.stats?.defense, c.defense),
+              pjStats: buildPJStats({ stats: n.stats }),
+              voies: npcsVoies.get(n.id) ?? c.voies
+            };
+          }
+        }
+
+        // 5. AJOUT des nouveaux issus des blocs qui n'étaient pas encore dans le dashboard
+        for (const b of blocks) {
+          if (b.type !== "enemy" || !b.data?.combatEngaged || !b.data?.entityId) continue;
+          
+          const eId = b.data.entityId;
+          const type = b.data.entityType;
+          const key = `${type}:${eId}`;
+
+          if (existingKeys.has(key)) continue;
+
+          const m = monstersMap.get(eId);
+          const n = npcsMap.get(eId);
+
+          if (type === "monster" && m) {
+            const pvMax = toNumber(m.combat?.pv_max ?? m.combat?.pv, 10);
+            next.push({
+              id: makeCombatantId(), entityId: m.id, type: "monster", name: m.nom,
+              imageUrl: m.image_url ?? b.data.imageUrl, initiative: toNumber(m.combat?.initiative, 0),
+              pv: pvMax, pvMax, defense: toNumber(m.combat?.defense, 0), conditions: [],
+              tactics: b.data.comportement, notes: b.data.notes,
+              details: { stats: m.stats, combat: m.combat, attaques: m.attaques, capacites: m.capacites }
+            });
+            existingKeys.add(key);
+          } else if (type === "npc" && n) {
+            const pvMax = toNumber(n.stats?.pv_max ?? n.stats?.pv, 10);
+            next.push({
+              id: makeCombatantId(), entityId: n.id, type: "npc", name: n.name,
+              imageUrl: n.image_url ?? b.data.imageUrl, initiative: toNumber(n.stats?.initiative, 0),
+              pv: pvMax, pvMax, defense: toNumber(n.stats?.defense, 0), conditions: [],
+              tactics: b.data.comportement, notes: b.data.notes,
+              pjStats: buildPJStats({ stats: n.stats }), voies: npcsVoies.get(n.id) ?? []
+            });
+            existingKeys.add(key);
+          }
+        }
+
+        return next;
+      });
+
+    } catch (err) {
+      console.error("Error importing/refreshing engaged enemies", err);
+    } finally {
+      setImportingEngaged(false);
+    }
+  }, [chapitreId, fetchVoiesForPathways, combatants]);
 
   function buildPJStats(pjRow: { stats: any }) {
     return {

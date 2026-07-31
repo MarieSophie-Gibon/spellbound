@@ -402,16 +402,6 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
                         </span>
 
                         <div className="shrink-0 flex items-center gap-2 pointer-events-auto">
-                            <label className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-red-500/35 bg-black/30 text-[11px] text-red-200/90 cursor-pointer select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={!!data.combatEngaged}
-                                    onChange={(e) => onChange({ combatEngaged: e.target.checked })}
-                                    className="accent-red-500"
-                                />
-                                Engagé
-                            </label>
-
                             <button
                                 onClick={() => {
                                     if (!data.combatEngaged) {
