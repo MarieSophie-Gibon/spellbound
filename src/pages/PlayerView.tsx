@@ -134,6 +134,7 @@ export function PlayerView() {
 
   useEffect(() => {
     if (!selectedEncounterKey || selectedEncounterNpc) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedEncounterKey(null);
   }, [selectedEncounterKey, selectedEncounterNpc]);
 

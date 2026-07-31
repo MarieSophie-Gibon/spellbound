@@ -6,6 +6,7 @@ import { theme } from '@/lib/theme'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { LoginMobile } from '@/components/auth/LoginMobile'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { validateForgotForm, validateLoginForm, validateResetForm, validateSignupForm } from '@/lib/validation/authForms'
 
 export function Login() {
   const isMobile = useIsMobile()
@@ -23,8 +24,15 @@ export function Login() {
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [forgotCooldownUntil, setForgotCooldownUntil] = useState<number>(0)
+  const [now, setNow] = useState(Date.now)
 
-  const cooldownSeconds = Math.max(0, Math.ceil((forgotCooldownUntil - Date.now()) / 1000))
+  useEffect(() => {
+    if (!forgotCooldownUntil) return
+    const id = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(id)
+  }, [forgotCooldownUntil])
+
+  const cooldownSeconds = Math.max(0, Math.ceil((forgotCooldownUntil - now) / 1000))
 
   useEffect(() => {
     // Gère les retours Supabase de récupération (success + erreurs de lien expiré/invalide).
@@ -36,6 +44,7 @@ export function Login() {
       const errorCode = params.get('error_code')
       const errorDescription = params.get('error_description')
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMode('forgot')
       setInfo(null)
       if (errorCode === 'otp_expired') {
@@ -62,6 +71,7 @@ export function Login() {
     const raw = window.localStorage.getItem('spellbound:forgot-cooldown-until')
     const parsed = Number(raw)
     if (Number.isFinite(parsed) && parsed > Date.now()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForgotCooldownUntil(parsed)
     }
   }, [])
@@ -72,12 +82,20 @@ export function Login() {
     setInfo(null)
 
     if (mode === 'forgot') {
+      const validated = validateForgotForm({ email })
+      if (!validated.success) {
+        setError(validated.error)
+        return
+      }
+
       if (forgotCooldownUntil > Date.now()) {
         setError(`Trop de demandes. Réessaie dans ${cooldownSeconds}s.`)
         return
       }
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      setLoading(true)
+
+      const { error } = await supabase.auth.resetPasswordForEmail(validated.data.email, {
         redirectTo: `${window.location.origin}`,
       })
       if (error) {
@@ -105,15 +123,14 @@ export function Login() {
     }
 
     if (mode === 'reset') {
-      if (password.length < 6) {
-        setError("Le mot de passe doit contenir au moins 6 caractères.")
+      const validated = validateResetForm({ password, confirmPassword })
+      if (!validated.success) {
+        setError(validated.error)
         return
       }
-      if (password !== confirmPassword) {
-        setError("La confirmation du mot de passe ne correspond pas.")
-        return
-      }
-      const { error } = await supabase.auth.updateUser({ password })
+
+      setLoading(true)
+      const { error } = await supabase.auth.updateUser({ password: validated.data.password })
       if (error) {
         setError(error.message)
       } else {
@@ -130,35 +147,47 @@ export function Login() {
       return
     }
 
+    let authEmail = email
+    let authPassword = password
+    let signupPseudo = pseudo
+
     if (mode === 'signup') {
-      if (pseudo.trim().length < 2) {
-        setError("Le pseudo doit contenir au moins 2 caractères.")
+      const validated = validateSignupForm({ pseudo, email, password, confirmPassword })
+      if (!validated.success) {
+        setError(validated.error)
         return
       }
-      if (password.length < 6) {
-        setError("Le mot de passe doit contenir au moins 6 caractères.")
+
+      authEmail = validated.data.email
+      authPassword = validated.data.password
+      signupPseudo = validated.data.pseudo
+    }
+
+    if (mode === 'login') {
+      const validated = validateLoginForm({ email, password })
+      if (!validated.success) {
+        setError(validated.error)
         return
       }
-      if (password !== confirmPassword) {
-        setError("La confirmation du mot de passe ne correspond pas.")
-        return
-      }
+
+      authEmail = validated.data.email
+      authPassword = validated.data.password
     }
 
     setLoading(true)
     if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
       if (error) setError("Les astres ne reconnaissent pas ces identifiants.")
       setLoading(false)
       return
     }
 
     const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
+      email: authEmail,
+      password: authPassword,
       options: {
         data: {
-          pseudo: pseudo.trim(),
+          pseudo: signupPseudo,
           role: 'player',
         },
       },
@@ -174,7 +203,7 @@ export function Login() {
       // Meilleur effort: créer le profil applicatif si la policy le permet.
       await supabase.from('utilisateurs').upsert({
         id: data.user.id,
-        pseudo: pseudo.trim(),
+        pseudo: signupPseudo,
         role: 'joueur',
       })
     }

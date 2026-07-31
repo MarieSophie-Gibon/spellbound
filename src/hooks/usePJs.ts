@@ -5,9 +5,9 @@ export interface PJ {
   id: string;
   name: string;
   image_url: string | null;
-  stats: any;
-  pathways: any;
-  inventory: any;
+  stats: Record<string, unknown>;
+  pathways: Record<string, unknown>;
+  inventory: Record<string, unknown>;
   peuple_id?: string | null;
   player_id?: string | null;
   user_id?: string | null;

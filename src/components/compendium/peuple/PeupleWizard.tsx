@@ -182,7 +182,7 @@ export function PeupleWizard({
   const toggleRangItem = (ikey: string) =>
     setOpenRangItems((prev) => {
       const n = new Set(prev);
-      n.has(ikey) ? n.delete(ikey) : n.add(ikey);
+      if (n.has(ikey)) { n.delete(ikey); } else { n.add(ikey); }
       return n;
     });
 
@@ -448,7 +448,7 @@ export function PeupleWizard({
                 const itemHasContent = (item: unknown) =>
                   Object.values(item as Record<string, unknown>).some(v => (typeof v === "string" && v.trim().length > 0) || (typeof v === "boolean" && v));
                 const showItems = isEditing
-                  ? [...bonuses, ...capacites, ...actions, ...familiers, ...legacies].some((i, _idx) => itemHasContent(i)) || newItemKeys.size > 0
+                  ? [...bonuses, ...capacites, ...actions, ...familiers, ...legacies].some((i) => itemHasContent(i)) || newItemKeys.size > 0
                   : bonuses.length > 0 || capacites.length > 0 || actions.length > 0 || familiers.length > 0 || legacies.length > 0;
                 return (
                   <div key={key} className="rounded-xl border border-white/8 overflow-hidden">

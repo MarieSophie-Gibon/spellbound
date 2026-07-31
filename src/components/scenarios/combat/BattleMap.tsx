@@ -24,6 +24,7 @@ async function uploadBattleMap(file: File): Promise<string | null> {
   return data.publicUrl;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function tokenRingClass(type: string) {
   if (type === "pj") return "border-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
   if (type === "familier") return "border-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]";
@@ -70,6 +71,7 @@ export interface TokenNameTagMetrics {
   padY: number;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function getTokenNameTagMetrics(tokenSize: number): TokenNameTagMetrics {
   return {
     fontSize: Math.max(6, tokenSize * 0.16),

@@ -24,6 +24,7 @@ export function GrimoirePopupModal() {
   // Reset state on open
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery(initialQuery);
       setSelectedPage(null);
       setTimeout(() => searchRef.current?.focus(), 50);
@@ -45,6 +46,7 @@ export function GrimoirePopupModal() {
   // Auto-open pageId if provided
   useEffect(() => {
     if (!open || !pageId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingPage(true);
     void supabase.from("wiki_pages").select("*").eq("id", pageId).single().then(({ data }) => {
       setSelectedPage(data ?? null);

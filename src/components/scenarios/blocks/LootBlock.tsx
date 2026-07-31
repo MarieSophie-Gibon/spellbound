@@ -42,7 +42,7 @@ const TABLE_LABEL: Record<string, string> = {
 
 export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
     const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<LootItem[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [wizardType, setWizardType] = useState<EquipementType | null>(null);
     const [assigningItemKey, setAssigningItemKey] = useState<string | null>(null);
@@ -60,11 +60,11 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
         const missingDesc = items.filter(i => i.description === undefined || i.description === null);
         if (missingDesc.length === 0) return;
 
-        const TABLE_SELECT: Record<string, { table: string; select: string; getDesc: (row: any) => string | null }> = {
-            equipements:    { table: 'equipements',    select: 'id, data',   getDesc: r => r.data?.description || null },
-            armes_contact:  { table: 'armes_contact',  select: 'id, notes',  getDesc: r => r.notes || null },
-            armes_distance: { table: 'armes_distance', select: 'id, notes',  getDesc: r => r.notes || null },
-            armures:        { table: 'armures',        select: 'id, notes',  getDesc: r => r.notes || null },
+        const TABLE_SELECT: Record<string, { table: string; select: string; getDesc: (row: Record<string, unknown>) => string | null }> = {
+            equipements:    { table: 'equipements',    select: 'id, data',   getDesc: r => (r.data as Record<string, unknown>)?.description as string || null },
+            armes_contact:  { table: 'armes_contact',  select: 'id, notes',  getDesc: r => r.notes as string || null },
+            armes_distance: { table: 'armes_distance', select: 'id, notes',  getDesc: r => r.notes as string || null },
+            armures:        { table: 'armures',        select: 'id, notes',  getDesc: r => r.notes as string || null },
         };
 
         const hydrate = async () => {
@@ -78,7 +78,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                 const cfg = TABLE_SELECT[tbl];
                 if (!cfg) return;
                 const { data: rows } = await supabase.from(cfg.table).select(cfg.select).in('id', ids);
-                (rows || []).forEach((r: any) => { descMap[`${tbl}:${r.id}`] = cfg.getDesc(r); });
+                (rows || []).forEach((r: Record<string, unknown>) => { descMap[`${tbl}:${r.id as string}`] = cfg.getDesc(r); });
             }));
 
             const updated = items.map(i => {
@@ -159,7 +159,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
         setTimeout(() => setAssignedKeys(prev => { const s = new Set(prev); s.delete(key); return s; }), 2000);
     };
 
-    const addItem = (item: any) => {
+    const addItem = (item: LootItem) => {
         const existing = items.find(i => i.id === item.id && i.table === item.table);
         if (existing) {
             updateQuantity(existing.id, existing.table, 1);

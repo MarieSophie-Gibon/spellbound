@@ -24,9 +24,9 @@ interface Character {
   user_id?: string | null;
   profil_id?: string | null;
   profils_id?: string | null;
-  stats: any;
-  pathways: any;
-  inventory: any;
+  stats: Record<string, unknown>;
+  pathways: Record<string, unknown>;
+  inventory: Record<string, unknown>;
 }
 
 // ─────────────────────────────────────────────
@@ -153,6 +153,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
 
   useEffect(() => {
     if (!isLoading && !selectedCharacter && mobileView === "detail") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMobileView("list");
     }
   }, [isLoading, selectedCharacter, mobileView]);
@@ -178,6 +179,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
   useEffect(() => {
     const pjId = searchParams.get("pjId");
     if (pjId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedId(pjId);
       setSelectedType("pj");
       setMobileView("detail");

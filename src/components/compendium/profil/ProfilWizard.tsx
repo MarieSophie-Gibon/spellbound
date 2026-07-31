@@ -264,7 +264,7 @@ export function ProfilWizard({
   const toggleRangItem = (ikey: string) =>
     setOpenRangItems((prev) => {
       const n = new Set(prev);
-      n.has(ikey) ? n.delete(ikey) : n.add(ikey);
+      if (n.has(ikey)) { n.delete(ikey); } else { n.add(ikey); }
       return n;
     });
 

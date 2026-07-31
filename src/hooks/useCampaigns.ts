@@ -299,7 +299,7 @@ export function useLeaveCampaign() {
     onSuccess: (_data, campaignId) => {
       // Retirer la campagne du cache immédiatement pour toutes les variantes de clé.
       queryClient.setQueriesData<unknown[]>({ queryKey: ['campaigns'] }, (old) =>
-        Array.isArray(old) ? old.filter((c: any) => c.id !== campaignId) : old
+        Array.isArray(old) ? old.filter((c: Campaign) => c.id !== campaignId) : old
       )
 
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
@@ -404,15 +404,16 @@ export function useRevealedPnjs(campaignId: string) {
 
       if (error) throw error
 
+      type RawRow = { revealed_at: string; pnj: { id: string; name: string; image_url: string | null; description: string | null; stats: RevealedPnj['stats']; pathways: RevealedPnj['pathways'] } | null }
       return (data ?? [])
-        .filter((row: any) => !!row?.pnj)
-        .map((row: any) => ({
-          id: row.pnj.id,
-          name: row.pnj.name,
-          image_url: row.pnj.image_url,
-          description: row.pnj.description,
-          stats: row.pnj.stats,
-          pathways: row.pnj.pathways,
+        .filter((row: RawRow) => !!row?.pnj)
+        .map((row: RawRow) => ({
+          id: row.pnj!.id,
+          name: row.pnj!.name,
+          image_url: row.pnj!.image_url,
+          description: row.pnj!.description,
+          stats: row.pnj!.stats,
+          pathways: row.pnj!.pathways,
           revealed_at: row.revealed_at,
         }))
     },

@@ -6,6 +6,7 @@ import { X, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useCreateCampaign, useUpdateCampaign } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { supabase } from "@/lib/supabase";
+import { validateCampaignForm, validateCampaignImage } from "@/lib/validation/campaignForms";
 
 interface CreateCampaignProps {
   open: boolean;
@@ -29,6 +30,13 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const imageValidation = validateCampaignImage(file);
+      if (!imageValidation.success) {
+        setError(imageValidation.error);
+        return;
+      }
+
+      setError(null);
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -37,9 +45,23 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const validated = validateCampaignForm({ nom, description });
+    if (!validated.success) {
+      setError(validated.error);
+      return;
+    }
+
+    const imageValidation = validateCampaignImage(imageFile);
+    if (!imageValidation.success) {
+      setError(imageValidation.error);
+      return;
+    }
+
+    const payload = validated.data;
     let image_url = initialData?.image_url ?? null;
     if (imageFile) {
-      const ext = imageFile.name.split('.').pop();
+      const ext = imageFile.name.split('.').pop() || "jpg";
       const path = `campagnes/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
       const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
       if (upErr) {
@@ -52,7 +74,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
 
     if (isEditing && initialData) {
       updateCampaign.mutate(
-        { id: initialData.id, nom, description, image_url },
+        { id: initialData.id, nom: payload.nom, description: payload.description, image_url },
         {
           onSuccess: (data) => { onCreated(data); onOpenChange(false); },
           onError: (err: unknown) => { setError((err as Error).message || "Erreur inconnue"); },
@@ -60,7 +82,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
       );
     } else {
       createCampaign.mutate(
-        { nom, description, image_url },
+        { nom: payload.nom, description: payload.description, image_url },
         {
           onSuccess: (data) => { onCreated(data); onOpenChange(false); },
           onError: (err: unknown) => { setError((err as Error).message || "Erreur inconnue"); },

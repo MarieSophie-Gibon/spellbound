@@ -35,8 +35,8 @@ export function LocationBlock({ data, onChange }: LocationBlockProps) {
 
             const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
             onChange({ imageUrl: urlData.publicUrl });
-        } catch (err: any) {
-            alert("Erreur d'upload : " + err.message);
+        } catch (err: unknown) {
+            alert("Erreur d'upload : " + (err instanceof Error ? err.message : String(err)));
         } finally {
             setIsUploading(false);
         }

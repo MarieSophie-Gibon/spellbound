@@ -645,7 +645,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
           <div className="flex flex-col items-center justify-center h-full gap-10 py-12 animate-in fade-in">
             <div className="text-center space-y-1">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/40">Nouveau Personnage Non-Joueur</p>
-              <p className="text-sm text-white/40">Comment souhaitez-vous procéder ?</p>
+              <p className="text-sm text-white/40">Comment souhaitez-vous procéder ?</p>
             </div>
             <div className="grid grid-cols-2 gap-4 w-full max-w-md">
               <button

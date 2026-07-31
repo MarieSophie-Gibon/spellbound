@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, Save, FolderPlus, FileText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { validateScenarioForm, validateChapitreForm } from "@/lib/validation/scenarioForms";
 
 // ─────────────────────────────────────────────
 // MODALE SCÉNARIO
@@ -24,15 +25,32 @@ export function ScenarioModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!title.trim()) return alert("Le titre est obligatoire");
+    const validated = validateScenarioForm({ title, description });
+    if (!validated.success) {
+      return alert(validated.error);
+    }
+
     setIsSubmitting(true);
     try {
+      const payload = validated.data;
       if (initialData?.id) {
-        await supabase.from("scenarios").update({ title: title.trim(), description: description.trim() || null }).eq("id", initialData.id);
+        const { error } = await supabase
+          .from("scenarios")
+          .update({ title: payload.title, description: payload.description })
+          .eq("id", initialData.id);
+        if (error) throw error;
       } else {
         // Optionnel : Gérer l'ordre (mettre à la fin)
-        const { count } = await supabase.from("scenarios").select("*", { count: "exact", head: true }).eq("campaign_id", campaignId);
-        await supabase.from("scenarios").insert({ campaign_id: campaignId, title: title.trim(), description: description.trim() || null, ordre: count || 0 });
+        const { count, error: countError } = await supabase
+          .from("scenarios")
+          .select("*", { count: "exact", head: true })
+          .eq("campaign_id", campaignId);
+        if (countError) throw countError;
+
+        const { error } = await supabase
+          .from("scenarios")
+          .insert({ campaign_id: campaignId, title: payload.title, description: payload.description, ordre: count || 0 });
+        if (error) throw error;
       }
       onSuccess();
     } catch (err) {
@@ -111,16 +129,37 @@ export function ChapitreModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!title.trim()) return alert("Le titre est obligatoire");
+    const validated = validateChapitreForm({ title });
+    if (!validated.success) {
+      return alert(validated.error);
+    }
+
     setIsSubmitting(true);
     try {
+      const payload = validated.data;
       if (initialData?.id) {
-        await supabase.from("chapitres").update({ title: title.trim() }).eq("id", initialData.id);
+        const { error } = await supabase
+          .from("chapitres")
+          .update({ title: payload.title })
+          .eq("id", initialData.id);
+        if (error) throw error;
+
         onSuccess(initialData.id);
       } else {
-        const { count } = await supabase.from("chapitres").select("*", { count: "exact", head: true }).eq("scenario_id", scenarioId);
-        const { data } = await supabase.from("chapitres").insert({ scenario_id: scenarioId, title: title.trim(), ordre: count || 0 }).select();
-        onSuccess(data?.[0]?.id);
+        const { count, error: countError } = await supabase
+          .from("chapitres")
+          .select("*", { count: "exact", head: true })
+          .eq("scenario_id", scenarioId);
+        if (countError) throw countError;
+
+        const { data, error } = await supabase
+          .from("chapitres")
+          .insert({ scenario_id: scenarioId, title: payload.title, ordre: count || 0 })
+          .select("id")
+          .single();
+        if (error) throw error;
+
+        onSuccess(data?.id);
       }
     } catch (err) {
       if (err instanceof Error) {
