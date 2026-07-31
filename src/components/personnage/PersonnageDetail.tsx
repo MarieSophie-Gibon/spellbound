@@ -294,24 +294,75 @@ export function PersonnageDetail({
     setIsLevelingUp(false);
   }, [technicalSheetOnly]);
 
-  // Chargement des armes depuis l'inventaire
+ /// Chargement des armes depuis l'inventaire
   useEffect(() => {
     if (!pj?.id) { setWeapons([]); return; }
-    if (type === 'pnj') {
-      supabase.from('pnj').select('inventory').eq('id', pj.id).single().then(({ data }) => {
+
+    const fetchWeapons = async () => {
+      if (type === 'pnj') {
+        const { data } = await supabase.from('pnj').select('inventory').eq('id', pj.id).single();
         const items: any[] = data?.inventory?.items ?? [];
         setWeapons(items.filter((i: any) => (i.item_type === 'arme_contact' || i.item_type === 'arme_distance') && i.is_equipped));
-      });
-    } else {
-      supabase.from('pj_inventaire')
-        .select('*')
-        .eq('pj_id', pj.id)
-        .in('item_type', ['arme_contact', 'arme_distance'])
-        .eq('is_equipped', true)
-        .then(({ data }) => setWeapons(data ?? []));
-    }
+      } else {
+        // 1. Récupération directe des lignes d'inventaire du PJ
+        const { data: invData } = await supabase.from('pj_inventaire')
+          .select('*')
+          .eq('pj_id', pj.id)
+          .in('item_type', ['arme_contact', 'arme_distance'])
+          .eq('is_equipped', true);
+
+        if (!invData || invData.length === 0) {
+          setWeapons([]);
+          return;
+        }
+
+        // 2. On isole les item_id pour ceux qui en ont un
+        const contactIds = invData.filter(i => i.item_type === 'arme_contact' && i.item_id != null).map(i => String(i.item_id));
+        const distanceIds = invData.filter(i => i.item_type === 'arme_distance' && i.item_id != null).map(i => String(i.item_id));
+
+        const [contactRes, distanceRes] = await Promise.all([
+          contactIds.length > 0 
+            ? supabase.from('armes_contact').select('id, dm, type_de_dm').in('id', contactIds) 
+            : Promise.resolve({ data: [] }),
+          distanceIds.length > 0 
+            ? supabase.from('armes_distance').select('id, dm, type_de_dm, portee').in('id', distanceIds) 
+            : Promise.resolve({ data: [] })
+        ]);
+
+        const contactMap = new Map<string, any>((contactRes.data || []).map(a => [String(a.id), a]));
+        const distanceMap = new Map<string, any>((distanceRes.data || []).map(a => [String(a.id), a]));
+
+        // 3. Traitement
+        const formattedWeapons = invData.map((item: any) => {
+          let baseWeapon: any = null;
+          const itemIdStr = item.item_id != null ? String(item.item_id) : null;
+
+          if (item.item_type === 'arme_contact' && itemIdStr) {
+            baseWeapon = contactMap.get(itemIdStr);
+          } else if (item.item_type === 'arme_distance' && itemIdStr) {
+            baseWeapon = distanceMap.get(itemIdStr);
+          }
+
+          // Priorité 1 : La valeur 'dm' ou 'degats' portée directement sur l'objet d'inventaire
+          // Priorité 2 : La valeur du compendium si item_id est présent
+          const dmDirect = item.dm ?? item.degats;
+          const dmCompendium = baseWeapon?.dm ? `${baseWeapon.dm}${baseWeapon.type_de_dm ? ` ${baseWeapon.type_de_dm}` : ''}`.trim() : null;
+
+          return {
+            ...item,
+            degats: dmDirect ?? dmCompendium ?? null,
+            portee: item.portee ?? baseWeapon?.portee ?? null,
+          };
+        });
+
+        setWeapons(formattedWeapons);
+      }
+    };
+
+    fetchWeapons();
   }, [pj?.id, type, weaponsRefreshKey]);
 
+  console.log("weapons", weapons);
   const handleSave = async () => {
     if (!pj) return;
     setIsSaving(true);
@@ -1321,15 +1372,7 @@ export function PersonnageDetail({
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-orange-400/25 bg-orange-400/8"
                   >
                     <span className="text-[11px] text-white/90 font-medium">{w.nom_custom || 'Arme'}</span>
-                    <span className={`text-[8px] uppercase tracking-widest font-bold ${
-                      w.item_type === 'arme_distance' ? 'text-sky-300/60' : 'text-orange-300/60'
-                    }`}>
-                      {w.item_type === 'arme_distance' ? 'D' : 'C'}
-                    </span>
-                    {w.description_custom && (
-                      <span className="text-[11px] font-mono text-orange-200/80">{w.description_custom}</span>
-                    )}
-                    {(w.qte ?? 1) > 1 && <span className="text-[9px] text-white/35 font-mono">×{w.qte}</span>}
+                    {w.degats && <span className="text-[10px] text-white/50 font-mono">{w.degats}</span>}
                   </div>
                 ))}
               </div>

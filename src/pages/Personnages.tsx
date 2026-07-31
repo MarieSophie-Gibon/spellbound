@@ -5,7 +5,7 @@ import { PJWizard } from "@/components/personnage/PJWizard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { PersonnageSidebar } from "@/components/personnage/PersonnageSidebar";
 import { PersonnageDetail } from "@/components/personnage/PersonnageDetail";
-import { PersonnageDetailMobile } from "@/components/personnage/PersonnageDetailMobile";
+import { PersonnageDetailMobile } from "@/components/personnage/mobile view/PersonnageDetailMobile";
 import { AlertTriangle, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";

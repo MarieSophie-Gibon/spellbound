@@ -34,9 +34,9 @@ import { VoieBlock } from "@/components/ui/VoieBlock";
 import type { VoieSection } from "@/components/ui/RangCard";
 import { EditNumField } from "@/components/ui/EditNumField";
 
-import InventoryTabMobile from "@/components/personnage/InventoryTabMobile";
-import LoreTabMobile from "@/components/personnage/LoreTabMobile";
-import LevelUpOverlayMobile from "@/components/personnage/LevelUpOverlayMobile";
+import InventoryTabMobile from "@/components/personnage/mobile view/InventoryTabMobile";
+import LoreTabMobile from "@/components/personnage/mobile view/LoreTabMobile";
+import LevelUpOverlayMobile from "@/components/personnage/mobile view/LevelUpOverlayMobile";
 import FamilierTab from "@/components/personnage/FamilierTab";
 import VoieEditModal from "@/components/personnage/VoieEditModal";
 
@@ -177,7 +177,6 @@ export function PersonnageDetailMobile({
   const [editAttaques, setEditAttaques] = useState<Array<{nom: string; bonus: string; degats: string; description: string}>>([]);
   const [editCapacites, setEditCapacites] = useState<Array<{nom: string; description: string}>>([]); 
 
-  // Armes affichées dans la fiche technique
   // Armes affichées dans la fiche technique
   const [weapons, setWeapons] = useState<any[]>([]);
   const [weaponsRefreshKey, setWeaponsRefreshKey] = useState(0);
@@ -345,19 +344,68 @@ export function PersonnageDetailMobile({
   // Chargement des armes depuis l'inventaire
   useEffect(() => {
     if (!pj?.id) { setWeapons([]); return; }
-    if (type === 'pnj') {
-      supabase.from('pnj').select('inventory').eq('id', pj.id).single().then(({ data }) => {
+
+    const fetchWeapons = async () => {
+      if (type === 'pnj') {
+        const { data } = await supabase.from('pnj').select('inventory').eq('id', pj.id).single();
         const items: any[] = data?.inventory?.items ?? [];
         setWeapons(items.filter((i: any) => (i.item_type === 'arme_contact' || i.item_type === 'arme_distance') && i.is_equipped));
-      });
-    } else {
-      supabase.from('pj_inventaire')
-        .select('*')
-        .eq('pj_id', pj.id)
-        .in('item_type', ['arme_contact', 'arme_distance'])
-        .eq('is_equipped', true)
-        .then(({ data }) => setWeapons(data ?? []));
-    }
+      } else {
+        const { data: invData } = await supabase.from('pj_inventaire')
+          .select('*')
+          .eq('pj_id', pj.id)
+          .in('item_type', ['arme_contact', 'arme_distance'])
+          .eq('is_equipped', true);
+
+        if (!invData || invData.length === 0) {
+          setWeapons([]);
+          return;
+        }
+
+        const contactIds = invData.filter(i => i.item_type === 'arme_contact' && i.item_id).map(i => i.item_id);
+        const distanceIds = invData.filter(i => i.item_type === 'arme_distance' && i.item_id).map(i => i.item_id);
+
+        const [contactRes, distanceRes] = await Promise.all([
+          contactIds.length > 0 
+            ? supabase.from('armes_contact').select('id, dm, type_de_dm').in('id', contactIds) 
+            : Promise.resolve({ data: [] }),
+          distanceIds.length > 0 
+            ? supabase.from('armes_distance').select('id, dm, type_de_dm, portee').in('id', distanceIds) 
+            : Promise.resolve({ data: [] })
+        ]);
+
+        const contactMap = new Map<any, { id: any; dm?: any; type_de_dm?: any; portee?: any }>(
+          (contactRes.data || []).map(a => [a.id, a])
+        );
+        const distanceMap = new Map<any, { id: any; dm?: any; type_de_dm?: any; portee?: any }>(
+          (distanceRes.data || []).map(a => [a.id, a])
+        );
+
+        const formattedWeapons = invData.map((item) => {
+          let baseWeapon: { id: any; dm?: any; type_de_dm?: any; portee?: any } | undefined;
+          
+          if (item.item_type === 'arme_contact' && item.item_id) {
+            baseWeapon = contactMap.get(item.item_id);
+          } else if (item.item_type === 'arme_distance' && item.item_id) {
+            baseWeapon = distanceMap.get(item.item_id);
+          }
+
+          const degats = baseWeapon 
+            ? `${baseWeapon.dm || ''} ${baseWeapon.type_de_dm || ''}`.trim() 
+            : null;
+
+          return {
+            ...item,
+            degats,
+            portee: baseWeapon?.portee || null
+          };
+        });
+
+        setWeapons(formattedWeapons);
+      }
+    };
+
+    fetchWeapons();
   }, [pj?.id, type, weaponsRefreshKey]);
 
   useEffect(() => {
@@ -1573,7 +1621,7 @@ export function PersonnageDetailMobile({
               </div>
             )}
 
-            {/* Armes */}
+            {/* ── Armes ── */}
             {!isSimpleCombatant && weapons.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[9px] uppercase tracking-widest text-orange-300/60 flex items-center gap-1 shrink-0">
@@ -1588,7 +1636,11 @@ export function PersonnageDetailMobile({
                       setPendingEditWeaponId(w.id ?? null);
                       setActiveTab('inventory');
                     }}
-                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-orange-400/25 bg-orange-400/8 ${!readOnly ? 'hover:border-orange-400/60 hover:bg-orange-400/15 transition-colors' : ''}`}
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border ${
+                      w.item_type === 'arme_distance' 
+                        ? 'border-sky-400/25 bg-sky-400/8' 
+                        : 'border-orange-400/25 bg-orange-400/8'
+                    } ${!readOnly ? 'hover:bg-white/10 transition-colors' : ''}`}
                   >
                     <span className="text-[11px] text-white/90 font-medium">{w.nom_custom || 'Arme'}</span>
                     <span className={`text-[8px] uppercase tracking-widest font-bold ${
@@ -1596,10 +1648,16 @@ export function PersonnageDetailMobile({
                     }`}>
                       {w.item_type === 'arme_distance' ? 'D' : 'C'}
                     </span>
-                    {w.description_custom && (
-                      <span className="text-[11px] font-mono text-orange-200/80">{w.description_custom}</span>
+                    {w.degats && (
+                      <span className="text-[10px] text-white/50 font-mono">
+                        {w.degats}
+                      </span>
                     )}
-                    {(w.qte ?? 1) > 1 && <span className="text-[9px] text-white/35 font-mono">×{w.qte}</span>}
+                    {w.portee && (
+                      <span className="text-[10px] text-sky-200/50 font-mono">
+                        ({w.portee})
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -1708,7 +1766,7 @@ export function PersonnageDetailMobile({
               <div className="flex-1 space-y-6">
                 {isEditing ? (
                   <>
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                       <div className="flex-1 space-y-1.5">
                         <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">
                           Sexe
