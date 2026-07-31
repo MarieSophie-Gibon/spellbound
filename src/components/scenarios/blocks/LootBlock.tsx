@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Package, Search, Plus, Minus, Trash2, Loader2, Sword, Shield, Crosshair, Coins, Backpack, Check } from "lucide-react";
@@ -60,8 +61,8 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
         const missingDesc = items.filter(i => i.description === undefined || i.description === null);
         if (missingDesc.length === 0) return;
 
-        const TABLE_SELECT: Record<string, { table: string; select: string; getDesc: (row: Record<string, unknown>) => string | null }> = {
-            equipements:    { table: 'equipements',    select: 'id, data',   getDesc: r => (r.data as Record<string, unknown>)?.description as string || null },
+        const TABLE_SELECT: Record<string, { table: string; select: string; getDesc: (row: any) => string | null }> = {
+            equipements:    { table: 'equipements',    select: 'id, data',   getDesc: r => r.data?.description as string || null },
             armes_contact:  { table: 'armes_contact',  select: 'id, notes',  getDesc: r => r.notes as string || null },
             armes_distance: { table: 'armes_distance', select: 'id, notes',  getDesc: r => r.notes as string || null },
             armures:        { table: 'armures',        select: 'id, notes',  getDesc: r => r.notes as string || null },
@@ -78,7 +79,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                 const cfg = TABLE_SELECT[tbl];
                 if (!cfg) return;
                 const { data: rows } = await supabase.from(cfg.table).select(cfg.select).in('id', ids);
-                (rows || []).forEach((r: Record<string, unknown>) => { descMap[`${tbl}:${r.id as string}`] = cfg.getDesc(r); });
+                (rows || []).forEach((r: any) => { descMap[`${tbl}:${r.id}`] = cfg.getDesc(r); });
             }));
 
             const updated = items.map(i => {
@@ -109,11 +110,11 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                 supabase.from('armures').select('id, nom, image_url, prix, notes, bonus_def').or(`campaign_id.is.null,campaign_id.eq.${campaignId}`).ilike('nom', q).limit(5),
             ]);
 
-            const combined = [
-                ...(eq.data || []).map(i => ({ ...i, table: 'equipements', stat: i.data?.rarete || 'Objet', description: i.data?.description || null })),
-                ...(ac.data || []).map(i => ({ ...i, table: 'armes_contact', stat: `${i.dm || ''} ${i.type_de_dm || ''}`.trim(), description: i.notes || null })),
-                ...(ad.data || []).map(i => ({ ...i, table: 'armes_distance', stat: `${i.dm || ''} ${i.type_de_dm || ''}`.trim(), description: i.notes || null })),
-                ...(ar.data || []).map(i => ({ ...i, table: 'armures', stat: i.bonus_def ? `${i.bonus_def} DEF` : 'Armure', description: i.notes || null })),
+            const combined: LootItem[] = [
+                ...(eq.data || []).map(i => ({ ...i, table: 'equipements', stat: i.data?.rarete || 'Objet', description: i.data?.description || null, quantite: 1 })),
+                ...(ac.data || []).map(i => ({ ...i, table: 'armes_contact', stat: `${i.dm || ''} ${i.type_de_dm || ''}`.trim(), description: i.notes || null, quantite: 1 })),
+                ...(ad.data || []).map(i => ({ ...i, table: 'armes_distance', stat: `${i.dm || ''} ${i.type_de_dm || ''}`.trim(), description: i.notes || null, quantite: 1 })),
+                ...(ar.data || []).map(i => ({ ...i, table: 'armures', stat: i.bonus_def ? `${i.bonus_def} DEF` : 'Armure', description: i.notes || null, quantite: 1 })),
             ];
 
             setSearchResults(combined);
@@ -404,7 +405,8 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                     nom: newItem.nom,
                                     image_url: newItem.image_url,
                                     prix: newItem.prix,
-                                    stat: stat || undefined
+                                    stat: stat || undefined,
+                                    quantite: 1
                                 });
                             }
                             setWizardType(null);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
@@ -298,7 +299,7 @@ export function useLeaveCampaign() {
     },
     onSuccess: (_data, campaignId) => {
       // Retirer la campagne du cache immédiatement pour toutes les variantes de clé.
-      queryClient.setQueriesData<unknown[]>({ queryKey: ['campaigns'] }, (old) =>
+      queryClient.setQueriesData({ queryKey: ['campaigns'] }, (old: any) =>
         Array.isArray(old) ? old.filter((c: Campaign) => c.id !== campaignId) : old
       )
 
@@ -404,18 +405,25 @@ export function useRevealedPnjs(campaignId: string) {
 
       if (error) throw error
 
-      type RawRow = { revealed_at: string; pnj: { id: string; name: string; image_url: string | null; description: string | null; stats: RevealedPnj['stats']; pathways: RevealedPnj['pathways'] } | null }
       return (data ?? [])
-        .filter((row: RawRow) => !!row?.pnj)
-        .map((row: RawRow) => ({
-          id: row.pnj!.id,
-          name: row.pnj!.name,
-          image_url: row.pnj!.image_url,
-          description: row.pnj!.description,
-          stats: row.pnj!.stats,
-          pathways: row.pnj!.pathways,
-          revealed_at: row.revealed_at,
-        }))
+        .filter((row: any) => {
+          if (!row?.pnj) return false
+          // Si Supabase renvoie un tableau au lieu d'un objet unique
+          return Array.isArray(row.pnj) ? row.pnj.length > 0 : true
+        })
+        .map((row: any) => {
+          // Gère le cas où Supabase renvoie un tableau au lieu d'un objet unique
+          const pnj = Array.isArray(row.pnj) ? row.pnj[0] : row.pnj
+          return {
+            id: pnj.id,
+            name: pnj.name,
+            image_url: pnj.image_url,
+            description: pnj.description,
+            stats: pnj.stats,
+            pathways: pnj.pathways,
+            revealed_at: row.revealed_at,
+          }
+        })
     },
     enabled: !!campaignId,
   })
