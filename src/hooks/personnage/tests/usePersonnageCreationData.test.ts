@@ -122,7 +122,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
+import { usePersonnageCreationData } from "@/hooks/personnage/usePersonnageCreationData";
 
 describe("usePersonnageCreationData", () => {
   beforeEach(() => {

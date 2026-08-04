@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from "react";
 import { X, Save, RefreshCw, ChevronDown, ChevronUp, Trash2, Check, Plus, Star } from "lucide-react";
-import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
+import { usePersonnageCreationData } from "@/hooks/personnage/usePersonnageCreationData";
 import { RangCard } from "@/components/ui/RangCard";
 import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
 

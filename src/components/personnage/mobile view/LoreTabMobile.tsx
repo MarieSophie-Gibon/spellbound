@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { X, Save } from "lucide-react";
-import { useLore } from "@/hooks/useLore";
+import { useLore } from "@/hooks/personnage/useLore";
 
 interface LoreTabMobileProps {
   pjId: string;

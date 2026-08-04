@@ -1,6 +1,6 @@
 import { Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
 import type { FamilleVoie } from "@/types/compendium";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { VoiePrestigeDetailMobile } from "@/components/compendium/voie de prestige/VoiePrestigeDetailMobile";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { useScenariosData } from "@/hooks/useScenariosData";
+import { useScenariosData } from "@/hooks/scenarios/useScenariosData";
 import { ScenarioSidebar } from "@/components/scenarios/ScenarioSidebar";
 import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioModals";
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";

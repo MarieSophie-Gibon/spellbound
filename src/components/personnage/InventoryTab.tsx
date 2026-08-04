@@ -7,7 +7,7 @@ import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
-import { useInventory, type ItemType } from "@/hooks/useInventory";
+import { useInventory, type ItemType } from "@/hooks/personnage/useInventory";
 
 interface InventoryTabProps {
   pjId: string;

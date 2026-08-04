@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
-import { useCombatDashboardData } from "@/hooks/useCombatDashboardData";
+import { useCombatDashboardData } from "@/hooks/scenarios/useCombatDashboardData";
 import {
   type Combatant,
   type CombatFamilier,

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Loader2, LogOut, Pencil, Plus, Ticket, Trash2, Copy, User, UserStar } from "lucide-react";
-import type { Campaign } from "@/hooks/useCampaigns";
+import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useProfile } from "@/hooks/useProfile";
-import { useLobbyData } from "@/hooks/useLobbyData";
+import { useProfile } from "@/hooks/personnage/useProfile";
+import { useLobbyData } from "@/hooks/lobby/useLobbyData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";

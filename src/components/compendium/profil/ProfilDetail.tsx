@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
-import { useProfilData } from "@/hooks/useProfilData";
+import { useProfilData } from "@/hooks/compendium/useProfilData";
 import type { Famille, FamilleArchetype, FamilleVoie } from "@/types/compendium";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { ProfilDetailMobile } from "@/components/compendium/profil/ProfilDetailMobile";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";

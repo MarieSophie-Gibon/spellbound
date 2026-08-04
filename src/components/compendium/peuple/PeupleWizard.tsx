@@ -9,7 +9,7 @@ import {
   Image as ImageIcon,
   UploadCloud,
 } from "lucide-react";
-import { usePeupleData } from "@/hooks/usePeupleData";
+import { usePeupleData } from "@/hooks/compendium/usePeupleData";
 import { RangEditorCard } from "@/components/compendium/shared/RangEditorCard";
 import { EMPTY_RANGS, type RangsState, type VoieRang } from "@/types/compendium";
 import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";

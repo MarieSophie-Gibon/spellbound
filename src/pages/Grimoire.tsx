@@ -2,14 +2,14 @@
 import { useState, useEffect } from "react";
 import { BookOpen, AlertTriangle } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { useGrimoireData } from "@/hooks/useGrimoireData";
+import { useGrimoireData } from "@/hooks/grimoire/useGrimoireData";
 import { GrimoireSidebar } from "@/components/grimoire/GrimoireSidebar";
 import { GrimoireMobile } from "@/components/grimoire/GrimoireMobile";
 import { PageEditor } from "@/components/grimoire/PageEditor";
 import { PageView } from "@/components/grimoire/PageView";
 import type { InitialPageData } from "@/components/grimoire/PageEditor";
 import type { Category, WikiPage, DraggedItem } from "@/types/grimoire";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 
 interface GrimoireProps {
   isGlobal?: boolean;

@@ -10,7 +10,7 @@ import {
   isPrestigeVoie,
   useLevelUp,
   type VoieDetail,
-} from "@/hooks/useLevelUp";
+} from "@/hooks/personnage/useLevelUp";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";
 

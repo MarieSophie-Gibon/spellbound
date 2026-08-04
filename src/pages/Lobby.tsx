@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
-import { useCampaigns, useDeleteCampaign, useDuplicateCampaign, useJoinCampaignByCode, useLeaveCampaign } from "@/hooks/useCampaigns";
-import type { Campaign } from "@/hooks/useCampaigns";
+import { useCampaigns, useDeleteCampaign, useDuplicateCampaign, useJoinCampaignByCode, useLeaveCampaign } from "@/hooks/campaign/useCampaigns";
+import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { LobbyMobile } from "@/components/lobby/LobbyMobile";
 
 interface LobbyProps {

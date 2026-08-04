@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 // import { createPortal } from "react-dom";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, ArrowRight, ArrowLeft, Save, Plus, Trash2, ChevronDown, Image as ImageIcon, UploadCloud, Copy, Loader2 } from "lucide-react";
-import { useMonsterWizardData, type ImportCampaign, type ImportMonstre } from "@/hooks/useMonsterWizardData";
+import { useMonsterWizardData, type ImportCampaign, type ImportMonstre } from "@/hooks/compendium/useMonsterWizardData";
 import type { MonstreStats, MonstreCombat, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
 
 // --- Types ---

@@ -48,7 +48,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { useCampaignHomeData } from "@/hooks/useCampaignHomeData";
+import { useCampaignHomeData } from "@/hooks/campaign/useCampaignHomeData";
 
 function queueTableResponse(table: string, response: { data: unknown; error: unknown }) {
   const queue = mockState.queueByTable.get(table) ?? [];

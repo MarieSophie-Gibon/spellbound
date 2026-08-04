@@ -42,7 +42,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { useCampaignPjListData } from "@/hooks/useCampaignPjListData";
+import { useCampaignPjListData } from "@/hooks/campaign/useCampaignPjListData";
 
 function queueTableResponse(table: string, response: { data: unknown; error: unknown }) {
   const queue = mockState.queueByTable.get(table) ?? [];

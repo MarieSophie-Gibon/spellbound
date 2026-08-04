@@ -56,7 +56,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { useProfilData } from "@/hooks/useProfilData";
+import { useProfilData } from "@/hooks/compendium/useProfilData";
 
 function queueTableResponse(table: string, response: { data: unknown; error: unknown }) {
   const queue = mockState.queueByTable.get(table) ?? [];

@@ -28,7 +28,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { usePersonnageDetail } from "@/hooks/usePersonnageDetail";
+import { usePersonnageDetail } from "@/hooks/personnage/usePersonnageDetail";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { VoieBlock } from "@/components/ui/VoieBlock";
 import type { VoieSection } from "@/components/ui/RangCard";

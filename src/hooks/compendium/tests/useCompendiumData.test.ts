@@ -58,7 +58,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { useCompendiumData } from "@/hooks/useCompendiumData";
+import { useCompendiumData } from "@/hooks/compendium/useCompendiumData";
 
 function queueTableResponse(table: string, response: { data: unknown; error: unknown }) {
   const queue = mockState.queueByTable.get(table) ?? [];

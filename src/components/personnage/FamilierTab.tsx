@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, X, Search, Loader2, PawPrint, Pencil, ChevronDown, Swords } from "lucide-react";
-import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
+import { usePersonnageCreationData } from "@/hooks/personnage/usePersonnageCreationData";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import type { MonstreStats, MonstreCombat, MonstreAttaque, MonstreCapacite } from "@/types/compendium";

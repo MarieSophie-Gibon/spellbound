@@ -26,13 +26,13 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { usePersonnageDetail } from "@/hooks/usePersonnageDetail";
+import { usePersonnageDetail } from "@/hooks/personnage/usePersonnageDetail";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PvBadge } from "@/components/ui/PvBadge";
 import { VoieBlock } from "@/components/ui/VoieBlock";
 import { CombatStatCard } from "@/components/ui/CombatStatCard";
 import { EditNumField } from "@/components/ui/EditNumField";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 
 // Imports des sous-composants
 import InventoryTab from "@/components/personnage/InventoryTab";

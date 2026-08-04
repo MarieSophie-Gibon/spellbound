@@ -1,6 +1,6 @@
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, Swords, Shield, Zap, Heart, Sparkles, Eye, EyeOff } from "lucide-react";
 import type { Monstre, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 
 interface MonsterDetailProps {
     monstre: Monstre;

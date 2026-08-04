@@ -33,7 +33,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { useAuthData } from "@/hooks/useAuthData";
+import { useAuthData } from "@/hooks/auth/useAuthData";
 
 describe("useAuthData", () => {
   beforeEach(() => {

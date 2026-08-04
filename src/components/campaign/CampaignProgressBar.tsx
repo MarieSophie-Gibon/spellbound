@@ -1,4 +1,4 @@
-import { useCampaignProgress } from "@/hooks/useCampaigns";
+import { useCampaignProgress } from "@/hooks/campaign/useCampaigns";
 
 interface CampaignProgressBarProps {
   campaignId: string;

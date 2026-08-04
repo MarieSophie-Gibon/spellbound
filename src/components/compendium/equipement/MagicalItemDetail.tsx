@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { EquipementDetailMobile } from "@/components/compendium/equipement/MagicalItemDetailMobile";
 
 type EquipementDetailProps = {

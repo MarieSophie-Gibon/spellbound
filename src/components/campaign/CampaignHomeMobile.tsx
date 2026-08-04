@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch, Users } from "lucide-react";
 import { theme } from "@/lib/theme";
-import type { Campaign } from "@/hooks/useCampaigns";
-import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
-import { useCampaignHomeData } from "@/hooks/useCampaignHomeData";
+import type { Campaign } from "@/hooks/campaign/useCampaigns";
+import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/campaign/useCampaigns";
+import { useCampaignHomeData } from "@/hooks/campaign/useCampaignHomeData";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 

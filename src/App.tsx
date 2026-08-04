@@ -7,8 +7,8 @@ import { SideNavMobile } from "@/components/layout/SideNavMobile";
 import { Footer } from "@/components/layout/Footer";
 import { CampaignProgressBar } from "@/components/campaign/CampaignProgressBar";
 import { Lobby } from "./pages/Lobby";
-import type { Campaign } from "@/hooks/useCampaigns";
-import { useDeleteCampaign, useDuplicateCampaign } from "@/hooks/useCampaigns";
+import type { Campaign } from "@/hooks/campaign/useCampaigns";
+import { useDeleteCampaign, useDuplicateCampaign } from "@/hooks/campaign/useCampaigns";
 import { Grimoire } from "@/pages/Grimoire";
 import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
@@ -24,8 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Copy, Loader2, Bell, X } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
-import { useProfile } from "@/hooks/useProfile";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useProfile } from "@/hooks/personnage/useProfile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { supabase } from "@/lib/supabase";
 
 interface CampaignNotif { id: string; pseudo: string; }

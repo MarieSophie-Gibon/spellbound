@@ -59,7 +59,7 @@ import {
   getDerivedAttacks,
   getHpGainPerLevel,
   usePersonnageDetail,
-} from "@/hooks/usePersonnageDetail";
+} from "@/hooks/personnage/usePersonnageDetail";
 
 function queueTableResponse(table: string, response: { data: unknown; error: unknown }) {
   const queue = mockState.queueByTable.get(table) ?? [];

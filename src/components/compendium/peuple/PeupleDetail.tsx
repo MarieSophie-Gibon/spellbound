@@ -1,6 +1,6 @@
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon } from "lucide-react";
 import type { Peuple, Voie } from "@/types/compendium";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { PeupleDetailMobile } from "@/components/compendium/peuple/PeupleDetailMobile";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";

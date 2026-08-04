@@ -22,7 +22,7 @@ import {
   Search,
   History,
 } from "lucide-react";
-import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
+import { usePersonnageCreationData } from "@/hooks/personnage/usePersonnageCreationData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { RangCard } from "@/components/ui/RangCard";
 import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";

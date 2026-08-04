@@ -10,7 +10,7 @@ import {
   Image as ImageIcon,
   UploadCloud,
 } from "lucide-react";
-import { useEquipementWizardData } from "@/hooks/useEquipementWizardData";
+import { useEquipementWizardData } from "@/hooks/compendium/useEquipementWizardData";
 import type { EquipementPropriete } from "@/types/compendium";
 
 // --- Types ---

@@ -1,8 +1,8 @@
-import type { Campaign } from "@/hooks/useCampaigns";
+import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import {
   useCreateCampaignInvitation,
   useRevealedPnjs,
-} from "@/hooks/useCampaigns";
+} from "@/hooks/campaign/useCampaigns";
 import {
   CalendarDays,
   Ticket,
@@ -13,11 +13,11 @@ import {
   Users,
 } from "lucide-react";
 import { CampaignHomeMobile } from "@/components/campaign/CampaignHomeMobile";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useEffect, useRef, useState } from "react";
-import { useCampaignHomeData } from "@/hooks/useCampaignHomeData";
+import { useCampaignHomeData } from "@/hooks/campaign/useCampaignHomeData";
 import { MagicCard } from "@/components/ui/MagicCard";
 
 interface CampaignActivity {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, BookOpen, ChevronRight, Search, X } from "lucide-react";
-import { useGrimoireData } from "@/hooks/useGrimoireData";
+import { useGrimoireData } from "@/hooks/grimoire/useGrimoireData";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { WikiPage, Category } from "@/types/grimoire";
 

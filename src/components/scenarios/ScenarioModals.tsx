@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, Save, FolderPlus, FileText } from "lucide-react";
-import { useScenariosData } from "@/hooks/useScenariosData";
+import { useScenariosData } from "@/hooks/scenarios/useScenariosData";
 import { validateScenarioForm, validateChapitreForm } from "@/lib/validation/scenarioForms";
 
 // ─────────────────────────────────────────────

@@ -20,9 +20,9 @@ import { EquipementDetail } from "@/components/compendium/equipement/MagicalItem
 import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/VoiePrestigeWizard";
 import { VoiePrestigeDetail } from "@/components/compendium/voie de prestige/VoiePrestigeDetail";
 import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
-import { useIsMobile } from "@/hooks/useIsMobile";
-import { useRevealedMonstres, useToggleRevealedMonstre } from "@/hooks/useCampaigns";
-import { useCompendiumData } from "@/hooks/useCompendiumData";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
+import { useRevealedMonstres, useToggleRevealedMonstre } from "@/hooks/campaign/useCampaigns";
+import { useCompendiumData } from "@/hooks/compendium/useCompendiumData";
 
 interface CompendiumProps {
   onBack: () => void;

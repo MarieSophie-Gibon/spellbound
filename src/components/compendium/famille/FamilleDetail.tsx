@@ -1,6 +1,6 @@
 import { Maximize2, Minimize2, Pencil, Trash2 } from "lucide-react";
 import type { FamilleArchetype } from "@/types/compendium";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
 
 interface FamilleDetailProps {
     famille: FamilleArchetype;

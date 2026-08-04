@@ -1,11 +1,11 @@
-import { usePJs } from '@/hooks/usePJs';
+import { usePJs } from '@/hooks/campaign/usePJs';
 import { useEffect, useState } from 'react';
 import type { Peuple } from '@/types/compendium';
-import { useCampaignPjListData, type CampaignPlayerRef, type CampaignProfilRef } from '@/hooks/useCampaignPjListData';
+import { useCampaignPjListData, type CampaignPlayerRef, type CampaignProfilRef } from '@/hooks/campaign/useCampaignPjListData';
 import { Lock, Star, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsMobile } from '@/hooks/shared/useIsMobile';
 
 interface PJListProps {
   campaignId: string;
