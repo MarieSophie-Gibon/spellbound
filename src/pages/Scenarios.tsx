@@ -6,7 +6,7 @@ import { ScenarioSidebar } from "@/components/scenarios/ScenarioSidebar";
 import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioModals";
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";
 import { BookOpen, AlertTriangle, Edit3 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 interface ScenariosProps {
   campaignId: string;
@@ -64,7 +64,6 @@ function DeleteNodeModal({
 
 export function Scenarios({ campaignId, onBack }: ScenariosProps) {
   const scenariosData = useScenariosData();
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [scenarios, setScenarios] = useState<any[]>([]);
   const [chapitres, setChapitres] = useState<any[]>([]);
@@ -294,10 +293,9 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
               const ch = chapitres.find(c => c.id === selectedChapitreId);
               if (ch) handleToggleCompleted(ch.id, !!ch.completed);
             }}
-            onOpenCombatDashboard={(chapId, enemyBlockId) => {
+            onOpenCombatDashboard={(chapId) => {
               const params = new URLSearchParams({ chapitreId: chapId });
-              if (enemyBlockId) params.set("enemyBlockId", enemyBlockId);
-              navigate(`/campaign/combat?${params.toString()}`);
+              window.open(`/campaign/combat?${params.toString()}`, "_blank", "noopener");
             }}
           />
         ) : selectedScenarioId ? (() => {

@@ -7,6 +7,7 @@ import {
   type CombatFamilier,
   type ChapitreBlock,
   type EncounterEntry,
+  type FogRevealStamp,
   type MapToken,
   type MonsterStatsMap,
   type PersistedCombatState,
@@ -29,7 +30,6 @@ import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 
 interface CombatDashboardProps {
   chapitreId: string;
-  enemyBlockId?: string;
   campaignId: string;
   onBackToScenario?: () => void;
 }
@@ -60,13 +60,15 @@ function normalizeCombatState(
     battlemapUrl: raw?.battlemapUrl ?? null,
     mapTokens: raw?.mapTokens ?? [],
     encounters: raw?.encounters ?? [],
+    fogEnabled: raw?.fogEnabled ?? false,
+    fogReveals: raw?.fogReveals ?? [],
     combatNote: raw?.combatNote ?? "",
     combatNotePosition: raw?.combatNotePosition ?? fallbackNotePosition,
     roundTriggers: raw?.roundTriggers ?? [],
   };
 }
 
-export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackToScenario }: CombatDashboardProps) {
+export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: CombatDashboardProps) {
   const combatData = useCombatDashboardData();
   const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
@@ -77,6 +79,8 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
   const [battlemapUrl, setBattlemapUrl] = useState<string | null>(null);
   const [mapTokens, setMapTokens] = useState<MapToken[]>([]);
   const [encounters, setEncounters] = useState<EncounterEntry[]>([]);
+  const [fogEnabled, setFogEnabled] = useState(false);
+  const [fogReveals, setFogReveals] = useState<FogRevealStamp[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchType, setSearchType] = useState<"monster" | "npc">("monster");
   const [searchTerm, setSearchTerm] = useState("");
@@ -91,7 +95,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
   const cardDragRef = useRef<{ combatantId: string; offsetX: number; offsetY: number } | null>(null);
 
   const [combatNote, setCombatNote] = useState("");
-  const [isNoteVisible, setIsNoteVisible] = useState(true);
+  const [isNoteVisible, setIsNoteVisible] = useState(false);
   const [notePosition, setNotePosition] = useState<FloatingCardPosition>({ x: 32, y: 110 });
   const [isDraggingNote, setIsDraggingNote] = useState(false);
   const noteRef = useRef<HTMLDivElement>(null);
@@ -298,47 +302,28 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
   // --- Bootstrap (Supabase → localStorage) ---
   useEffect(() => {
     const bootstrap = async () => {
-      const chapterData = await combatData.fetchChapitreCombatAndContent(chapitreId);
+      try {
+        const chapterData = await combatData.fetchChapitreCombatAndContent(chapitreId);
+        const dbStateRaw = (chapterData?.combat_state ?? null) as Partial<PersistedCombatState> | null;
 
-      const chapterBlocks = (chapterData?.content ?? []) as ChapitreBlock[];
-      const enemyBlock = enemyBlockId
-        ? chapterBlocks.find((block) => block.id === enemyBlockId && block.type === "enemy")
-        : null;
-      const blockState = enemyBlock?.data && typeof enemyBlock.data === "object"
-        ? ((enemyBlock.data as Record<string, unknown>).combatPrep as Partial<PersistedCombatState> | undefined)
-        : undefined;
-      const dbStateRaw = (chapterData?.combat_state ?? null) as Partial<PersistedCombatState> | null;
-      const stateToHydrate = enemyBlockId
-        ? (blockState && typeof blockState === "object" ? blockState : dbStateRaw)
-        : dbStateRaw;
-
-      if (enemyBlockId && !blockState && dbStateRaw && enemyBlock) {
-        const updatedBlocks = chapterBlocks.map((block) => {
-          if (block.id !== enemyBlockId || block.type !== "enemy") return block;
-          return {
-            ...block,
-            data: {
-              ...(block.data ?? {}),
-              combatPrep: dbStateRaw,
-            },
-          };
-        });
-        void combatData.updateChapitreContent(chapitreId, updatedBlocks);
-      }
-
-      if (stateToHydrate && typeof stateToHydrate === "object") {
-        const normalized = normalizeCombatState(stateToHydrate, getDefaultNotePosition());
-        setCombatants(normalized.combatants);
-        setActiveCombatantId(normalized.activeCombatantId);
-        setRound(normalized.round);
-        setBattlemapUrl(normalized.battlemapUrl ?? null);
-        setMapTokens(normalized.mapTokens ?? []);
-        setEncounters(normalized.encounters ?? []);
-        setCombatNote(normalized.combatNote ?? "");
-        setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
-        setRoundTriggers(normalized.roundTriggers ?? []);
-        setIsHydrated(true);
-        return;
+        if (dbStateRaw && typeof dbStateRaw === "object") {
+          const normalized = normalizeCombatState(dbStateRaw, getDefaultNotePosition());
+          setCombatants(normalized.combatants);
+          setActiveCombatantId(normalized.activeCombatantId);
+          setRound(normalized.round);
+          setBattlemapUrl(normalized.battlemapUrl ?? null);
+          setMapTokens(normalized.mapTokens ?? []);
+          setEncounters(normalized.encounters ?? []);
+          setFogEnabled(normalized.fogEnabled ?? false);
+          setFogReveals(normalized.fogReveals ?? []);
+          setCombatNote(normalized.combatNote ?? "");
+          setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
+          setRoundTriggers(normalized.roundTriggers ?? []);
+          setIsHydrated(true);
+          return;
+        }
+      } catch (error) {
+        console.error("CombatDashboard bootstrap error:", error);
       }
 
       const raw = localStorage.getItem(getStorageKey(chapitreId));
@@ -354,42 +339,49 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         setBattlemapUrl(normalized.battlemapUrl ?? null);
         setMapTokens(normalized.mapTokens ?? []);
         setEncounters(normalized.encounters ?? []);
+        setFogEnabled(normalized.fogEnabled ?? false);
+        setFogReveals(normalized.fogReveals ?? []);
         setCombatNote(normalized.combatNote ?? "");
         setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
         setRoundTriggers(normalized.roundTriggers ?? []);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
-  }, [chapitreId, combatData, enemyBlockId]);
+  }, [chapitreId, combatData]);
 
-  const persistCombatState = useCallback(async (payload: PersistedCombatState) => {
-    if (!enemyBlockId) {
-      await combatData.updateChapitreCombatState(chapitreId, payload);
-      return;
-    }
+  useEffect(() => {
+    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw) => {
+      if (!incomingRaw || typeof incomingRaw !== "object") return;
 
-    let content: ChapitreBlock[] = [];
-    try {
-      content = (await combatData.fetchChapitreContent(chapitreId)) as ChapitreBlock[];
-    } catch (error: any) {
-      console.error("Impossible de charger le contenu du chapitre pour persister combatPrep du bloc", error);
-      return;
-    }
+      const normalized = normalizeCombatState(
+        incomingRaw as Partial<PersistedCombatState>,
+        { x: 32, y: 110 },
+      );
 
-    const updatedBlocks = content.map((block) => {
-      if (block.id !== enemyBlockId || block.type !== "enemy") return block;
-      return {
-        ...block,
-        data: {
-          ...(block.data ?? {}),
-          combatEngaged: true,
-          combatPrep: payload,
-        },
-      };
+      const incomingSig = JSON.stringify(normalized);
+      const localSig = latestPayloadRef.current ? JSON.stringify(latestPayloadRef.current) : null;
+      if (localSig && localSig === incomingSig) return;
+
+      setCombatants(normalized.combatants);
+      setActiveCombatantId(normalized.activeCombatantId);
+      setRound(normalized.round);
+      setBattlemapUrl(normalized.battlemapUrl ?? null);
+      setMapTokens(normalized.mapTokens ?? []);
+      setEncounters(normalized.encounters ?? []);
+      setFogEnabled(normalized.fogEnabled ?? false);
+      setFogReveals(normalized.fogReveals ?? []);
+      setCombatNote(normalized.combatNote ?? "");
+      setNotePosition(normalized.combatNotePosition ?? { x: 32, y: 110 });
+      setRoundTriggers(normalized.roundTriggers ?? []);
+      latestPayloadRef.current = normalized;
     });
 
-    await combatData.updateChapitreContent(chapitreId, updatedBlocks);
-  }, [chapitreId, combatData, enemyBlockId]);
+    return unsubscribe;
+  }, [chapitreId, combatData]);
+
+  const persistCombatState = useCallback(async (payload: PersistedCombatState) => {
+    await combatData.updateChapitreCombatState(chapitreId, payload);
+  }, [chapitreId, combatData]);
 
   // --- Persist ---
   useEffect(() => {
@@ -401,6 +393,8 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       battlemapUrl,
       mapTokens,
       encounters,
+      fogEnabled,
+      fogReveals,
       combatNote,
       combatNotePosition: notePosition,
       roundTriggers,
@@ -411,7 +405,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       void persistCombatState(payload);
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
+  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
 
   useEffect(() => {
     return () => {
@@ -726,6 +720,10 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       dr_qty: toNumber(pjRow.stats?.dr_qty, 0),
       dr_de: pjRow.stats?.dr_de ?? "d6",
       niveau: toNumber(pjRow.stats?.niveau, 1),
+      is_combatant: pjRow.stats?.is_combatant === true,
+      combat_stats_mode: pjRow.stats?.combat_stats_mode as "simple" | "extended" | undefined,
+      attaques: Array.isArray(pjRow.stats?.attaques) ? pjRow.stats.attaques : [],
+      capacites_speciales: Array.isArray(pjRow.stats?.capacites_speciales) ? pjRow.stats.capacites_speciales : [],
     };
   }
 
@@ -882,12 +880,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       const next = usedNums.length > 0 ? Math.max(...usedNums) + 1 : siblings.length + 1;
       return [...prev, { ...newEntry, name: `${baseName} #${next}` }];
     });
-    // Pour les monstres : on garde le menu ouvert pour permettre d'en ajouter plusieurs
-    if (result.type !== "monster") {
-      setIsMenuOpen(false);
-      setSearchTerm("");
-      setSearchResults([]);
-    }
+    // On garde le menu ouvert pour permettre l'ajout en chaîne (monstres et PNJ).
   };
 
   const removeCombatant = (id: string) => {
@@ -1057,15 +1050,34 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
 
       {/* BattleMap — remplit tout l'espace entre la timeline et le bord droit */}
       <div className="absolute top-14 bottom-0 left-88 right-4 z-0 overflow-hidden py-2 pr-2">
-        <BattleMap
-          imageUrl={battlemapUrl}
-          onChange={setBattlemapUrl}
-          combatants={orderedCombatants}
-          encounters={encounters}
-          mapTokens={mapTokens}
-          onUpdateTokens={setMapTokens}
-          activeCombatantId={activeCombatantId}
-        />
+        {isHydrated ? (
+          <BattleMap
+            imageUrl={battlemapUrl}
+            onChange={(url) => {
+              setBattlemapUrl(url);
+              if (url) {
+                setFogEnabled(true);
+                setFogReveals([]);
+              } else {
+                setFogEnabled(false);
+                setFogReveals([]);
+              }
+            }}
+            combatants={orderedCombatants}
+            encounters={encounters}
+            mapTokens={mapTokens}
+            onUpdateTokens={setMapTokens}
+            activeCombatantId={activeCombatantId}
+            fogEnabled={fogEnabled}
+            fogReveals={fogReveals}
+            onFogEnabledChange={setFogEnabled}
+            onFogRevealsChange={setFogReveals}
+          />
+        ) : (
+          <div className="h-full w-full rounded-xl border border-white/12 bg-black/20 flex items-center justify-center">
+            <p className="text-white/40 text-sm">Chargement de la battlemap...</p>
+          </div>
+        )}
       </div>
 
       {/* Timeline gauche */}

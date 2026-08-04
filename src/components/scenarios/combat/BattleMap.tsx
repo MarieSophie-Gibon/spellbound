@@ -1,7 +1,7 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
-import type { Combatant, EncounterEntry, MapToken } from "./types";
+import type { Combatant, EncounterEntry, FogRevealStamp, MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
 
 interface BattleMapProps {
@@ -12,6 +12,10 @@ interface BattleMapProps {
   mapTokens: MapToken[];
   onUpdateTokens: (tokens: MapToken[]) => void;
   activeCombatantId?: string | null;
+  fogEnabled: boolean;
+  fogReveals: FogRevealStamp[];
+  onFogEnabledChange: (enabled: boolean) => void;
+  onFogRevealsChange: (reveals: FogRevealStamp[]) => void;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -23,13 +27,7 @@ export function tokenRingClass(type: string) {
 }
 
 export const BATTLEMAP_CHANNEL = "spellbound-battlemap";
-
-export interface FogRevealStamp {
-  x: number;
-  y: number;
-  r: number;
-  strokeId?: number;
-}
+export type { FogRevealStamp } from "./types";
 
 interface FogRevealPath {
   id: number;
@@ -136,7 +134,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
+function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -146,6 +144,8 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   const imgContainerRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const tokenElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const incomingPreviewRef = useRef<{ combatantId: string; x: number; y: number } | null>(null);
+  const incomingPreviewRafRef = useRef<number | null>(null);
 
   const [uploading, setUploading] = useState(false);
   const dragCountRef = useRef(0);
@@ -160,9 +160,30 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   const [tokenSize, setTokenSize] = useState(40);
   const [showNameTags] = useState(true);
   const [dragPreviewToken, setDragPreviewToken] = useState<{ combatantId: string; x: number; y: number } | null>(null);
-  const [fogEnabled, setFogEnabled] = useState(false);
+  const fogRevealsToPaths = useCallback((stamps: FogRevealStamp[]): FogRevealPath[] => {
+    if (!Array.isArray(stamps) || stamps.length === 0) return [];
+
+    const grouped = new Map<number, FogRevealPath>();
+    const ordered: FogRevealPath[] = [];
+    let fallbackId = 1;
+
+    for (const stamp of stamps) {
+      const id = Number.isFinite(stamp.strokeId) ? Number(stamp.strokeId) : fallbackId++;
+      let path = grouped.get(id);
+      if (!path) {
+        path = { id, r: stamp.r, points: [] };
+        grouped.set(id, path);
+        ordered.push(path);
+      }
+      path.r = stamp.r;
+      path.points.push({ x: stamp.x, y: stamp.y });
+    }
+
+    return ordered;
+  }, []);
+
   const [fogBrushSize, setFogBrushSize] = useState(6);
-  const [fogPaths, setFogPaths] = useState<FogRevealPath[]>([]);
+  const [fogPaths, setFogPaths] = useState<FogRevealPath[]>(() => fogRevealsToPaths(fogRevealsProp));
   const [isFogEditMode, setIsFogEditMode] = useState(false);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
   const isFogPaintingRef = useRef(false);
@@ -211,6 +232,13 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
     fogPathsRef.current = fogPaths;
   }, [fogPaths]);
 
+  useEffect(() => {
+    const localSig = JSON.stringify(fogReveals);
+    const incomingSig = JSON.stringify(fogRevealsProp ?? []);
+    if (localSig === incomingSig) return;
+    onFogRevealsChange(fogReveals);
+  }, [fogReveals, fogRevealsProp, onFogRevealsChange]);
+
   const showFogNotice = useCallback((message: string) => {
     setFogActionNotice(message);
     if (fogNoticeTimerRef.current !== null) window.clearTimeout(fogNoticeTimerRef.current);
@@ -223,9 +251,36 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   useEffect(() => {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
     channelRef.current = ch;
-    ch.onmessage = (e) => { if (e.data?.type === "request") ch.postMessage(stateRef.current); };
-    return () => ch.close();
-  }, []);
+    ch.onmessage = (e) => {
+      if (e.data?.type === "request") {
+        ch.postMessage(stateRef.current);
+        return;
+      }
+
+      if (e.data?.type !== "update") return;
+      const incoming = e.data as BattleMapBroadcast;
+      incomingPreviewRef.current = incoming.dragPreviewToken ?? null;
+      if (incomingPreviewRafRef.current === null) {
+        incomingPreviewRafRef.current = requestAnimationFrame(() => {
+          incomingPreviewRafRef.current = null;
+          setDragPreviewToken(incomingPreviewRef.current);
+        });
+      }
+
+      if (!incoming.dragPreviewToken && Array.isArray(incoming.mapTokens)) {
+        const currentSig = JSON.stringify(stateRef.current.mapTokens ?? []);
+        const incomingSig = JSON.stringify(incoming.mapTokens);
+        if (currentSig !== incomingSig) {
+          onUpdateTokens(incoming.mapTokens);
+        }
+      }
+    };
+    return () => {
+      if (incomingPreviewRafRef.current !== null) cancelAnimationFrame(incomingPreviewRafRef.current);
+      incomingPreviewRafRef.current = null;
+      ch.close();
+    };
+  }, [onUpdateTokens]);
 
   useEffect(() => {
     channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewToken });
@@ -248,7 +303,7 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
 
   const openPlayerView = () => {
     if (!fogEnabled) {
-      setFogEnabled(true);
+      onFogEnabledChange(true);
       const nextState: BattleMapBroadcast = { ...stateRef.current, fogEnabled: true };
       stateRef.current = nextState;
       channelRef.current?.postMessage(nextState);
@@ -342,7 +397,12 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
       console.error("Erreur upload battlemap :", message);
     }
     setUploading(false);
-    if (url) { onChange(url); resetView(); }
+    if (url) {
+      setFogPaths([]);
+      onFogRevealsChange([]);
+      onChange(url);
+      resetView();
+    }
   };
 
   const handleMapDrop = (e: React.DragEvent) => {
@@ -374,6 +434,7 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
     const d = draggingRef.current;
     const pos = livePosRef.current;
     if (d && pos) onUpdateTokens(mapTokens.map(t => t.combatantId === d.combatantId ? { ...t, ...pos } : t));
+    channelRef.current?.postMessage({ ...stateRef.current, dragPreviewToken: null });
     setDragPreviewToken(null);
     draggingRef.current = null;
     livePosRef.current = null;
@@ -394,6 +455,10 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
       const newY = Math.max(1, Math.min(99, py - d.oy));
       livePosRef.current = { x: newX, y: newY };
       setDragPreviewToken({ combatantId: d.combatantId, x: newX, y: newY });
+      channelRef.current?.postMessage({
+        ...stateRef.current,
+        dragPreviewToken: { combatantId: d.combatantId, x: newX, y: newY },
+      });
       const tokenEl = tokenElsRef.current.get(d.combatantId);
       if (tokenEl) { tokenEl.style.left = `${newX}%`; tokenEl.style.top = `${newY}%`; }
     };
@@ -641,11 +706,14 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
                   const combatant = combatantsById.get(token.combatantId);
                   if (!combatant) return null;
                   const isActive = combatant.id === activeCombatantId;
+                  const displayToken = dragPreviewToken?.combatantId === token.combatantId
+                    ? { ...token, x: dragPreviewToken.x, y: dragPreviewToken.y }
+                    : token;
                   return (
                     <div key={token.combatantId} className={combatant.hidden ? "opacity-40 grayscale" : ""}>
                       <MapTokenMarker
                       key={token.combatantId}
-                      token={token}
+                      token={displayToken}
                       combatant={combatant}
                       isActive={isActive}
                       tokenSize={tokenSize}
@@ -673,11 +741,9 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
               <div className="flex items-center gap-1 rounded-xl bg-black/60 backdrop-blur border border-white/15 p-1">
                 <button
                   onClick={() => {
-                    setFogEnabled((v) => {
-                      const next = !v;
-                      if (!next) setIsFogEditMode(false);
-                      return next;
-                    });
+                    const next = !fogEnabled;
+                    if (!next) setIsFogEditMode(false);
+                    onFogEnabledChange(next);
                   }}
                   className={`p-1.5 rounded-lg border transition-colors ${fogEnabled ? "bg-amber-500/25 border-amber-300/40 text-amber-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
                   title="Activer/Désactiver le brouillard"
@@ -723,7 +789,15 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
                 <MonitorPlay className="w-4 h-4" />
               </button>
               <button onClick={() => inputRef.current?.click()} className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-white border border-white/20 transition-colors" title="Remplacer la carte"><ImagePlus className="w-4 h-4" /></button>
-              <button onClick={() => onChange(null)} className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-red-300 border border-white/20 transition-colors" title="Supprimer la carte"><Trash2 className="w-4 h-4" /></button>
+              <button
+                onClick={() => {
+                  setFogPaths([]);
+                  onFogRevealsChange([]);
+                  onChange(null);
+                }}
+                className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-red-300 border border-white/20 transition-colors"
+                title="Supprimer la carte"
+              ><Trash2 className="w-4 h-4" /></button>
             </div>
 
             <div className="absolute bottom-3 left-3 flex items-center gap-1 z-30 pointer-events-auto">
@@ -842,7 +916,11 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.encounters === next.encounters &&
     prev.mapTokens === next.mapTokens &&
     prev.onUpdateTokens === next.onUpdateTokens &&
-    prev.activeCombatantId === next.activeCombatantId
+    prev.activeCombatantId === next.activeCombatantId &&
+    prev.fogEnabled === next.fogEnabled &&
+    prev.fogReveals === next.fogReveals &&
+    prev.onFogEnabledChange === next.onFogEnabledChange &&
+    prev.onFogRevealsChange === next.onFogRevealsChange
   );
 }
 

@@ -171,19 +171,15 @@ export function CombatMenu({
             <p className="text-[11px] text-white/30 italic text-center py-2">Aucun résultat</p>
           )}
           {searchResults.map((res) => {
-            const isMonster = res.type === "monster";
             const count = combatantCounts[res.id] ?? 0;
-            const flashed = flashedIds.has(res.id);
+            const flashKey = `${res.type}:${res.id}`;
+            const flashed = flashedIds.has(flashKey);
             return (
               <button
                 key={`${res.type}-${res.id}`}
                 onClick={() => {
                   void onAddFromSearch(res);
-                  if (isMonster) {
-                    flashId(res.id);
-                  } else {
-                    setSubmenu(null);
-                  }
+                  flashId(flashKey);
                 }}
                 className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left group border ${
                   flashed

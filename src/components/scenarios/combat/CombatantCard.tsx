@@ -82,9 +82,20 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
     const instanceNum = instanceMatch ? instanceMatch[2] : null;
     const isPJ = combatant.type === "pj";
     const isNPC = combatant.type === "npc";
-    const isPJLike = isPJ || isNPC;
+    const isMonster = combatant.type === "monster";
     const pj = combatant.pjStats;
     const caract = pj?.caracteristiques ?? {};
+
+    // 3 modes PNJ:
+    // - non combattant: is_combatant !== true
+    // - combattant: is_combatant === true && combat_stats_mode !== "extended"
+    // - combattant/monstre: is_combatant === true && combat_stats_mode === "extended"
+    // Fallback legacy: si mode absent mais attaques/capacites_speciales présentes, on traite comme combattant/monstre.
+    const npcHasMonsterData = (pj?.attaques?.length ?? 0) > 0 || (pj?.capacites_speciales?.length ?? 0) > 0;
+    const isNpcNonCombatant = isNPC && pj?.is_combatant !== true;
+    const isNpcMonsterMode = isNPC && pj?.is_combatant === true && (npcHasMonsterData || pj?.combat_stats_mode === "extended");
+    const isNpcCombatant = isNPC && pj?.is_combatant === true && !isNpcMonsterMode;
+    const isPJLike = isPJ || isNpcCombatant;
 
     const quickStats = isPJLike
         ? [
@@ -94,16 +105,42 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
             { icon: <Crosshair className="w-3 h-3" />, value: signedNum(pj?.att_distance ?? 0), label: "Distance" },
             { icon: <Wand2 className="w-3 h-3" />, value: signedNum(pj?.att_magie ?? 0), label: "Magie" },
         ]
+        : isNpcNonCombatant
+        ? [
+            { icon: <Zap className="w-3 h-3" />, value: String(combatant.initiative ?? pj?.initiative ?? 0), label: "Initiative" },
+            { icon: <Shield className="w-3 h-3" />, value: String(combatant.defense ?? 0), label: "Défense" },
+          ]
         : [
             { icon: <Zap className="w-3 h-3" />, value: String(combatant.details?.combat?.initiative ?? combatant.initiative ?? 0), label: "Initiative" },
             { icon: <Shield className="w-3 h-3" />, value: String(combatant.defense ?? 0), label: "Défense" },
         ];
 
-    const attacks = combatant.details?.attaques?.length
-        ? combatant.details.attaques
+    const npcAttacksAsMonster = (pj?.attaques ?? []).map((atk) => ({
+        attaque_base: atk?.nom ?? "Attaque",
+        dm: [atk?.bonus, atk?.degats].filter(Boolean).join(" - ") || atk?.description,
+    }));
+
+    const npcCapacitesAsMonster = (pj?.capacites_speciales ?? []).map((cap) => ({
+        nom: cap?.nom ?? "Capacité",
+        type: "spéciale",
+        description: cap?.description,
+    }));
+
+    const usesMonsterStyle = isMonster || isNpcMonsterMode;
+
+    const attacks = usesMonsterStyle
+        ? (combatant.details?.attaques?.length
+            ? combatant.details.attaques
+            : npcAttacksAsMonster.length > 0
+                ? npcAttacksAsMonster
+                : [{ attaque_base: "Attaque standard", dm: undefined }])
         : [{ attaque_base: "Attaque standard", dm: undefined }];
 
-    const isMonster = combatant.type === "monster";
+    const capacities = usesMonsterStyle
+        ? (combatant.details?.capacites?.length
+            ? combatant.details.capacites
+            : npcCapacitesAsMonster)
+        : [];
 
     return (
         <div className="animate-in fade-in duration-200 relative">
@@ -286,11 +323,20 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                     {isNPC && (
                         <div className="flex items-start justify-between gap-2">
                             <span className="font-serif text-sm text-[#E3CCCD] font-semibold leading-tight truncate flex-1">{displayName}</span>
-                            <span className="text-[9px] uppercase tracking-[0.15em] text-purple-300/60 border border-purple-400/25 rounded px-1.5 py-0.5 shrink-0">PNJ</span>
+                            <span className="text-[9px] uppercase tracking-[0.15em] text-purple-300/60 border border-purple-400/25 rounded px-1.5 py-0.5 shrink-0">
+                                {isNpcNonCombatant ? "PNJ non combattant" : isNpcMonsterMode ? "PNJ combattant/monstre" : "PNJ combattant"}
+                            </span>
                         </div>
                     )}
 
-                    {isPJLike ? (
+                    {isNpcNonCombatant ? (
+                        <div className="space-y-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-2">
+                            <p className="text-[10px] uppercase tracking-widest text-white/40">Interaction</p>
+                            <p className="text-[11px] text-white/75 leading-relaxed">Ce PNJ est non combattant. Utilisez surtout ses notes/contexte et états narratifs.</p>
+                            {combatant.tactics ? <p className="text-[10px] text-white/55 whitespace-pre-wrap wrap-break-word">{combatant.tactics}</p> : null}
+                            {combatant.notes ? <p className="text-[10px] text-white/45 whitespace-pre-wrap wrap-break-word">{combatant.notes}</p> : null}
+                        </div>
+                    ) : isPJLike ? (
                         <div className="space-y-1.5">
                             {/* Chips de filtre */}
                             <div className="flex gap-1 flex-wrap">
@@ -335,7 +381,7 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                                 ) : null}
                             </div>
                         </div>
-                    ) : isMonster ? (
+                    ) : usesMonsterStyle ? (
                         <div className="overflow-y-auto space-y-1.5 scrollbar-none max-h-72">
                             {attacks.map((atk, idx) => {
                                 const isOpen = expandedAttacks.has(idx);
@@ -357,10 +403,10 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                                     </div>
                                 );
                             })}
-                            {combatant.details?.capacites?.length ? (
+                            {capacities.length ? (
                                 <>
                                     <div className="h-px bg-red-500/15 my-1" />
-                                    {combatant.details.capacites.map((cap, idx) => {
+                                    {capacities.map((cap, idx) => {
                                         const capIdx = attacks.length + idx;
                                         const isOpen = expandedAttacks.has(capIdx);
                                         return (

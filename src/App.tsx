@@ -14,6 +14,7 @@ import { Compendium } from "@/pages/Compendium";
 import { CampaignHome } from "@/pages/Campaign";
 import { Personnages } from "@/pages/Personnages";
 import { Combat } from "@/pages/Combat";
+import { PlayerCombat } from "@/pages/PlayerCombat";
 import { Scenarios } from "@/pages/Scenarios";
 import { PlayerView } from "@/pages/PlayerView";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
@@ -167,7 +168,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
   // Détermine les onglets visibles selon la route
   const isCampaignRoute = location.pathname.startsWith("/campaign");
   const isCampaignDashboardRoute = /^\/campaign\/?$/.test(location.pathname);
-  const isCombatRoute = location.pathname.startsWith("/campaign/combat");
+  const isCombatRoute = location.pathname.startsWith("/campaign/combat") || location.pathname.startsWith("/campaign/player-combat");
   const canManageActiveCampaign =
     !!activeCampaign &&
     (
@@ -398,6 +399,15 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                   isMobile ? <Navigate to="/campaign" /> :
                   !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
                     <Combat campaignId={activeCampaign.id} />
+                  )
+                }
+              />
+
+              <Route
+                path="/campaign/player-combat"
+                element={
+                  !activeCampaign ? <Navigate to="/" /> : (
+                    <PlayerCombat campaignId={activeCampaign.id} />
                   )
                 }
               />

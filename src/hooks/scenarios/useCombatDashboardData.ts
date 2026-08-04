@@ -180,6 +180,62 @@ export function useCombatDashboardData() {
           .eq("id", pjId);
         if (error) throw error;
       },
+
+      subscribeChapitreCombatState(
+        chapitreId: string,
+        onUpdate: (combatState: Record<string, unknown> | null) => void,
+      ) {
+        const channel = supabase
+          .channel(`chapitre-combat:${chapitreId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "chapitres",
+              filter: `id=eq.${chapitreId}`,
+            },
+            (payload) => {
+              const next = (payload.new as { combat_state?: Record<string, unknown> | null } | null)?.combat_state ?? null;
+              onUpdate(next);
+            },
+          )
+          .subscribe();
+
+        return () => {
+          void channel.unsubscribe();
+        };
+      },
+
+      async fetchOwnPjIds(campaignId: string, userId: string) {
+        const { data, error } = await supabase
+          .from("pj")
+          .select("id")
+          .eq("campaign_id", campaignId)
+          .eq("user_id", userId);
+        if (error) throw error;
+        return (data ?? []).map((row) => row.id as string);
+      },
+
+      async fetchCampaignOwnerId(campaignId: string) {
+        const { data, error } = await supabase
+          .from("campagnes")
+          .select("owner_id")
+          .eq("id", campaignId)
+          .maybeSingle();
+        if (error) throw error;
+        return (data?.owner_id as string | null) ?? null;
+      },
+
+      async fetchOwnFamilierIdsByPjIds(pjIds: string[]) {
+        if (!pjIds.length) return [];
+        const { data, error } = await supabase
+          .from("pj_familiers")
+          .select("id")
+          .in("pj_id", pjIds);
+        if (error) throw error;
+        return (data ?? []).map((row) => row.id as string);
+      },
     }),
     [],
   );

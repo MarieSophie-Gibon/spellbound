@@ -38,6 +38,10 @@ export interface PJStats {
   dr_qty?: number;
   dr_de?: string;
   niveau?: number;
+  is_combatant?: boolean;
+  combat_stats_mode?: "simple" | "extended";
+  attaques?: Array<{ nom?: string; bonus?: string; degats?: string; description?: string }>;
+  capacites_speciales?: Array<{ nom?: string; description?: string }>;
 }
 
 export interface VoieCapacite {
@@ -130,6 +134,13 @@ export interface EncounterEntry {
   firstSeenAt: number;
 }
 
+export interface FogRevealStamp {
+  x: number;
+  y: number;
+  r: number;
+  strokeId?: number;
+}
+
 export interface RoundTriggerEvent {
   id: string;
   label: string;
@@ -145,6 +156,8 @@ export interface PersistedCombatState {
   battlemapUrl?: string | null;
   mapTokens?: MapToken[];
   encounters?: EncounterEntry[];
+  fogEnabled?: boolean;
+  fogReveals?: FogRevealStamp[];
   combatNote?: string;
   combatNotePosition?: { x: number; y: number };
   roundTriggers?: RoundTriggerEvent[];

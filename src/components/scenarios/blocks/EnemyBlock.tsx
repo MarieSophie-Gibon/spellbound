@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
-import { Swords, Search, Target, ShieldAlert, X, PlusCircle, Ghost, Users, UploadCloud } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Swords, Search, Target, ShieldAlert, X, PlusCircle, Ghost, Users } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
-import type { PersistedCombatState, RoundTriggerEvent } from "../combat/types";
+import type { PersistedCombatState } from "../combat/types";
 
 function createEmptyCombatPrep(): PersistedCombatState {
     return {
@@ -21,7 +21,6 @@ function createEmptyCombatPrep(): PersistedCombatState {
 }
 
 interface EnemyBlockProps {
-    blockId?: string;
     campaignId: string;
     data: {
         entityId?: string;
@@ -74,7 +73,7 @@ function isValidUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
+export function EnemyBlock({ campaignId, data, onChange, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
     const scenarioBlocksData = useScenarioBlocksData();
     const [searchType, setSearchType] = useState<'monster' | 'npc'>('monster');
     const [searchTerm, setSearchTerm] = useState("");
@@ -85,11 +84,6 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
     const [showMonsterWizard, setShowMonsterWizard] = useState(false);
     const [monsterDetails, setMonsterDetails] = useState<MonsterDetails | null>(null);
     const [pnjDetails, setPnjDetails] = useState<PnjDetails | null>(null);
-    const [newRoundTriggerText, setNewRoundTriggerText] = useState("");
-    const [newRoundTriggerRounds, setNewRoundTriggerRounds] = useState("1");
-    const [uploadingBattlemap, setUploadingBattlemap] = useState(false);
-    const battlemapInputRef = useRef<HTMLInputElement>(null);
-
     const hasValidCampaignId = isValidUuid(campaignId);
 
     const combatPrep = data.combatPrep ?? createEmptyCombatPrep();
@@ -99,38 +93,6 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
     ) => {
         const next = typeof patch === "function" ? patch(combatPrep) : { ...combatPrep, ...patch };
         onChange({ combatPrep: next });
-    };
-
-    const addRoundTrigger = () => {
-        if (!isEditing) return;
-        const label = newRoundTriggerText.trim();
-        if (!label) return;
-        const rounds = Math.max(1, Number.isFinite(Number(newRoundTriggerRounds)) ? Number(newRoundTriggerRounds) : 1);
-        const newTrigger: RoundTriggerEvent = {
-            id: crypto.randomUUID(),
-            label,
-            roundsLeft: rounds,
-            createdAt: Date.now(),
-        };
-        updateCombatPrep((prev) => ({
-            ...prev,
-            roundTriggers: [...(prev.roundTriggers ?? []), newTrigger],
-        }));
-        setNewRoundTriggerText("");
-        setNewRoundTriggerRounds("1");
-    };
-
-    const handleBattlemapUpload = async (file: File) => {
-        if (!isEditing) return;
-        setUploadingBattlemap(true);
-        try {
-            const imageUrl = await scenarioBlocksData.uploadWikiImage(file, "battlemaps");
-            updateCombatPrep({ battlemapUrl: imageUrl });
-        } catch (err) {
-            console.error("Erreur upload battlemap :", err);
-        } finally {
-            setUploadingBattlemap(false);
-        }
     };
 
     // Recherche dans la base de données (Monstres ou PNJs)
@@ -161,40 +123,48 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
 
     useEffect(() => {
         const entityId = data.entityId;
-        if (data.entityType !== 'monster' || !entityId) {
-            setMonsterDetails(null);
-            return;
-        }
+        if (data.entityType !== 'monster' || !entityId) return;
+
+        let isCancelled = false;
 
         const fetchMonsterDetails = async () => {
             try {
                 const details = await scenarioBlocksData.fetchMonsterDetails(entityId);
-                if (details) setMonsterDetails(details as MonsterDetails);
+                if (isCancelled) return;
+                setMonsterDetails((details as MonsterDetails) ?? null);
             } catch {
-                setMonsterDetails(null);
+                if (!isCancelled) setMonsterDetails(null);
             }
         };
 
         void fetchMonsterDetails();
+
+        return () => {
+            isCancelled = true;
+        };
     }, [data.entityType, data.entityId, scenarioBlocksData]);
 
     useEffect(() => {
         const entityId = data.entityId;
-        if (data.entityType !== 'npc' || !entityId) {
-            setPnjDetails(null);
-            return;
-        }
+        if (data.entityType !== 'npc' || !entityId) return;
+
+        let isCancelled = false;
 
         const fetchPnjDetails = async () => {
             try {
                 const details = await scenarioBlocksData.fetchPnjStats(entityId);
-                if (details) setPnjDetails(details as PnjDetails);
+                if (isCancelled) return;
+                setPnjDetails((details as PnjDetails) ?? null);
             } catch {
-                setPnjDetails(null);
+                if (!isCancelled) setPnjDetails(null);
             }
         };
 
         void fetchPnjDetails();
+
+        return () => {
+            isCancelled = true;
+        };
     }, [data.entityType, data.entityId, scenarioBlocksData]);
 
     const statOrder = ['FOR', 'CON', 'AGI', 'PER', 'INT', 'VOL', 'CHA'];
@@ -515,136 +485,31 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
 
             </div>
 
-            {isEditing && (
-                <div className="border-t border-red-500/15 p-4 md:p-5">
-                    <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
-                            <Swords className="w-4 h-4 text-red-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h4 className="text-[11px] uppercase tracking-widest text-red-300/80 mb-1.5 font-medium">Préparation combat</h4>
+            <div className="border-t border-red-500/15 p-4 md:p-5">
+                <div className="flex gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                        <Swords className="w-4 h-4 text-red-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h4 className="text-[11px] uppercase tracking-widest text-red-300/80 mb-1.5 font-medium">Note de combat</h4>
 
-                            <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/55">
-                                <span className="uppercase tracking-widest text-white/35">debug</span>
-                                <span className="font-mono text-white/70">block {blockId ? blockId.slice(0, 8) : "unknown"}</span>
-                                <span>•</span>
-                                <span>{(combatPrep.roundTriggers ?? []).length} event{(combatPrep.roundTriggers ?? []).length > 1 ? "s" : ""}</span>
+                        {isEditing ? (
+                            <textarea
+                                value={combatPrep.combatNote ?? ""}
+                                onChange={(e) => updateCombatPrep({ combatNote: e.target.value })}
+                                placeholder="Objectifs, renforts, effets de terrain, rappels..."
+                                className="min-h-24 w-full resize-y rounded-lg border border-red-500/25 bg-black/30 px-3 py-2 text-sm text-white/85 outline-none transition-colors placeholder:text-white/35 focus:border-red-400/45"
+                            />
+                        ) : (
+                            <div className="rounded-xl border border-red-500/20 bg-black/25 px-3 py-2 text-sm text-white/85 whitespace-pre-wrap wrap-break-word">
+                                {combatPrep.combatNote?.trim()
+                                    ? combatPrep.combatNote
+                                    : <span className="italic text-white/35">Aucune note de combat.</span>}
                             </div>
-
-                            <div className="space-y-3 rounded-xl border border-red-500/20 bg-black/25 p-3">
-                                <div>
-                                    <label className="mb-1 block text-[10px] uppercase tracking-widest text-red-200/70">Battlemap</label>
-                                    <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto]">
-                                        <input
-                                            type="text"
-                                            value={combatPrep.battlemapUrl ?? ""}
-                                            onChange={(e) => updateCombatPrep({ battlemapUrl: e.target.value || null })}
-                                            placeholder="https://... ou utilisez Upload"
-                                            className="h-9 w-full rounded-lg border border-red-500/25 bg-black/30 px-3 text-sm text-white/90 outline-none transition-colors placeholder:text-white/35 focus:border-red-400/45"
-                                            disabled={!isEditing}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => battlemapInputRef.current?.click()}
-                                            disabled={!isEditing || uploadingBattlemap}
-                                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-500/35 bg-red-500/10 px-3 text-[11px] text-red-200/90 transition-colors hover:bg-red-500/18 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            <UploadCloud className="h-3.5 w-3.5" />
-                                            {uploadingBattlemap ? "Upload..." : "Upload"}
-                                        </button>
-                                        <input
-                                            ref={battlemapInputRef}
-                                            type="file"
-                                            className="hidden"
-                                            accept="image/*"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) void handleBattlemapUpload(file);
-                                                e.currentTarget.value = "";
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="mb-1 block text-[10px] uppercase tracking-widest text-red-200/70">Note de combat</label>
-                                    <textarea
-                                        value={combatPrep.combatNote ?? ""}
-                                        onChange={(e) => updateCombatPrep({ combatNote: e.target.value })}
-                                        placeholder="Objectifs, renforts, effets de terrain, rappels..."
-                                        className="min-h-24 w-full resize-y rounded-lg border border-red-500/25 bg-black/30 px-3 py-2 text-sm text-white/85 outline-none transition-colors placeholder:text-white/35 focus:border-red-400/45"
-                                        disabled={!isEditing}
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="mb-1 block text-[10px] uppercase tracking-widest text-red-200/70">Évènements (round)</label>
-                                    {isEditing && (
-                                        <div className="mb-2 grid grid-cols-[64px_1fr_auto] gap-2">
-                                            <input
-                                                type="number"
-                                                min={1}
-                                                value={newRoundTriggerRounds}
-                                                onChange={(e) => setNewRoundTriggerRounds(e.target.value)}
-                                                className="h-8 rounded-lg border border-red-500/25 bg-black/30 px-2 text-xs text-white/90 outline-none focus:border-red-400/45"
-                                                placeholder="R"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={newRoundTriggerText}
-                                                onChange={(e) => setNewRoundTriggerText(e.target.value)}
-                                                onKeyDown={(e) => { if (e.key === "Enter") addRoundTrigger(); }}
-                                                className="h-8 rounded-lg border border-red-500/25 bg-black/30 px-3 text-sm text-white/90 outline-none placeholder:text-white/35 focus:border-red-400/45"
-                                                placeholder="Texte de l'évènement"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={addRoundTrigger}
-                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/35 bg-red-500/10 text-red-200/90 transition-colors hover:bg-red-500/18"
-                                                aria-label="Ajouter un évènement"
-                                            >
-                                                <PlusCircle className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-1.5">
-                                        {(combatPrep.roundTriggers ?? []).length === 0 && (
-                                            <p className="py-1 text-[11px] italic text-white/35">Aucun évènement programmé.</p>
-                                        )}
-                                        {(combatPrep.roundTriggers ?? [])
-                                            .slice()
-                                            .sort((a, b) => a.roundsLeft - b.roundsLeft || a.createdAt - b.createdAt)
-                                            .map((event) => (
-                                                <div key={event.id} className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 px-2 py-1.5">
-                                                    <span className="inline-flex h-6 min-w-12 items-center justify-center rounded-md border border-red-500/35 bg-black/30 px-1 text-[11px] text-red-100/85">
-                                                        R-{event.roundsLeft}
-                                                    </span>
-                                                    <p className="flex-1 text-xs text-white/90 whitespace-pre-wrap wrap-break-word">{event.label}</p>
-                                                    {isEditing && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                updateCombatPrep((prev) => ({
-                                                                    ...prev,
-                                                                    roundTriggers: (prev.roundTriggers ?? []).filter((t) => t.id !== event.id),
-                                                                }))
-                                                            }
-                                                            className="text-white/40 transition-colors hover:text-red-300"
-                                                            title="Supprimer"
-                                                        >
-                                                            <X className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }

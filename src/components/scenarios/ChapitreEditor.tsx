@@ -24,7 +24,7 @@ interface ChapitreEditorProps {
   campaignId: string;
   completed?: boolean;
   onToggleCompleted?: () => void;
-  onOpenCombatDashboard?: (chapitreId: string, enemyBlockId?: string) => void;
+  onOpenCombatDashboard?: (chapitreId: string) => void;
 }
 
 type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note' | 'clue';
@@ -606,7 +606,6 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         return (
           <div className={!isEditing ? "pointer-events-none" : ""}>
             <EnemyBlock
-              blockId={block.id}
               campaignId={campaignId}
               data={block.data}
               onChange={(newData) => updateBlock(block.id, newData)}
@@ -617,7 +616,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
                 void (async () => {
                   await handleSave(nextBlocks);
 
-                  onOpenCombatDashboard?.(chapitreId, block.id);
+                  onOpenCombatDashboard?.(chapitreId);
                 })();
               }}
             />
@@ -777,6 +776,17 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               <span className="hidden sm:inline">Édition</span>
             </button>
           </div>
+
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Bouton Grimoire */}
+          <button
+            onClick={() => onOpenCombatDashboard?.(chapitreId)}
+            className="p-1.5 bg-white/5 hover:bg-red-500/15 text-white/50 hover:text-red-300 rounded-lg transition-colors border border-white/5"
+            title="Ouvrir le dashboard de combat"
+          >
+            <Swords className="w-4 h-4" />
+          </button>
 
           <div className="w-px h-5 bg-white/10" />
 
