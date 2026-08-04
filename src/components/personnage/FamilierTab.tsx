@@ -153,6 +153,9 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
 
   const [familierToDelete, setFamilierToDelete] = useState<Familier | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editingPvId, setEditingPvId] = useState<string | null>(null);
+  const [editingPvValue, setEditingPvValue] = useState<string>("");
+  const [savingPvId, setSavingPvId] = useState<string | null>(null);
 
   const ownerId = type === "pj" ? pjId : (pnjId ?? pjId);
 
@@ -345,6 +348,43 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   const pvPercent = (pv: number, pvMax: number) => pvMax > 0 ? Math.max(0, Math.min(100, (pv / pvMax) * 100)) : 0;
   const pvColor = (pct: number) => pct > 60 ? "bg-emerald-400" : pct > 25 ? "bg-amber-400" : "bg-red-400";
 
+  const startPvEdit = (f: Familier, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+    event?.preventDefault();
+    if (readOnly) return;
+    setEditingPvId(f.id);
+    setEditingPvValue(String(f.pv));
+  };
+
+  const savePvEdit = async (f: Familier) => {
+    if (readOnly) return;
+    const parsed = Number.parseInt(editingPvValue, 10);
+    const nextPv = Number.isFinite(parsed)
+      ? Math.max(0, Math.min(f.pv_max, parsed))
+      : f.pv;
+
+    if (nextPv === f.pv) {
+      setEditingPvId(null);
+      setEditingPvValue("");
+      return;
+    }
+
+    setSavingPvId(f.id);
+    try {
+      await personnageData.updateFamilier(f.id, { pv: nextPv });
+      setFamiliers((prev) => prev.map((item) => (item.id === f.id ? { ...item, pv: nextPv } : item)));
+    } finally {
+      setSavingPvId(null);
+      setEditingPvId(null);
+      setEditingPvValue("");
+    }
+  };
+
+  const cancelPvEdit = () => {
+    setEditingPvId(null);
+    setEditingPvValue("");
+  };
+
   if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-white/30" /></div>;
 
   return (
@@ -390,10 +430,54 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
                       {d && <span className="text-[10px] text-white/25 border border-white/10 rounded px-1.5 py-0.5">{d.type_creature} · NC {d.nc}</span>}
                     </div>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className={`flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden ${readOnly ? "" : "cursor-pointer"}`}
+                        onClick={(event) => startPvEdit(f, event)}
+                        title={readOnly ? undefined : "Cliquer pour modifier les PV"}
+                      >
                         <div className={`h-full rounded-full ${pvColor(pct)}`} style={{ width: `${pct}%` }} />
                       </div>
-                      <span className="text-[11px] font-mono text-white/40 shrink-0">{f.pv}/{f.pv_max} PV</span>
+                      {editingPvId === f.id && !readOnly ? (
+                        <div
+                          className="flex items-center gap-1 shrink-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            event.preventDefault();
+                          }}
+                        >
+                          <input
+                            type="number"
+                            min={0}
+                            max={f.pv_max}
+                            autoFocus
+                            value={editingPvValue}
+                            onChange={(event) => setEditingPvValue(event.target.value)}
+                            onBlur={() => { void savePvEdit(f); }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void savePvEdit(f);
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                cancelPvEdit();
+                              }
+                            }}
+                            className="w-14 text-center font-mono text-[11px] text-white bg-black/30 border border-[#E3CCCD]/35 rounded px-1.5 py-0.5 outline-none focus:border-[#E3CCCD]/60"
+                          />
+                          <span className="text-[11px] font-mono text-white/40">/ {f.pv_max}</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(event) => startPvEdit(f, event)}
+                          disabled={readOnly || savingPvId === f.id}
+                          className="text-[11px] font-mono text-white/40 shrink-0 hover:text-white/70 transition-colors disabled:opacity-50"
+                          title={readOnly ? undefined : "Cliquer pour modifier les PV"}
+                        >
+                          {savingPvId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : `${f.pv}/${f.pv_max} PV`}
+                        </button>
+                      )}
                       <ChevronDown className={`w-3.5 h-3.5 text-white/25 transition-transform shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
                     </div>
                   </button>
