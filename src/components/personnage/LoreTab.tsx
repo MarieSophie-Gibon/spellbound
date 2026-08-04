@@ -1,4 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+interface LoreTabProps {
+  stats: any;
+  isEditing?: boolean;
+  editSexe: string;
+  setEditSexe: (v: string) => void;
+  editAge: string;
+  setEditAge: (v: string) => void;
+  editIdeal: string;
+  setEditIdeal: (v: string) => void;
+  editTravers: string;
+  setEditTravers: (v: string) => void;
+  editHistorique: string;
+  setEditHistorique: (v: string) => void;
+}
+
 export default function LoreTab({
   stats,
   isEditing,
@@ -12,7 +27,7 @@ export default function LoreTab({
   setEditTravers,
   editHistorique,
   setEditHistorique,
-}: any) {
+}: LoreTabProps) {
   if (isEditing) {
     return (
       <div className="space-y-4 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-5 shadow-inner animate-in fade-in">
@@ -27,7 +42,11 @@ export default function LoreTab({
                   key={s}
                   type="button"
                   onClick={() => setEditSexe(s)}
-                  className={`px-3 py-1 rounded-full text-[12px] border transition-all ${editSexe === s ? "border-[#E3CCCD]/60 bg-[#E3CCCD]/15 text-[#E3CCCD]" : "border-white/15 text-white/50 hover:border-white/30"}`}
+                  className={`px-3 py-1 rounded-full text-[12px] border transition-all ${
+                    editSexe === s
+                      ? "border-[#E3CCCD]/60 bg-[#E3CCCD]/15 text-[#E3CCCD]"
+                      : "border-white/15 text-white/50 hover:border-white/30"
+                  }`}
                 >
                   {s}
                 </button>

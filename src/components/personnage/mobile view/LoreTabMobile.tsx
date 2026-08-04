@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { X, Save } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useLore } from "@/hooks/useLore";
 
 interface LoreTabMobileProps {
   pjId: string;
@@ -23,17 +23,17 @@ interface Field {
 }
 
 const FIELDS: Field[] = [
-  { key: "sexe",       label: "Sexe",           type: "sexe" as FieldType,     accent: "text-white/60" },
-  { key: "age",        label: "Âge",            type: "text",    placeholder: "ex: 24 ans" },
-  { key: "ideal",      label: "Idéal Héroïque", type: "textarea", rows: 3, accent: "text-[#E3CCCD]/70" },
-  { key: "travers",    label: "Travers",         type: "textarea", rows: 3, accent: "text-red-300/60" },
-  { key: "historique", label: "Historique",      type: "textarea", rows: 6 },
+  { key: "sexe", label: "Sexe", type: "sexe", accent: "text-white/60" },
+  { key: "age", label: "Âge", type: "text", placeholder: "ex: 24 ans" },
+  { key: "ideal", label: "Idéal Héroïque", type: "textarea", rows: 3, accent: "text-[#E3CCCD]/70" },
+  { key: "travers", label: "Travers", type: "textarea", rows: 3, accent: "text-red-300/60" },
+  { key: "historique", label: "Historique", type: "textarea", rows: 6 },
 ];
 
 export default function LoreTabMobile({ pjId, type, stats, readOnly = false, onSaved }: LoreTabMobileProps) {
+  const { saveField, isSaving, isEmpty } = useLore({ characterId: pjId, type, stats, onSaved });
   const [editingField, setEditingField] = useState<Field | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
 
   const openEdit = (field: Field) => {
     setEditingField(field);
@@ -42,23 +42,13 @@ export default function LoreTabMobile({ pjId, type, stats, readOnly = false, onS
 
   const handleSave = async () => {
     if (!editingField) return;
-    setIsSaving(true);
     try {
-      const table = type === "pnj" ? "pnj" : "pj";
-      await supabase
-        .from(table)
-        .update({ stats: { ...(stats ?? {}), [editingField.key]: editValue } })
-        .eq("id", pjId);
+      await saveField(editingField.key, editValue);
       setEditingField(null);
-      onSaved();
     } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setIsSaving(false);
+      alert(e.message || "Erreur lors de la sauvegarde");
     }
   };
-
-  const isEmpty = FIELDS.every((f) => !stats?.[f.key]);
 
   return (
     <div className="space-y-2 animate-in fade-in duration-200">
@@ -78,13 +68,19 @@ export default function LoreTabMobile({ pjId, type, stats, readOnly = false, onS
             type="button"
             onClick={!readOnly ? () => openEdit(field) : undefined}
             disabled={readOnly}
-            className={`w-full text-left rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 transition-all ${!readOnly ? "cursor-pointer active:bg-white/14 hover:bg-white/8 hover:border-white/18" : "cursor-default"}`}
+            className={`w-full text-left rounded-xl border border-white/10 bg-white/5 px-3.5 py-3 transition-all ${
+              !readOnly ? "cursor-pointer active:bg-white/14 hover:bg-white/8 hover:border-white/18" : "cursor-default"
+            }`}
           >
             <p className={`text-[9px] uppercase tracking-widest mb-1 ${accent}`}>
               {field.label}
             </p>
             {value ? (
-              <p className={`text-xs text-white/80 leading-relaxed whitespace-pre-wrap ${field.type === "text" || field.key === "sexe" ? "line-clamp-1" : ""}`}>
+              <p
+                className={`text-xs text-white/80 leading-relaxed whitespace-pre-wrap ${
+                  field.type === "text" || field.key === "sexe" ? "line-clamp-1" : ""
+                }`}
+              >
                 {value}
               </p>
             ) : (
@@ -110,10 +106,7 @@ export default function LoreTabMobile({ pjId, type, stats, readOnly = false, onS
               <span className="font-serif text-sm font-semibold text-white">
                 {editingField.label}
               </span>
-              <button
-                onClick={() => setEditingField(null)}
-                className="p-1 text-white/40 hover:text-white rounded-full"
-              >
+              <button onClick={() => setEditingField(null)} className="p-1 text-white/40 hover:text-white rounded-full">
                 <X className="w-4 h-4" />
               </button>
             </div>

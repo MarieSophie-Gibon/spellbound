@@ -1,8 +1,7 @@
 import { usePJs } from '@/hooks/usePJs';
 import { useEffect, useState } from 'react';
 import type { Peuple } from '@/types/compendium';
-import { fetchPlayers } from '@/hooks/usePJs';
-import { supabase } from '@/lib/supabase';
+import { useCampaignPjListData, type CampaignPlayerRef, type CampaignProfilRef } from '@/hooks/useCampaignPjListData';
 import { Lock, Star, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -15,29 +14,27 @@ interface PJListProps {
 
 export function PJList({ campaignId, isMJ = false }: PJListProps) {
   const isMobile = useIsMobile();
+  const campaignPjListData = useCampaignPjListData();
   const { data: pjs, isLoading } = usePJs(campaignId);
   const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const [peuples, setPeuples] = useState<Peuple[]>([]);
-  const [players, setPlayers] = useState<{ id: string; pseudo: string }[]>([]);
-  const [profils, setProfils] = useState<{ id: string; nom: string }[]>([]);
+  const [players, setPlayers] = useState<CampaignPlayerRef[]>([]);
+  const [profils, setProfils] = useState<CampaignProfilRef[]>([]);
   
   const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
-      const { data: peuplesData, error: peuplesError } = await supabase
-        .from('peuples')
-        .select('id, nom, image_url, description, data');
-      if (!peuplesError && peuplesData) setPeuples(peuplesData);
-      
-      const { data: profilsData, error: profilsError } = await supabase
-        .from('profils')
-        .select('id, nom');
-      if (!profilsError && profilsData) setProfils(profilsData);
+      const [peuplesData, profilsData, playersData] = await Promise.all([
+        campaignPjListData.fetchPeuples(),
+        campaignPjListData.fetchProfils(),
+        campaignPjListData.fetchPlayers(),
+      ]);
+      setPeuples(peuplesData);
+      setProfils(profilsData);
+      setPlayers(playersData);
     })();
-    
-    fetchPlayers().then(setPlayers);
-  }, []);
+  }, [campaignPjListData]);
 
   if (isLoading) return <div className={`${isMobile ? 'text-white/60 text-xs italic px-1 py-2' : 'text-white/60 mt-10 ml-16 text-sm italic'}`}>Chargement des personnages...</div>;
   if (!pjs?.length) return <div className={`${isMobile ? 'text-white/40 text-xs italic px-1 py-2' : "text-white/40 text-sm italic mt-10 ml-16"}`}>Aucun personnage n'a rejoint la compagne.</div>;

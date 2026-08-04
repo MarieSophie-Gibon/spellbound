@@ -4,7 +4,7 @@ import type { ElementType } from "react";
 import { useState } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/useProfile";
-import { supabase } from "@/lib/supabase";
+import { useLobbyData } from "@/hooks/useLobbyData";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -56,6 +56,7 @@ export function SideNavMobile({
 }: SideNavMobileProps) {
   const { session, signOut, role } = useAuthStore();
   const profile = useProfile();
+  const lobbyData = useLobbyData();
   const isMJ = role === "mj" || profile?.role === "mj";
   const displayName = profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "Profil";
 
@@ -109,30 +110,14 @@ export function SideNavMobile({
 
     setIsSavingProfile(true);
     try {
-      const { error } = await supabase
-        .from("utilisateurs")
-        .upsert(
-          {
-            id: session.user.id,
-            pseudo,
-            role: profile?.role === "mj" ? "mj" : "joueur",
-          },
-          { onConflict: "id" }
-        );
-
-      if (error) throw error;
-
-      const authPatch: { email?: string; password?: string } = {};
-      const emailChanged = email !== (session.user.email ?? "").toLowerCase();
-      if (emailChanged) authPatch.email = email;
-      if (nextPassword) authPatch.password = nextPassword;
-
-      if (Object.keys(authPatch).length > 0) {
-        const { error: authError } = await supabase.auth.updateUser(authPatch);
-        if (authError) throw authError;
-      }
-
-      window.dispatchEvent(new CustomEvent("spellbound:profile-updated"));
+      const { emailChanged } = await lobbyData.saveLobbyProfile({
+        userId: session.user.id,
+        pseudo,
+        email,
+        role: profile?.role === "mj" ? "mj" : "joueur",
+        currentEmail: session.user.email,
+        password: nextPassword || undefined,
+      });
 
       if (emailChanged) {
         setProfileFormInfo("Un email de confirmation a ete envoye.");

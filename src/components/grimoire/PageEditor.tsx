@@ -29,7 +29,7 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
-import { supabase } from "@/lib/supabase";
+import { useGrimoireData } from "@/hooks/useGrimoireData";
 import type { Category, WikiPage } from "@/types/grimoire";
 
 export interface InitialPageData {
@@ -150,6 +150,7 @@ export function PageEditor({
   initialData, categories, pages, campaignId, isGlobal, isMJ,
   onSaveSuccess, onCancel, onCategoriesChanged,
 }: PageEditorProps) {
+  const grimoireData = useGrimoireData();
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [selectedCatId, setSelectedCatId] = useState(initialData?.categoryId ?? "");
   const [selectedSubCatId, setSelectedSubCatId] = useState(initialData?.subCategoryId ?? "");
@@ -203,12 +204,8 @@ export function PageEditor({
     if (!editor) return;
     setIsUploadingImage(true);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `grimoire/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("wiki-images").upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from("wiki-images").getPublicUrl(path);
-      editor.chain().focus("end").setImage({ src: data.publicUrl, style: IMAGE_SIZES[pendingImageSize].style } as any).run();
+      const imageUrl = await grimoireData.uploadWikiImage(file);
+      editor.chain().focus("end").setImage({ src: imageUrl, style: IMAGE_SIZES[pendingImageSize].style } as any).run();
     } catch (err: unknown) {
       alert("Erreur upload image : " + (err instanceof Error ? err.message : String(err)));
     } finally {
@@ -218,15 +215,16 @@ export function PageEditor({
 
   const handleRenameCategory = async () => {
     if (!catToRename || !catToRename.newName.trim()) return;
-    await supabase.from("categories").update({ name: catToRename.newName.trim() }).eq("id", catToRename.id);
+    await grimoireData.renameCategory(catToRename.id, catToRename.newName.trim());
     setCatToRename(null);
     onCategoriesChanged();
   };
 
   const handleDeleteCategory = async () => {
     if (!catDeleteTarget) return;
-    const { error } = await supabase.from("categories").delete().eq("id", catDeleteTarget);
-    if (error) {
+    try {
+      await grimoireData.deleteCategory(catDeleteTarget);
+    } catch {
       alert("Erreur: La catégorie contient probablement des éléments (vérifiez ON DELETE CASCADE dans Supabase).");
       return;
     }
@@ -242,17 +240,21 @@ export function PageEditor({
     let fSubCatId = selectedSubCatId;
     try {
       if (isCreatingCat && newCatName.trim() !== "") {
-        const { data: nCat } = await supabase
-          .from("categories")
-          .insert({ name: newCatName.trim(), parent_id: null, position_index: mainCategories.length, campaign_id: campaignId || null })
-          .select().single();
+        const nCat = await grimoireData.createCategory({
+          name: newCatName.trim(),
+          parentId: null,
+          positionIndex: mainCategories.length,
+          campaignId: campaignId || null,
+        });
         fCatId = nCat.id;
       }
       if (isCreatingSubCat && newSubCatName.trim() !== "") {
-        const { data: nSub } = await supabase
-          .from("categories")
-          .insert({ name: newSubCatName.trim(), parent_id: fCatId, position_index: subCategories.length, campaign_id: campaignId || null })
-          .select().single();
+        const nSub = await grimoireData.createCategory({
+          name: newSubCatName.trim(),
+          parentId: fCatId,
+          positionIndex: subCategories.length,
+          campaignId: campaignId || null,
+        });
         fSubCatId = nSub.id;
       }
       const publicMode = campaignId && !isPrivate;
@@ -265,9 +267,9 @@ export function PageEditor({
         is_public: isGlobal || !!publicMode,
       };
       if (initialData?.id) {
-        await supabase.from("wiki_pages").update(payload).eq("id", initialData.id);
+        await grimoireData.updateWikiPage(initialData.id, payload);
       } else {
-        await supabase.from("wiki_pages").insert({ ...payload, position_index: pages.length });
+        await grimoireData.insertWikiPage({ ...payload, position_index: pages.length });
       }
       onSaveSuccess(fCatId || undefined, fSubCatId || undefined);
     } catch (err: any) {

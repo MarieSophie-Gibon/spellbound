@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, Mail, MoreHorizontal, Zap } from 'lucide-react'
 import { theme } from '@/lib/theme'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { LoginMobile } from '@/components/auth/LoginMobile'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { useAuthData } from '@/hooks/useAuthData'
+import { isRateLimitError, mapAuthErrorMessage, mapRecoveryHashErrorMessage } from '@/lib/authErrors'
 import { validateForgotForm, validateLoginForm, validateResetForm, validateSignupForm } from '@/lib/validation/authForms'
 
 export function Login() {
   const isMobile = useIsMobile()
+  const authData = useAuthData()
   const isPasswordRecovery = useAuthStore((s) => s.isPasswordRecovery)
   const clearPasswordRecovery = useAuthStore((s) => s.clearPasswordRecovery)
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>('login')
@@ -47,11 +49,7 @@ export function Login() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMode('forgot')
       setInfo(null)
-      if (errorCode === 'otp_expired') {
-        setError("Ce lien de réinitialisation est expiré ou déjà utilisé. Demandez-en un nouveau.")
-      } else {
-        setError(errorDescription?.replace(/\+/g, ' ') || "Le lien de réinitialisation est invalide.")
-      }
+      setError(mapRecoveryHashErrorMessage(errorCode, errorDescription))
 
       window.history.replaceState({}, document.title, window.location.pathname)
       return
@@ -95,12 +93,9 @@ export function Login() {
 
       setLoading(true)
 
-      const { error } = await supabase.auth.resetPasswordForEmail(validated.data.email, {
-        redirectTo: `${window.location.origin}`,
-      })
+      const { error } = await authData.requestPasswordReset(validated.data.email, `${window.location.origin}`)
       if (error) {
-        const isRateLimited = /rate limit/i.test(error.message)
-        if (isRateLimited) {
+        if (isRateLimitError(error)) {
           const until = Date.now() + 60_000
           setForgotCooldownUntil(until)
           if (typeof window !== 'undefined') {
@@ -108,7 +103,7 @@ export function Login() {
           }
           setError("Trop de tentatives d'envoi. Attendez 60 secondes puis réessayez.")
         } else {
-          setError(error.message)
+          setError(mapAuthErrorMessage(error, "Impossible d'envoyer l'email de réinitialisation."))
         }
       } else {
         const until = Date.now() + 60_000
@@ -130,9 +125,9 @@ export function Login() {
       }
 
       setLoading(true)
-      const { error } = await supabase.auth.updateUser({ password: validated.data.password })
+      const { error } = await authData.updateUserPassword(validated.data.password)
       if (error) {
-        setError(error.message)
+        setError(mapAuthErrorMessage(error, "Impossible de mettre à jour le mot de passe."))
       } else {
         clearPasswordRecovery()
         setInfo("Mot de passe mis à jour. Vous pouvez maintenant vous connecter.")
@@ -176,36 +171,27 @@ export function Login() {
 
     setLoading(true)
     if (mode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword })
+      const { error } = await authData.signInWithPassword(authEmail, authPassword)
       if (error) setError("Les astres ne reconnaissent pas ces identifiants.")
       setLoading(false)
       return
     }
 
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await authData.signUpWithPassword({
       email: authEmail,
       password: authPassword,
-      options: {
-        data: {
-          pseudo: signupPseudo,
-          role: 'player',
-        },
-      },
+      pseudo: signupPseudo,
     })
 
     if (error) {
-      setError(error.message)
+      setError(mapAuthErrorMessage(error, "Impossible de créer le compte."))
       setLoading(false)
       return
     }
 
     if (data.user?.id) {
       // Meilleur effort: créer le profil applicatif si la policy le permet.
-      await supabase.from('utilisateurs').upsert({
-        id: data.user.id,
-        pseudo: signupPseudo,
-        role: 'joueur',
-      })
+      await authData.upsertUserProfile(data.user.id, signupPseudo)
     }
 
     setInfo("Compte créé. Vérifiez votre email pour confirmer l'inscription, puis connectez-vous.")

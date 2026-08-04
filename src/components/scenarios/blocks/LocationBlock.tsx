@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useScenarioBlocksData } from "@/hooks/useScenarioBlocksData";
 import { MapPin, UploadCloud, Trash2, Loader2 } from "lucide-react";
 
 function preserveScroll(fn: () => void) {
@@ -23,18 +23,14 @@ interface LocationBlockProps {
 }
 
 export function LocationBlock({ data, onChange }: LocationBlockProps) {
+    const scenarioBlocksData = useScenarioBlocksData();
     const [isUploading, setIsUploading] = useState(false);
 
     const handleImageUpload = async (file: File) => {
         setIsUploading(true);
         try {
-            const ext = file.name.split('.').pop();
-            const path = `scenarios/locations/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-            const { error } = await supabase.storage.from("compendium").upload(path, file);
-            if (error) throw error;
-
-            const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
-            onChange({ imageUrl: urlData.publicUrl });
+            const imageUrl = await scenarioBlocksData.uploadCompendiumImage(file, "scenarios/locations");
+            onChange({ imageUrl });
         } catch (err: unknown) {
             alert("Erreur d'upload : " + (err instanceof Error ? err.message : String(err)));
         } finally {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, BookOpen, ChevronRight, Search, X } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useGrimoireData } from "@/hooks/useGrimoireData";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { WikiPage, Category } from "@/types/grimoire";
 
@@ -12,6 +12,7 @@ interface PageListEntry {
 
 export function GrimoirePopupModal() {
   const { state, closePopup } = useGrimoirePopup();
+  const grimoireData = useGrimoireData();
   const { open, pageId, searchQuery: initialQuery } = state;
 
   const [query, setQuery] = useState(initialQuery);
@@ -34,25 +35,22 @@ export function GrimoirePopupModal() {
   // Fetch index on open
   useEffect(() => {
     if (!open) return;
-    void Promise.all([
-      supabase.from("wiki_pages").select("id, title, category_id").order("title"),
-      supabase.from("categories").select("*"),
-    ]).then(([{ data: pagesData }, { data: catsData }]) => {
+    void grimoireData.fetchPopupIndex().then(({ pages: pagesData, categories: catsData }) => {
       setPages(pagesData ?? []);
       setCategories(catsData ?? []);
     });
-  }, [open]);
+  }, [open, grimoireData]);
 
   // Auto-open pageId if provided
   useEffect(() => {
     if (!open || !pageId) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingPage(true);
-    void supabase.from("wiki_pages").select("*").eq("id", pageId).single().then(({ data }) => {
+    void grimoireData.fetchWikiPageById(pageId).then((data) => {
       setSelectedPage(data ?? null);
       setLoadingPage(false);
     });
-  }, [open, pageId]);
+  }, [open, pageId, grimoireData]);
 
   const filteredPages = query.trim()
     ? pages.filter((p) => p.title.toLowerCase().includes(query.toLowerCase()))
@@ -63,7 +61,7 @@ export function GrimoirePopupModal() {
 
   const openPage = (id: string) => {
     setLoadingPage(true);
-    void supabase.from("wiki_pages").select("*").eq("id", id).single().then(({ data }) => {
+    void grimoireData.fetchWikiPageById(id).then((data) => {
       setSelectedPage(data ?? null);
       setLoadingPage(false);
     });

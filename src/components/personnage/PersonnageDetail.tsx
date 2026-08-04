@@ -26,7 +26,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { usePersonnageDetail } from "@/hooks/usePersonnageDetail";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PvBadge } from "@/components/ui/PvBadge";
 import { VoieBlock } from "@/components/ui/VoieBlock";
@@ -98,24 +98,6 @@ function getDerivedAttacks(level: number, characteristics: Record<string, number
   };
 }
 
-function getDieFaces(die: string | number | null | undefined) {
-  const raw = String(die ?? "d6");
-  const match = raw.match(/\d+/);
-  return match ? Number(match[0]) : 6;
-}
-
-function getHpGainPerLevel(stats: any) {
-  const characteristics = stats?.caracteristiques ?? {};
-  const con = Number(characteristics?.CON ?? 0);
-  // Si la valeur est stockée à la création, on l'utilise directement
-  if (typeof stats?.pv_par_niveau === "number") {
-    return stats.pv_par_niveau + con;
-  }
-  // Fallback sur le dé de récupération pour compatibilité
-  const drFaces = getDieFaces(stats?.dr_de ?? "d6");
-  return Math.max(1, drFaces + con);
-}
-
 export function PersonnageDetail({
   pj,
   type = "pj",
@@ -131,6 +113,7 @@ export function PersonnageDetail({
   onDeleteClick,
   onEditSuccess,
 }: PersonnageDetailProps) {
+  const personnageDetailApi = usePersonnageDetail();
   const isMobile = useIsMobile();
   const containerRef = useRef<HTMLDivElement>(null);
   const [voieDetails, setVoieDetails] = useState<VoieDetail[]>([]);
@@ -203,43 +186,28 @@ export function PersonnageDetail({
       setVoieDetails([]);
       return;
     }
-    const ids = (pj.pathways as any[]).map((p) => p.voie_id).filter(Boolean);
-    if (!ids.length) return;
-    supabase
-      .from("voies")
-      .select("id, nom, type, peuple_id, profil_id, capacites")
-      .in("id", ids)
-      .then(({ data }) => {
-        if (data) setVoieDetails(data as VoieDetail[]);
-      });
-  }, [pj?.id, pj?.pathways]);
+    personnageDetailApi
+      .fetchVoieDetailsByPathways(pj.pathways as any[])
+      .then((data) => setVoieDetails(data as VoieDetail[]))
+      .catch(() => setVoieDetails([]));
+  }, [personnageDetailApi, pj?.id, pj?.pathways]);
 
   useEffect(() => {
     if (isLevelingUp || isEditingVoies) {
-      supabase
-        .from("voies")
-        .select("id, nom, type, peuple_id, profil_id, capacites")
-        .order("nom")
-        .then(({ data }) => {
-          if (data) setAllVoies(data as VoieDetail[]);
-        });
+      personnageDetailApi
+        .fetchAllVoies()
+        .then((data) => setAllVoies(data as VoieDetail[]))
+        .catch(() => setAllVoies([]));
     }
-  }, [isLevelingUp, isEditingVoies]);
+  }, [isLevelingUp, isEditingVoies, personnageDetailApi]);
 
   useEffect(() => {
     if (type !== "pj") return;
-    supabase
-      .from("utilisateurs")
-      .select("id, pseudo, role")
-      .order("pseudo")
-      .then(({ data }) => {
-        if (data) {
-          setPlayers((data as any[])
-            .filter((p) => p.role !== "mj")
-            .map((p) => ({ id: p.id, pseudo: p.pseudo })));
-        }
-      });
-  }, [type]);
+    personnageDetailApi
+      .fetchPlayers()
+      .then((data) => setPlayers(data))
+      .catch(() => setPlayers([]));
+  }, [personnageDetailApi, type]);
 
   useEffect(() => {
     if (!pj) return;
@@ -299,68 +267,16 @@ export function PersonnageDetail({
     if (!pj?.id) { setWeapons([]); return; }
 
     const fetchWeapons = async () => {
-      if (type === 'pnj') {
-        const { data } = await supabase.from('pnj').select('inventory').eq('id', pj.id).single();
-        const items: any[] = data?.inventory?.items ?? [];
-        setWeapons(items.filter((i: any) => (i.item_type === 'arme_contact' || i.item_type === 'arme_distance') && i.is_equipped));
-      } else {
-        // 1. Récupération directe des lignes d'inventaire du PJ
-        const { data: invData } = await supabase.from('pj_inventaire')
-          .select('*')
-          .eq('pj_id', pj.id)
-          .in('item_type', ['arme_contact', 'arme_distance'])
-          .eq('is_equipped', true);
-
-        if (!invData || invData.length === 0) {
-          setWeapons([]);
-          return;
-        }
-
-        // 2. On isole les item_id pour ceux qui en ont un
-        const contactIds = invData.filter(i => i.item_type === 'arme_contact' && i.item_id != null).map(i => String(i.item_id));
-        const distanceIds = invData.filter(i => i.item_type === 'arme_distance' && i.item_id != null).map(i => String(i.item_id));
-
-        const [contactRes, distanceRes] = await Promise.all([
-          contactIds.length > 0 
-            ? supabase.from('armes_contact').select('id, dm, type_de_dm').in('id', contactIds) 
-            : Promise.resolve({ data: [] }),
-          distanceIds.length > 0 
-            ? supabase.from('armes_distance').select('id, dm, type_de_dm, portee').in('id', distanceIds) 
-            : Promise.resolve({ data: [] })
-        ]);
-
-        const contactMap = new Map<string, any>((contactRes.data || []).map(a => [String(a.id), a]));
-        const distanceMap = new Map<string, any>((distanceRes.data || []).map(a => [String(a.id), a]));
-
-        // 3. Traitement
-        const formattedWeapons = invData.map((item: any) => {
-          let baseWeapon: any = null;
-          const itemIdStr = item.item_id != null ? String(item.item_id) : null;
-
-          if (item.item_type === 'arme_contact' && itemIdStr) {
-            baseWeapon = contactMap.get(itemIdStr);
-          } else if (item.item_type === 'arme_distance' && itemIdStr) {
-            baseWeapon = distanceMap.get(itemIdStr);
-          }
-
-          // Priorité 1 : La valeur 'dm' ou 'degats' portée directement sur l'objet d'inventaire
-          // Priorité 2 : La valeur du compendium si item_id est présent
-          const dmDirect = item.dm ?? item.degats;
-          const dmCompendium = baseWeapon?.dm ? `${baseWeapon.dm}${baseWeapon.type_de_dm ? ` ${baseWeapon.type_de_dm}` : ''}`.trim() : null;
-
-          return {
-            ...item,
-            degats: dmDirect ?? dmCompendium ?? null,
-            portee: item.portee ?? baseWeapon?.portee ?? null,
-          };
-        });
-
-        setWeapons(formattedWeapons);
+      try {
+        const data = await personnageDetailApi.fetchWeapons(pj.id, type);
+        setWeapons(data);
+      } catch {
+        setWeapons([]);
       }
     };
 
     fetchWeapons();
-  }, [pj?.id, type, weaponsRefreshKey]);
+  }, [personnageDetailApi, pj?.id, type, weaponsRefreshKey]);
 
   console.log("weapons", weapons);
   const handleSave = async () => {
@@ -369,19 +285,8 @@ export function PersonnageDetail({
     try {
       let imageUrl = pj.image_url;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `${type}/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("compendium")
-          .upload(path, imageFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage
-          .from("compendium")
-          .getPublicUrl(path);
-        imageUrl = urlData.publicUrl;
+        imageUrl = await personnageDetailApi.uploadImage(type, imageFile);
       }
-
-      const table = type === "pnj" ? "pnj" : "pj";
 
       const normalizedPvMaxForSave = Math.max(Number(editPvMax ?? 0), Number(editPv ?? 0));
 
@@ -451,16 +356,13 @@ export function PersonnageDetail({
         }
       }
 
-      await supabase
-        .from(table)
-        .update({
-          name: editName.trim() || pj.name,
-          image_url: imageUrl,
-          stats: statsToSave,
-          ...(type === "pj" ? { user_id: editUserId || null } : {}),
-          ...(peupleId ? { peuple_id: peupleId } : {}),
-        })
-        .eq("id", pj.id);
+      await personnageDetailApi.updateCharacter(pj.id, type, {
+        name: editName.trim() || pj.name,
+        image_url: imageUrl,
+        stats: statsToSave,
+        ...(type === "pj" ? { user_id: editUserId || null } : {}),
+        ...(peupleId ? { peuple_id: peupleId } : {}),
+      });
 
       setIsEditing(false);
       onEditSuccess();
@@ -475,61 +377,11 @@ export function PersonnageDetail({
     if (!pj) return;
     setIsSaving(true);
     try {
-      const newLevel = (pj.stats?.niveau ?? 1) + 1;
-      const updatedPathways = [...(pj.pathways || [])];
-      pendingRanks.forEach((pr) => {
-        const pathwayIndex = updatedPathways.findIndex(
-          (p: any) => p.voie_id === pr.voie_id,
-        );
-        if (pathwayIndex !== -1) {
-          const rangsAcquis = [
-            ...(updatedPathways[pathwayIndex].rangs_acquis || []),
-          ];
-          if (!rangsAcquis.includes(pr.rang)) {
-            rangsAcquis.push(pr.rang);
-            updatedPathways[pathwayIndex].rangs_acquis = rangsAcquis.sort(
-              (a, b) => a - b,
-            );
-          }
-        } else {
-          updatedPathways.push({
-            voie_id: pr.voie_id,
-            rangs_acquis: [pr.rang],
-          });
-        }
-      });
-
-      const stats = pj.stats ?? {};
-      const caract = stats.caracteristiques ?? {};
-      const forStat = Number(caract.FOR ?? 0);
-      const agi = Number(caract.AGI ?? 0);
-      const vol = Number(caract.VOL ?? 0);
-
-      // Passage de niveau automatique: gain de PV + recalcul des bonus d'attaque.
-      const hpGain = getHpGainPerLevel(stats);
-      const currentPvMax = Math.max(Number(stats.pv_max ?? stats.pv ?? 0), Number(stats.pv ?? 0));
-      const nextPvMax = currentPvMax + hpGain;
-      const nextPv = Number(stats.pv ?? 0) + hpGain;
-      const nextAttContact = newLevel + forStat;
-      const nextAttDistance = newLevel + agi;
-      const nextAttMagie = newLevel + vol;
-      
-      const table = type === "pnj" ? "pnj" : "pj";
-      await supabase
-        .from(table)
-        .update({
-          pathways: updatedPathways,
-          stats: {
-            ...stats,
-            niveau: newLevel,
-            pv: nextPv,
-            pv_max: nextPvMax,
-            att_contact: nextAttContact,
-            att_distance: nextAttDistance,
-            att_magie: nextAttMagie,
-          },
-        })
-        .eq("id", pj.id);
+      await personnageDetailApi.saveLevelUp(
+        { id: pj.id, stats: pj.stats ?? null, pathways: pj.pathways ?? null },
+        type,
+        pendingRanks,
+      );
         
       setIsLevelingUp(false);
       setPendingRanks([]);
@@ -1437,9 +1289,12 @@ export function PersonnageDetail({
             readOnly={readOnly || technicalSheetOnly}
             onInventoryChange={() => setWeaponsRefreshKey(k => k + 1)}
             onUpdateStats={async (newStats) => {
-              const table = type === "pnj" ? "pnj" : "pj";
-              const { error } = await supabase.from(table).update({ stats: newStats }).eq("id", pj.id);
-              if (!error) setLocalStats(newStats);
+              try {
+                await personnageDetailApi.updateCharacterStats(pj.id, type, newStats);
+                setLocalStats(newStats);
+              } catch {
+                // Ne pas mettre a jour l'etat local si la persistance echoue.
+              }
               // Ne pas appeler onEditSuccess() ici : cela rechargerait le pj et resetterait l'onglet actif
             }}
           />

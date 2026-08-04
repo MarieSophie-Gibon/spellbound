@@ -3,9 +3,9 @@ import { CalendarDays, Ticket, Copy, Check, Loader2, UserSearch, Users } from "l
 import { theme } from "@/lib/theme";
 import type { Campaign } from "@/hooks/useCampaigns";
 import { useCampaignProgress, useCreateCampaignInvitation, useRevealedPnjs } from "@/hooks/useCampaigns";
+import { useCampaignHomeData } from "@/hooks/useCampaignHomeData";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { supabase } from "@/lib/supabase";
 
 interface CampaignHomeMobileProps {
   campaign: Campaign;
@@ -14,6 +14,7 @@ interface CampaignHomeMobileProps {
 export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
   const role = useAuthStore((s) => s.role);
   const isMJ = role === "mj";
+  const campaignHomeData = useCampaignHomeData();
   const bgImage = campaign.image_url || "/default-bg.jpg";
   const { data: progress } = useCampaignProgress(campaign.id);
   const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
@@ -28,25 +29,8 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
   const selectedPnj = (revealedPnjs ?? []).find((pnj) => pnj.id === selectedPnjId) ?? null;
 
   useEffect(() => {
-    supabase
-      .from("campaign_members")
-      .select("user_id")
-      .eq("campaign_id", campaign.id)
-      .then(async ({ data: rows }) => {
-        if (!rows?.length) {
-          setMembres([]);
-          return;
-        }
-
-        const ids = rows.map((r) => r.user_id).filter(Boolean);
-        const { data: users } = await supabase
-          .from("utilisateurs")
-          .select("id, pseudo")
-          .in("id", ids);
-
-        setMembres((users ?? []).map((u: { id: string; pseudo: string }) => ({ id: u.id, pseudo: u.pseudo })));
-      });
-  }, [campaign.id]);
+    campaignHomeData.fetchCampaignMembers(campaign.id).then(setMembres);
+  }, [campaign.id, campaignHomeData]);
 
   useEffect(() => {
     const loadVoies = async () => {
@@ -59,7 +43,7 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
         setSelectedPnjVoies([]);
         return;
       }
-      const { data } = await supabase.from("voies").select("id, nom").in("id", voieIds);
+      const data = await campaignHomeData.fetchVoiesByIds(voieIds);
 
       const voieName = new Map((data ?? []).map((v) => [v.id, v.nom]));
       setSelectedPnjVoies(
@@ -73,7 +57,7 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
       );
     };
     void loadVoies();
-  }, [selectedPnjId, selectedPnj]);
+  }, [selectedPnjId, selectedPnj, campaignHomeData]);
 
   const createdAt = campaign.created_at
     ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(campaign.created_at))

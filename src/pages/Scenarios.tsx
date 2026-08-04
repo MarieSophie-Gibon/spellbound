@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { supabase } from "@/lib/supabase";
+import { useScenariosData } from "@/hooks/useScenariosData";
 import { ScenarioSidebar } from "@/components/scenarios/ScenarioSidebar";
 import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioModals";
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";
@@ -63,6 +63,7 @@ function DeleteNodeModal({
 }
 
 export function Scenarios({ campaignId, onBack }: ScenariosProps) {
+  const scenariosData = useScenariosData();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [scenarios, setScenarios] = useState<any[]>([]);
@@ -83,30 +84,21 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
   const [dragOverChapitreId, setDragOverChapitreId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const { data: scData } = await supabase
-      .from("scenarios")
-      .select("*")
-      .eq("campaign_id", campaignId)
-      .order("ordre", { ascending: true });
+    const scData = await scenariosData.fetchScenarios(campaignId);
 
     if (scData) {
       setScenarios(scData);
       
       const scIds = scData.map((s) => s.id);
       if (scIds.length > 0) {
-        const { data: chData } = await supabase
-          .from("chapitres")
-          .select("id, scenario_id, title, ordre, completed")
-          .in("scenario_id", scIds)
-          .order("ordre", { ascending: true });
-          
+        const chData = await scenariosData.fetchChapitresByScenarioIds(scIds);
         if (chData) setChapitres(chData);
       } else {
         setChapitres([]);
       }
     }
     setIsLoading(false);
-  }, [campaignId]);
+  }, [campaignId, scenariosData]);
 
   useEffect(() => {
     fetchData();
@@ -120,18 +112,12 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
   }, [searchParams]);
 
   const handleToggleCompleted = async (chapitreId: string, current: boolean) => {
-    await supabase.from("chapitres").update({ completed: !current }).eq("id", chapitreId);
+    await scenariosData.updateChapitreCompleted(chapitreId, !current);
     setChapitres((prev) => prev.map((c) => c.id === chapitreId ? { ...c, completed: !current } : c));
 
     // Quand on marque un chapitre comme réalisé, on révèle les PNJs de ses blocs NPC
     if (!current) {
-      const { data: chapData } = await supabase
-        .from("chapitres")
-        .select("content")
-        .eq("id", chapitreId)
-        .single();
-
-      const blocks: any[] = chapData?.content ?? [];
+      const blocks: any[] = await scenariosData.fetchChapitreContent(chapitreId);
       const npcIds = Array.from(new Set(
         blocks
           .filter((b) => b.type === "npc")
@@ -142,14 +128,11 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       if (npcIds.length > 0) {
         // On évite d'utiliser upsert(onConflict) ici pour rester compatible même
         // si la contrainte unique (campaign_id, pnj_id) n'existe pas en DB.
-        const { data: alreadyRevealed, error: alreadyErr } = await supabase
-          .from("campaign_revealed_pnjs")
-          .select("pnj_id")
-          .eq("campaign_id", campaignId)
-          .in("pnj_id", npcIds);
-
-        if (alreadyErr) {
-          console.error("Erreur lecture PNJ révélés:", alreadyErr.message);
+        let alreadyRevealed: Array<{ pnj_id: string }> = [];
+        try {
+          alreadyRevealed = await scenariosData.fetchAlreadyRevealedPnjs(campaignId, npcIds);
+        } catch (error: any) {
+          console.error("Erreur lecture PNJ révélés:", error?.message ?? "Erreur inconnue");
           return;
         }
 
@@ -157,12 +140,10 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
         const missing = npcIds.filter((id) => !already.has(id));
         if (missing.length === 0) return;
 
-        const { error: insertErr } = await supabase
-          .from("campaign_revealed_pnjs")
-          .insert(missing.map((pnj_id) => ({ campaign_id: campaignId, pnj_id })));
-
-        if (insertErr) {
-          console.error("Erreur reveal PNJ:", insertErr.message);
+        try {
+          await scenariosData.insertRevealedPnjs(campaignId, missing);
+        } catch (error: any) {
+          console.error("Erreur reveal PNJ:", error?.message ?? "Erreur inconnue");
         }
       }
     }
@@ -239,14 +220,11 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
     setDraggedChapitreId(null);
     setDragOverChapitreId(null);
 
-    const updates = updatedForScenario.map((c) =>
-      supabase.from("chapitres").update({ ordre: c.ordre }).eq("id", c.id)
-    );
-
-    const results = await Promise.all(updates);
-    const firstError = results.find((r) => r.error)?.error;
-    if (firstError) {
-      console.error("Erreur réorganisation chapitres:", firstError.message);
+    try {
+      await scenariosData.updateChapitresOrder(updatedForScenario.map((c) => ({ id: c.id, ordre: c.ordre })));
+    } catch (error: any) {
+      const message = error?.message ?? "Erreur inconnue";
+      console.error("Erreur réorganisation chapitres:", message);
       fetchData();
     }
   };
@@ -255,9 +233,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      const table = deleteTarget.type === 'scenario' ? 'scenarios' : 'chapitres';
-      const { error } = await supabase.from(table).delete().eq("id", deleteTarget.id);
-      if (error) throw error;
+      await scenariosData.deleteNode(deleteTarget.type, deleteTarget.id);
       
       if (deleteTarget.type === 'chapitre' && selectedChapitreId === deleteTarget.id) {
         setSelectedChapitreId(null);

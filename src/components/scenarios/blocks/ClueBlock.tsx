@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { supabase } from "@/lib/supabase";
+import { useScenarioBlocksData } from "@/hooks/useScenarioBlocksData";
 import { Search, User, Package, Dices, X, ChevronDown, ChevronUp, Plus, Sword, Target, Shield } from "lucide-react";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
@@ -49,19 +49,18 @@ function PnjMiniCard({
   onRemove?: () => void;
   isEditing?: boolean;
 }) {
+  const scenarioBlocksData = useScenarioBlocksData();
   const [details, setDetails] = useState<{
     image_url: string | null;
     stats?: { sexe?: string; age?: string; description?: string; niveau?: number };
   } | null>(null);
 
   useEffect(() => {
-    supabase
-      .from("pnj")
-      .select("image_url, stats")
-      .eq("id", npc.id)
-      .single()
-      .then(({ data }) => { if (data) setDetails(data); });
-  }, [npc.id]);
+    scenarioBlocksData
+      .fetchPnjMiniDetails(npc.id)
+      .then((data) => { if (data) setDetails(data); })
+      .catch(() => setDetails(null));
+  }, [npc.id, scenarioBlocksData]);
 
   return (
     <div className="relative rounded-lg border border-violet-400/25 bg-violet-500/8 p-2.5 flex flex-col gap-2">
@@ -125,6 +124,7 @@ function PnjMiniCard({
 
 // ── Composant principal ────────────────────────────────────────────────────────
 export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockProps) {
+  const scenarioBlocksData = useScenarioBlocksData();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [npcSearch, setNpcSearch] = useState("");
   const [npcResults, setNpcResults] = useState<{ id: string; name: string }[]>([]);
@@ -151,29 +151,20 @@ export function ClueBlock({ campaignId, data, onChange, isEditing }: ClueBlockPr
   // Recherche PNJ
   useEffect(() => {
     if (npcSearch.length < 2) return;
-    supabase.from("pnj").select("id, name").eq("campaign_id", campaignId).ilike("name", `%${npcSearch}%`).limit(6)
-      .then(({ data: res }) => setNpcResults(res ?? []));
-  }, [npcSearch, campaignId]);
+    scenarioBlocksData
+      .searchPnjs(campaignId, npcSearch, { limit: 6 })
+      .then((res) => setNpcResults(res ?? []))
+      .catch(() => setNpcResults([]));
+  }, [npcSearch, campaignId, scenarioBlocksData]);
 
   // Recherche objets — toutes les tables d'équipement
   useEffect(() => {
     if (itemSearch.length < 2) return;
-    const q = `%${itemSearch}%`;
-    const filter = `campaign_id.is.null,campaign_id.eq.${campaignId}`;
-    Promise.all([
-      supabase.from("equipements").select("id, nom").or(filter).ilike("nom", q).limit(5),
-      supabase.from("armes_contact").select("id, nom").or(filter).ilike("nom", q).limit(4),
-      supabase.from("armes_distance").select("id, nom").or(filter).ilike("nom", q).limit(4),
-      supabase.from("armures").select("id, nom").or(filter).ilike("nom", q).limit(4),
-    ]).then(([eq, ac, ad, ar]) =>
-      setItemResults([
-        ...(eq.data ?? []).map(i => ({ ...i, table: "equipements" })),
-        ...(ac.data ?? []).map(i => ({ ...i, table: "armes_contact" })),
-        ...(ad.data ?? []).map(i => ({ ...i, table: "armes_distance" })),
-        ...(ar.data ?? []).map(i => ({ ...i, table: "armures" })),
-      ])
-    );
-  }, [itemSearch, campaignId]);
+    scenarioBlocksData
+      .searchClueItems(campaignId, itemSearch)
+      .then((res) => setItemResults(res as { id: string; nom: string; table: string }[]))
+      .catch(() => setItemResults([]));
+  }, [itemSearch, campaignId, scenarioBlocksData]);
 
   const addNpc = (npc: { id: string; name: string }) => {
     if (linkedNpcs.some((n) => n.id === npc.id)) return;

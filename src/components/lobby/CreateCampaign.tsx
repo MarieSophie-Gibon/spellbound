@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useCreateCampaign, useUpdateCampaign } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
-import { supabase } from "@/lib/supabase";
+import { useLobbyData } from "@/hooks/useLobbyData";
 import { validateCampaignForm, validateCampaignImage } from "@/lib/validation/campaignForms";
 
 interface CreateCampaignProps {
@@ -24,6 +24,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
   const [error, setError] = useState<string | null>(null);
   const createCampaign = useCreateCampaign();
   const updateCampaign = useUpdateCampaign();
+  const lobbyData = useLobbyData();
 
   if (!open) return null;
 
@@ -61,15 +62,12 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
     const payload = validated.data;
     let image_url = initialData?.image_url ?? null;
     if (imageFile) {
-      const ext = imageFile.name.split('.').pop() || "jpg";
-      const path = `campagnes/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
-      if (upErr) {
+      try {
+        image_url = await lobbyData.uploadCampaignImage(imageFile);
+      } catch {
         setError("Erreur lors de l'upload de l'image");
         return;
       }
-      const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
-      image_url = urlData.publicUrl;
     }
 
     if (isEditing && initialData) {

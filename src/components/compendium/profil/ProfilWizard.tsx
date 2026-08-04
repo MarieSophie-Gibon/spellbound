@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { ThemedSelect } from "@/components/ui/ThemedSelect";
+import { RangEditorCard } from "@/components/compendium/shared/RangEditorCard";
 import {
   X,
   ArrowRight,
@@ -16,12 +17,20 @@ import {
   Target,
   Shield,
   Check,
-  Copy,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useProfilData } from "@/hooks/useProfilData";
 import type { FamilleArchetype, FamilleVoie, ProfilWizardProps, RangsState, VoieRang } from "@/types/compendium";
-import { EMPTY_RANGS, RANG_ACTION_TYPES } from "@/types/compendium";
+import { EMPTY_RANGS } from "@/types/compendium";
 import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";
+import {
+  addRangItemState,
+  duplicateRangItemState,
+  removeRangItemState,
+  toggleOpenItem,
+  updateRangFieldState,
+  updateRangItemState,
+  type RangSection,
+} from "@/lib/rangEditor";
 
 
 // --- Helpers ---
@@ -44,6 +53,7 @@ export function ProfilWizard({
   initialData,
   famillesArchetypes,
 }: ProfilWizardProps) {
+  const profilData = useProfilData();
   const isEditing = !!initialData;
   const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
@@ -102,17 +112,13 @@ export function ProfilWizard({
 
   useEffect(() => {
     const fetchEquip = async () => {
-      const [r1, r2, r3] = await Promise.all([
-        supabase.from("armes_contact").select("id, nom").order("nom"),
-        supabase.from("armes_distance").select("id, nom").order("nom"),
-        supabase.from("armures").select("id, nom").order("nom"),
-      ]);
-      if (r1.data) setArmesContact(r1.data);
-      if (r2.data) setArmesDistance(r2.data);
-      if (r3.data) setArmures(r3.data);
+      const options = await profilData.fetchEquipementOptions();
+      setArmesContact(options.armesContact);
+      setArmesDistance(options.armesDistance);
+      setArmures(options.armures);
     };
     fetchEquip();
-  }, []);
+  }, [profilData]);
 
   const toggleSelection = (
     id: string,
@@ -153,7 +159,7 @@ export function ProfilWizard({
     setVoies((prev) =>
       prev.map((v, i) => {
         if (i !== voieIdx) return v;
-        return { ...v, _rangs: { ...v._rangs, [rangKey]: { ...v._rangs[rangKey], [field]: value } } };
+        return { ...v, _rangs: updateRangFieldState(v._rangs, rangKey, field, value) };
       }),
     );
   };
@@ -161,7 +167,7 @@ export function ProfilWizard({
   const updateRangItem = (
     voieIdx: number,
     rangKey: keyof RangsState,
-    section: "bonus" | "capacites" | "actions" | "familiers" | "legacies",
+    section: RangSection,
     itemIdx: number,
     field: string,
     value: string | boolean,
@@ -169,21 +175,7 @@ export function ProfilWizard({
     setVoies((prev) =>
       prev.map((v, i) => {
         if (i !== voieIdx) return v;
-        const current = v._rangs[rangKey];
-        const items = Array.isArray(current[section]) ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)] : [];
-        const item = { ...(items[itemIdx] || {}) };
-        item[field] = value;
-        items[itemIdx] = item;
-        return {
-          ...v,
-          _rangs: {
-            ...v._rangs,
-            [rangKey]: {
-              ...current,
-              [section]: items,
-            },
-          },
-        };
+        return { ...v, _rangs: updateRangItemState(v._rangs, rangKey, section, itemIdx, field, value) };
       }),
     );
   };
@@ -191,44 +183,15 @@ export function ProfilWizard({
   const addRangItem = (
     voieIdx: number,
     rangKey: keyof RangsState,
-    section: "bonus" | "capacites" | "actions" | "familiers" | "legacies",
+    section: RangSection,
   ) => {
-    const emptyBySection = {
-      bonus: { titre: "", type: "", valeur: "", condition: "" },
-      capacites: { titre: "", description: "" },
-      actions: {
-        titre: "",
-        type: "",
-        sort: false,
-        cout_mana: "",
-        dm: "",
-        test_oppose: false,
-        test_type: "",
-        resultat_si_reussi: "",
-        description: "",
-      },
-      familiers: { titre: "", description: "" },
-      legacies: { titre: "", description: "" },
-    } as const;
-
     setVoies((prev) =>
       prev.map((v, i) => {
         if (i !== voieIdx) return v;
-        const current = v._rangs[rangKey];
-        const items = Array.isArray(current[section]) ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)] : [];
-        const newIkey = `v${voieIdx}-${rangKey}-${section}-${items.length}`;
-        items.push({ ...emptyBySection[section] });
+        const { next, newIndex } = addRangItemState(v._rangs, rangKey, section);
+        const newIkey = `v${voieIdx}-${rangKey}-${section}-${newIndex}`;
         setNewItemKeys(prev2 => { const n = new Set(prev2); n.add(newIkey); return n; });
-        return {
-          ...v,
-          _rangs: {
-            ...v._rangs,
-            [rangKey]: {
-              ...current,
-              [section]: items,
-            },
-          },
-        };
+        return { ...v, _rangs: next };
       }),
     );
   };
@@ -236,25 +199,13 @@ export function ProfilWizard({
   const removeRangItem = (
     voieIdx: number,
     rangKey: keyof RangsState,
-    section: "bonus" | "capacites" | "actions" | "familiers" | "legacies",
+    section: RangSection,
     itemIdx: number,
   ) => {
     setVoies((prev) =>
       prev.map((v, i) => {
         if (i !== voieIdx) return v;
-        const current = v._rangs[rangKey];
-        const items = Array.isArray(current[section]) ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)] : [];
-        items.splice(itemIdx, 1);
-        return {
-          ...v,
-          _rangs: {
-            ...v._rangs,
-            [rangKey]: {
-              ...current,
-              [section]: items,
-            },
-          },
-        };
+        return { ...v, _rangs: removeRangItemState(v._rangs, rangKey, section, itemIdx) };
       }),
     );
   };
@@ -262,27 +213,18 @@ export function ProfilWizard({
   const [openRangItems, setOpenRangItems] = useState<Set<string>>(new Set());
   const [newItemKeys, setNewItemKeys] = useState<Set<string>>(new Set());
   const toggleRangItem = (ikey: string) =>
-    setOpenRangItems((prev) => {
-      const n = new Set(prev);
-      if (n.has(ikey)) { n.delete(ikey); } else { n.add(ikey); }
-      return n;
-    });
+    setOpenRangItems((prev) => toggleOpenItem(prev, ikey));
 
   const duplicateRangItem = (
     voieIdx: number,
     rangKey: keyof RangsState,
-    section: "bonus" | "capacites" | "actions" | "familiers" | "legacies",
+    section: RangSection,
     itemIdx: number,
   ) => {
     setVoies((prev) =>
       prev.map((v, i) => {
         if (i !== voieIdx) return v;
-        const current = v._rangs[rangKey];
-        const items = Array.isArray(current[section])
-          ? [...(current[section] as unknown as Array<Record<string, string | boolean>>)]
-          : [];
-        items.splice(itemIdx + 1, 0, { ...items[itemIdx] });
-        return { ...v, _rangs: { ...v._rangs, [rangKey]: { ...current, [section]: items } } };
+        return { ...v, _rangs: duplicateRangItemState(v._rangs, rangKey, section, itemIdx) };
       }),
     );
   };
@@ -298,18 +240,11 @@ export function ProfilWizard({
     try {
       let uploadedImageUrl: string | undefined = initialData?.image_url;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `profils/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
-        uploadedImageUrl = urlData.publicUrl;
+        uploadedImageUrl = await profilData.uploadProfilImage(imageFile);
       }
 
       if (isEditing && initialData) {
-        const { error: profErr } = await supabase
-          .from("profils")
-          .update({
+        await profilData.updateProfil(initialData.id, {
             nom: nom.trim(),
             famille_id: familleId,
             description: description.trim() || null,
@@ -325,15 +260,13 @@ export function ProfilWizard({
                 armure: selectedArmures,
               },
             },
-          })
-          .eq("id", initialData.id);
-        if (profErr) throw profErr;
+          });
 
         // Sync voies
         const existingIds = initialData.voies.map((v) => v.id).filter(Boolean) as string[];
         const currentIds = voies.map((v) => v.id).filter(Boolean) as string[];
         const toDelete = existingIds.filter((id) => !currentIds.includes(id));
-        if (toDelete.length) await supabase.from("voies").delete().in("id", toDelete);
+        if (toDelete.length) await profilData.deleteVoiesByIds(toDelete);
         // Use the profil's own campaign_id to keep voies consistent with the profil
         const profilCampaignId = initialData.campaign_id !== undefined ? initialData.campaign_id : campaignId || null;
         const profilIsCustom = profilCampaignId !== null;
@@ -341,10 +274,9 @@ export function ProfilWizard({
           const capacites = cleanupRangsForSave(v._rangs);
           const voieType = v.type?.trim() || "profil";
           if (v.id) {
-            const { error: updErr } = await supabase.from("voies").update({ nom: v.nom.trim(), type: voieType, capacites }).eq("id", v.id);
-            if (updErr) throw updErr;
+            await profilData.updateVoie(v.id, { nom: v.nom.trim(), type: voieType, capacites });
           } else {
-            const { error: insErr } = await supabase.from("voies").insert({
+            await profilData.insertVoie({
               nom: v.nom.trim(),
               type: voieType,
               profil_id: initialData.id,
@@ -352,14 +284,11 @@ export function ProfilWizard({
               is_custom: profilIsCustom,
               capacites,
             });
-            if (insErr) throw insErr;
           }
         }
       } else {
         const publicMode = campaignId && !isPrivate;
-        const { data: newProfil, error: profErr } = await supabase
-          .from("profils")
-          .insert({
+        const newProfil = await profilData.createProfil({
             nom: nom.trim(),
             famille_id: familleId,
             description: description.trim() || null,
@@ -376,14 +305,11 @@ export function ProfilWizard({
             },
             campaign_id: publicMode ? null : campaignId || null,
             is_custom: !!(campaignId && isPrivate),
-          })
-          .select()
-          .single();
-        if (profErr) throw profErr;
+          });
 
         for (const v of voies) {
           const voieType = v.type?.trim() || "profil";
-          const { error: voieErr } = await supabase.from("voies").insert({
+          await profilData.insertVoie({
             nom: v.nom.trim(),
             type: voieType,
             profil_id: newProfil.id,
@@ -391,7 +317,6 @@ export function ProfilWizard({
             is_custom: !!(campaignId && isPrivate),
             capacites: cleanupRangsForSave(v._rangs),
           });
-          if (voieErr) throw voieErr;
         }
       }
 
@@ -653,179 +578,24 @@ export function ProfilWizard({
                   <div className="px-4 pb-4 space-y-2 pt-2">
                     {([1, 2, 3, 4, 5] as const).map((rangNum) => {
                       const key = `rang${rangNum}` as keyof RangsState;
-                      const rangData = voie._rangs[key];
-                      const bonuses = Array.isArray(rangData.bonus) ? rangData.bonus : [];
-                      const capacites = Array.isArray(rangData.capacites) ? rangData.capacites : [];
-                      const actions = Array.isArray(rangData.actions) ? rangData.actions : [];
-                      const familiers = Array.isArray(rangData.familiers) ? rangData.familiers : [];
-                      const legacies = Array.isArray(rangData.legacies) ? rangData.legacies : [];
-                      const itemHasContent = (item: unknown) =>
-                        Object.values(item as Record<string, unknown>).some(v => (typeof v === "string" && v.trim().length > 0) || (typeof v === "boolean" && v));
-                      const showItems = isEditing
-                        ? [...bonuses, ...capacites, ...actions, ...familiers, ...legacies].some(i => itemHasContent(i)) || newItemKeys.size > 0
-                        : bonuses.length > 0 || capacites.length > 0 || actions.length > 0 || familiers.length > 0 || legacies.length > 0;
                       return (
-                        <div key={key} className="rounded-xl border border-white/8 overflow-hidden">
-                          {/* Rang header */}
-                          <div className="flex items-center gap-3 px-3 py-2.5 bg-black/10">
-                            <span className="w-5 h-5 rounded-full border border-white/25 flex items-center justify-center text-[11px] text-white/50 font-medium shrink-0">{rangNum}</span>
-                            <input
-                              type="text"
-                              value={rangData.titre || ""}
-                              onChange={(e) => updateRangField(voieIdx, key, "titre", e.target.value)}
-                              placeholder={`Rang ${rangNum}`}
-                              className="flex-1 bg-transparent outline-none text-white text-sm placeholder:text-white/25 border-b border-transparent focus:border-white/20 py-0.5 transition-colors"
-                            />
-                          </div>
-                          {/* Items */}
-                          {showItems && (
-                            <div className="px-3 pt-1 pb-0.5 space-y-1">
-                              {bonuses.map((bonus, idx) => {
-                                if (isEditing && !itemHasContent(bonus) && !newItemKeys.has(`v${voieIdx}-${key}-bonus-${idx}`)) return null;
-                                const ikey = `v${voieIdx}-${key}-bonus-${idx}`;
-                                const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
-                                return (
-                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
-                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
-                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-900/25 text-amber-300/60 shrink-0">bonus</span>
-                                      <span className="flex-1 text-[12px] text-white/75 truncate">{bonus.titre || <span className="text-white/25 italic">sans titre</span>}</span>
-                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "bonus", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
-                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "bonus", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
-                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                                    </div>
-                                    {isOpen && (
-                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                                          <input type="text" value={bonus.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "titre", e.target.value)} placeholder="Titre du bonus" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                          <input type="text" value={bonus.type || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "type", e.target.value)} placeholder="Type de bonus" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                          <input type="text" value={bonus.valeur || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "valeur", e.target.value)} placeholder="Valeur (ex: +2)" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                        </div>
-                                        <textarea value={bonus.condition || ""} onChange={(e) => updateRangItem(voieIdx, key, "bonus", idx, "condition", e.target.value)} placeholder="Description / condition (optionnel)" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {capacites.map((capacite, idx) => {
-                                if (isEditing && !itemHasContent(capacite) && !newItemKeys.has(`v${voieIdx}-${key}-capacites-${idx}`)) return null;
-                                const ikey = `v${voieIdx}-${key}-capacites-${idx}`;
-                                const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
-                                return (
-                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
-                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
-                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-900/25 text-blue-300/60 shrink-0">cap.</span>
-                                      <span className="flex-1 text-[12px] text-white/75 truncate">{capacite.titre || <span className="text-white/25 italic">sans titre</span>}</span>
-                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "capacites", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
-                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "capacites", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
-                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                                    </div>
-                                    {isOpen && (
-                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
-                                        <input type="text" value={capacite.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "capacites", idx, "titre", e.target.value)} placeholder="Titre de la capacité" className="w-full bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                        <textarea value={capacite.description || ""} onChange={(e) => updateRangItem(voieIdx, key, "capacites", idx, "description", e.target.value)} placeholder="Description de la capacité" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {actions.map((action, idx) => {
-                                if (isEditing && !itemHasContent(action) && !newItemKeys.has(`v${voieIdx}-${key}-actions-${idx}`)) return null;
-                                const ikey = `v${voieIdx}-${key}-actions-${idx}`;
-                                const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
-                                return (
-                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
-                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
-                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-900/25 text-emerald-300/60 shrink-0">action</span>
-                                      <span className="flex-1 text-[12px] text-white/75 truncate">{action.titre || <span className="text-white/25 italic">sans titre</span>}</span>
-                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "actions", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
-                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "actions", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
-                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                                    </div>
-                                    {isOpen && (
-                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                                          <input type="text" value={action.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "titre", e.target.value)} placeholder="Titre de l'action" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                          <ThemedSelect value={action.type || ""} onValueChange={(v) => updateRangItem(voieIdx, key, "actions", idx, "type", v || "")} options={[...RANG_ACTION_TYPES]} placeholder="Type (A/M/L/G)" />
-                                          <input type="text" value={action.dm || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "dm", e.target.value)} placeholder="DM" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                          <label className="flex items-center gap-2 text-[12px] text-white/75">
-                                            <input type="checkbox" checked={!!action.sort} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "sort", e.target.checked)} className="accent-indigo-500 w-4 h-4 rounded" />
-                                            Sort
-                                          </label>
-                                          <input type="text" value={action.cout_mana || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "cout_mana", e.target.value)} placeholder="Coût en PM" disabled={!action.sort} className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35 disabled:opacity-40" />
-                                        </div>
-                                        <label className="flex items-center gap-2 text-[12px] text-white/75">
-                                          <input type="checkbox" checked={!!action.test_oppose} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "test_oppose", e.target.checked)} className="accent-indigo-500 w-4 h-4 rounded" />
-                                          Test opposé
-                                        </label>
-                                        {action.test_oppose && (
-                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                                            <input type="text" value={action.test_type || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "test_type", e.target.value)} placeholder="Type de test" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                            <input type="text" value={action.resultat_si_reussi || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "resultat_si_reussi", e.target.value)} placeholder="Résultat si réussi" className="bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                          </div>
-                                        )}
-                                        <textarea value={action.description || ""} onChange={(e) => updateRangItem(voieIdx, key, "actions", idx, "description", e.target.value)} placeholder="Description de l'action" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {familiers.map((familier, idx) => {
-                                if (isEditing && !itemHasContent(familier) && !newItemKeys.has(`v${voieIdx}-${key}-familiers-${idx}`)) return null;
-                                const ikey = `v${voieIdx}-${key}-familiers-${idx}`;
-                                const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
-                                return (
-                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
-                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
-                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-teal-900/25 text-teal-300/60 shrink-0">familier</span>
-                                      <span className="flex-1 text-[12px] text-white/75 truncate">{familier.titre || <span className="text-white/25 italic">sans titre</span>}</span>
-                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "familiers", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
-                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "familiers", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
-                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                                    </div>
-                                    {isOpen && (
-                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
-                                        <input type="text" value={familier.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "familiers", idx, "titre", e.target.value)} placeholder="Nom du familier / capacité" className="w-full bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                        <textarea value={familier.description || ""} onChange={(e) => updateRangItem(voieIdx, key, "familiers", idx, "description", e.target.value)} placeholder="Description" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {legacies.map((legacy, idx) => {
-                                if (isEditing && !itemHasContent(legacy) && !newItemKeys.has(`v${voieIdx}-${key}-legacies-${idx}`)) return null;
-                                const ikey = `v${voieIdx}-${key}-legacies-${idx}`;
-                                const isOpen = isEditing ? !openRangItems.has(ikey) : openRangItems.has(ikey);
-                                return (
-                                  <div key={ikey} className="rounded border border-white/8 overflow-hidden">
-                                    <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer hover:bg-white/3 transition-colors" onClick={() => toggleRangItem(ikey)}>
-                                      <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-purple-900/25 text-purple-300/60 shrink-0">legacy</span>
-                                      <span className="flex-1 text-[12px] text-white/75 truncate">{legacy.titre || <span className="text-white/25 italic">sans titre</span>}</span>
-                                      <button type="button" title="Dupliquer" onClick={(e) => { e.stopPropagation(); duplicateRangItem(voieIdx, key, "legacies", idx); }} className="p-1 text-white/20 hover:text-white/60 transition-colors"><Copy className="w-3 h-3" /></button>
-                                      <button type="button" title="Supprimer" onClick={(e) => { e.stopPropagation(); removeRangItem(voieIdx, key, "legacies", idx); }} className="p-1 text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3 h-3" /></button>
-                                      <ChevronDown className={`w-3 h-3 text-white/25 transition-transform shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                                    </div>
-                                    {isOpen && (
-                                      <div className="px-2.5 pb-2.5 pt-2 space-y-2 border-t border-white/6 bg-black/10">
-                                        <input type="text" value={legacy.titre || ""} onChange={(e) => updateRangItem(voieIdx, key, "legacies", idx, "titre", e.target.value)} placeholder="Source (voie / rang)" className="w-full bg-transparent border-b border-white/25 focus:border-[#E3CCCD]/80 py-1.5 text-white text-sm outline-none transition-colors placeholder:text-white/35" />
-                                        <textarea value={legacy.description || ""} onChange={(e) => updateRangItem(voieIdx, key, "legacies", idx, "description", e.target.value)} placeholder="Capacité acquise" className="w-full h-14 bg-transparent border-b border-white/20 focus:border-white/35 py-1.5 text-white/85 text-[13px] outline-none transition-colors resize-none leading-relaxed placeholder:text-white/35" />
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {/* Add buttons */}
-                          <div className="px-3 pb-2.5 pt-1.5 flex flex-wrap items-center gap-2">
-                            <button type="button" onClick={() => addRangItem(voieIdx, key, "bonus")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-amber-300/70 hover:border-amber-900/40 transition-colors">+ Bonus</button>
-                            <button type="button" onClick={() => addRangItem(voieIdx, key, "capacites")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-blue-300/70 hover:border-blue-900/40 transition-colors">+ Capacité</button>
-                            <button type="button" onClick={() => addRangItem(voieIdx, key, "actions")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-emerald-300/70 hover:border-emerald-900/40 transition-colors">+ Action</button>
-                            <button type="button" onClick={() => addRangItem(voieIdx, key, "familiers")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-teal-300/70 hover:border-teal-900/40 transition-colors">+ Familier</button>
-                            <button type="button" onClick={() => addRangItem(voieIdx, key, "legacies")} className="text-[11px] px-2 py-0.5 rounded border border-white/15 text-white/40 hover:text-purple-300/70 hover:border-purple-900/40 transition-colors">+ Legacy</button>
-                          </div>
-                        </div>
+                        <RangEditorCard
+                          key={key}
+                          rangKey={key}
+                          rangNum={rangNum}
+                          rangData={voie._rangs[key]}
+                          isEditing={isEditing}
+                          newItemKeys={newItemKeys}
+                          openRangItems={openRangItems}
+                          onToggleRangItem={toggleRangItem}
+                          onUpdateRangTitle={(value) => updateRangField(voieIdx, key, "titre", value)}
+                          onUpdateRangItem={(section, idx, field, value) => updateRangItem(voieIdx, key, section, idx, field, value)}
+                          onDuplicateRangItem={(section, idx) => duplicateRangItem(voieIdx, key, section, idx)}
+                          onRemoveRangItem={(section, idx) => removeRangItem(voieIdx, key, section, idx)}
+                          onAddRangItem={(section) => addRangItem(voieIdx, key, section)}
+                          makeItemKey={(section, idx) => `v${voieIdx}-${key}-${section}-${idx}`}
+                          bonusValuePlaceholder="Valeur (ex: +2)"
+                        />
                       );
                     })}
                   </div>

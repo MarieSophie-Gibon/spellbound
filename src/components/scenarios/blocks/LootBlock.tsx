@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { useScenarioBlocksData } from "@/hooks/useScenarioBlocksData";
 import { Package, Search, Plus, Minus, Trash2, Loader2, Sword, Shield, Crosshair, Coins, Backpack, Check } from "lucide-react";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import { usePJs } from "@/hooks/usePJs";
@@ -42,6 +42,7 @@ const TABLE_LABEL: Record<string, string> = {
 };
 
 export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
+    const scenarioBlocksData = useScenarioBlocksData();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<LootItem[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -58,29 +59,8 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
 
     // Hydrate descriptions manquantes pour les items déjà sauvegardés
     useEffect(() => {
-        const missingDesc = items.filter(i => i.description === undefined || i.description === null);
-        if (missingDesc.length === 0) return;
-
-        const TABLE_SELECT: Record<string, { table: string; select: string; getDesc: (row: any) => string | null }> = {
-            equipements:    { table: 'equipements',    select: 'id, data',   getDesc: r => r.data?.description as string || null },
-            armes_contact:  { table: 'armes_contact',  select: 'id, notes',  getDesc: r => r.notes as string || null },
-            armes_distance: { table: 'armes_distance', select: 'id, notes',  getDesc: r => r.notes as string || null },
-            armures:        { table: 'armures',        select: 'id, notes',  getDesc: r => r.notes as string || null },
-        };
-
         const hydrate = async () => {
-            const descMap: Record<string, string | null> = {};
-            const byTable = missingDesc.reduce<Record<string, string[]>>((acc, i) => {
-                acc[i.table] = [...(acc[i.table] || []), i.id];
-                return acc;
-            }, {});
-
-            await Promise.all(Object.entries(byTable).map(async ([tbl, ids]) => {
-                const cfg = TABLE_SELECT[tbl];
-                if (!cfg) return;
-                const { data: rows } = await supabase.from(cfg.table).select(cfg.select).in('id', ids);
-                (rows || []).forEach((r: any) => { descMap[`${tbl}:${r.id}`] = cfg.getDesc(r); });
-            }));
+            const descMap = await scenarioBlocksData.fetchLootDescriptions(items);
 
             const updated = items.map(i => {
                 const key = `${i.table}:${i.id}`;
@@ -101,29 +81,14 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
 
         const search = async () => {
             setIsSearching(true);
-            const q = `%${searchQuery}%`;
-
-            const [eq, ac, ad, ar] = await Promise.all([
-                supabase.from('equipements').select('id, nom, image_url, prix, data').or(`campaign_id.is.null,campaign_id.eq.${campaignId}`).ilike('nom', q).limit(5),
-                supabase.from('armes_contact').select('id, nom, image_url, prix, notes, dm, type_de_dm').or(`campaign_id.is.null,campaign_id.eq.${campaignId}`).ilike('nom', q).limit(5),
-                supabase.from('armes_distance').select('id, nom, image_url, prix, notes, dm, type_de_dm').or(`campaign_id.is.null,campaign_id.eq.${campaignId}`).ilike('nom', q).limit(5),
-                supabase.from('armures').select('id, nom, image_url, prix, notes, bonus_def').or(`campaign_id.is.null,campaign_id.eq.${campaignId}`).ilike('nom', q).limit(5),
-            ]);
-
-            const combined: LootItem[] = [
-                ...(eq.data || []).map(i => ({ ...i, table: 'equipements', stat: i.data?.rarete || 'Objet', description: i.data?.description || null, quantite: 1 })),
-                ...(ac.data || []).map(i => ({ ...i, table: 'armes_contact', stat: `${i.dm || ''} ${i.type_de_dm || ''}`.trim(), description: i.notes || null, quantite: 1 })),
-                ...(ad.data || []).map(i => ({ ...i, table: 'armes_distance', stat: `${i.dm || ''} ${i.type_de_dm || ''}`.trim(), description: i.notes || null, quantite: 1 })),
-                ...(ar.data || []).map(i => ({ ...i, table: 'armures', stat: i.bonus_def ? `${i.bonus_def} DEF` : 'Armure', description: i.notes || null, quantite: 1 })),
-            ];
-
-            setSearchResults(combined);
+            const combined = await scenarioBlocksData.searchLootItems(campaignId, searchQuery);
+            setSearchResults(combined as LootItem[]);
             setIsSearching(false);
         };
 
         const debounce = setTimeout(search, 300);
         return () => clearTimeout(debounce);
-    }, [searchQuery, campaignId]);
+    }, [searchQuery, campaignId, scenarioBlocksData]);
 
     // Close PJ picker on outside click
     useEffect(() => {
@@ -140,19 +105,20 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
         const itemType = TABLE_TO_ITEM_TYPE[item.table] ?? "equipement";
         setAssigningPjId(pjId);
         setAssignError(null);
-        const { error } = await supabase.from("pj_inventaire").insert({
-            pj_id: pjId,
-            item_type: itemType,
-            item_id: null,
-            nom_custom: item.nom,
-            description_custom: item.description ?? item.stat ?? "",
-            qte: item.quantite,
-            is_equipped: false,
-        });
-        setAssigningPjId(null);
-        if (error) {
-            setAssignError(error.message);
+        try {
+            await scenarioBlocksData.assignLootItemToPj({
+                pjId,
+                itemType,
+                itemId: item.id,
+                nom: item.nom,
+                description: item.description ?? item.stat ?? "",
+                qte: item.quantite,
+            });
+        } catch (error: any) {
+            setAssignError(error?.message ?? "Erreur inconnue");
             return;
+        } finally {
+            setAssigningPjId(null);
         }
         const key = `${item.id}:${item.table}`;
         setAssignedKeys(prev => new Set(prev).add(key));

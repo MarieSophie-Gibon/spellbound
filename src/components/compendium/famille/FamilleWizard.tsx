@@ -5,7 +5,7 @@ import {
   X,
   Save,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useFamilleData } from "@/hooks/useFamilleData";
 import type { FamilleWizardProps } from "@/types/compendium";
 
 export function FamilleWizard({
@@ -14,6 +14,7 @@ export function FamilleWizard({
   campaignId,
   initialData,
 }: FamilleWizardProps) {
+  const familleData = useFamilleData();
   const isEditing = !!initialData;
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,16 +38,10 @@ export function FamilleWizard({
         is_custom: !!campaignId,
       };
 
-      if (isEditing && initialData) {
-        const { error } = await supabase
-          .from("familles")
-          .update(payload)
-          .eq("id", initialData.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("familles").insert(payload);
-        if (error) throw error;
-      }
+      await familleData.saveFamille({
+        familleId: isEditing ? initialData?.id : undefined,
+        payload,
+      });
 
       onSuccess();
       onClose();

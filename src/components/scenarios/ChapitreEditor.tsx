@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from "react";
-import { supabase } from "@/lib/supabase";
+import { useChapitreEditorData } from "@/hooks/useChapitreEditorData";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
@@ -36,6 +36,7 @@ interface Block {
 }
 
 export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
+  const chapitreEditorData = useChapitreEditorData();
   const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -135,11 +136,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
     setIsLoading(true);
-    const { data } = await supabase
-      .from("chapitres")
-      .select("*")
-      .eq("id", chapitreId)
-      .single();
+    const data = await chapitreEditorData.fetchChapitre(chapitreId);
 
     if (data) {
       setChapitre(data);
@@ -150,7 +147,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       setIsEditing(loadedBlocks.length === 0);
     }
     setIsLoading(false);
-  }, [chapitreId]);
+  }, [chapitreEditorData, chapitreId]);
 
   useEffect(() => {
     fetchChapitre();
@@ -165,12 +162,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       const payload = combatStateOverride
         ? { content: currentBlocks, combat_state: combatStateOverride }
         : { content: currentBlocks };
-      const { error } = await supabase
-        .from("chapitres")
-        .update(payload)
-        .eq("id", chapitreId);
-
-      if (error) throw error;
+      await chapitreEditorData.saveChapitrePayload(chapitreId, payload);
       setHasChanges(false);
       setLastSaved(new Date());
     } catch (err: any) {
@@ -180,7 +172,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     } finally {
       setIsSaving(false);
     }
-  }, [chapitreId]);
+  }, [chapitreEditorData, chapitreId]);
 
   // Déclencheur Auto-save avec Debounce (2 secondes après dernière modif)
   useEffect(() => {
@@ -281,13 +273,8 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
   const handleImageUpload = async (file: File, blockId: string) => {
     try {
-      const ext = file.name.split('.').pop();
-      const path = `scenarios/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-      const { error } = await supabase.storage.from("compendium").upload(path, file);
-      if (error) throw error;
-
-      const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
-      updateBlock(blockId, { url: urlData.publicUrl });
+      const imageUrl = await chapitreEditorData.uploadChapitreImage(file);
+      updateBlock(blockId, { url: imageUrl });
     } catch (err: any) {
       alert("Erreur lors de l'upload : " + err.message);
     }

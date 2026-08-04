@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useProfilData } from "@/hooks/useProfilData";
 import type { Famille, FamilleArchetype, FamilleVoie } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { ProfilDetailMobile } from "@/components/compendium/profil/ProfilDetailMobile";
@@ -20,6 +20,7 @@ interface ProfilDetailProps {
 
 export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, readOnly, onToggleFullscreen, onEdit, onDelete }: ProfilDetailProps) {
     const isMobile = useIsMobile();
+    const profilData = useProfilData();
     const hasActions = !readOnly;
 
     const equipAssoc = profil.data?.equipement_associe as { arme_contact?: string[]; arme_distance?: string[]; armure?: string[] } | undefined;
@@ -28,25 +29,24 @@ export function ProfilDetail({ profil, familleArchetype, voies, isFullscreen, re
     const [equipNoms, setEquipNoms] = useState<{ arme_contact: string[]; arme_distance: string[]; armure: string[] }>({ arme_contact: [], arme_distance: [], armure: [] });
 
     useEffect(() => {
-        if (!hasEquipAssoc || !equipAssoc) return;
+        let cancelled = false;
         const fetchNoms = async () => {
-            const result = { arme_contact: [] as string[], arme_distance: [] as string[], armure: [] as string[] };
-            if (equipAssoc.arme_contact?.length) {
-                const { data } = await supabase.from("armes_contact").select("nom").in("id", equipAssoc.arme_contact).order("nom");
-                if (data) result.arme_contact = data.map(d => d.nom);
+            if (!hasEquipAssoc || !equipAssoc) {
+                if (!cancelled) {
+                    setEquipNoms({ arme_contact: [], arme_distance: [], armure: [] });
+                }
+                return;
             }
-            if (equipAssoc.arme_distance?.length) {
-                const { data } = await supabase.from("armes_distance").select("nom").in("id", equipAssoc.arme_distance).order("nom");
-                if (data) result.arme_distance = data.map(d => d.nom);
+            const result = await profilData.fetchEquipementNames(equipAssoc);
+            if (!cancelled) {
+                setEquipNoms(result);
             }
-            if (equipAssoc.armure?.length) {
-                const { data } = await supabase.from("armures").select("nom").in("id", equipAssoc.armure).order("nom");
-                if (data) result.armure = data.map(d => d.nom);
-            }
-            setEquipNoms(result);
         };
-        fetchNoms();
-    }, [profil.id]);
+        void fetchNoms();
+        return () => {
+            cancelled = true;
+        };
+    }, [profil.id, hasEquipAssoc, equipAssoc, profilData]);
 
     if (isMobile) {
         return (

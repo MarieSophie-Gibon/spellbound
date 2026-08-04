@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from "react";
 import { X, Save, RefreshCw, ChevronDown, ChevronUp, Trash2, Check, Plus, Star } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
 import { RangCard } from "@/components/ui/RangCard";
 import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
 
@@ -137,6 +137,7 @@ export default function VoieEditModal({
   onClose,
   positionAbsolute = false,
 }: VoieEditModalProps) {
+  const personnageData = usePersonnageCreationData();
   const [editablePathways, setEditablePathways] = useState<EditablePathway[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [searchQueries, setSearchQueries] = useState<Record<number, string>>({});
@@ -229,10 +230,9 @@ export default function VoieEditModal({
   }, [editablePathways, hasMageFamilyProfile, mageVoie]);
 
   useEffect(() => {
-    supabase
-      .from("profils")
-      .select("id, nom, famille_id, familles(nom)")
-      .then(({ data }) => {
+    personnageData
+      .fetchProfileFamilyMeta()
+      .then((data) => {
         if (!data) return;
         const next: Record<string, ProfileFamilyMeta> = {};
         (data as Array<any>).forEach((p) => {
@@ -244,7 +244,7 @@ export default function VoieEditModal({
         });
         setProfileFamilyById(next);
       });
-  }, []);
+  }, [personnageData]);
 
   useEffect(() => {
     const initial: EditablePathway[] = ((pj.pathways as any[]) || []).map((p) => ({
@@ -332,13 +332,7 @@ export default function VoieEditModal({
         .filter((p) => p.rangs_acquis.length > 0)
         .map((p) => ({ voie_id: p.voie_id, rangs_acquis: p.rangs_acquis }));
 
-      const table = type === "pnj" ? "pnj" : "pj";
-      const { error } = await supabase
-        .from(table)
-        .update({ pathways: updatedPathways })
-        .eq("id", pj.id);
-
-      if (error) throw error;
+      await personnageData.saveCharacterPathways(type, pj.id, updatedPathways);
       onSaved();
       onClose();
     } catch (err: any) {

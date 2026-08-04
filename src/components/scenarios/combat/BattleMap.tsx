@@ -1,6 +1,6 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useScenarioBlocksData } from "@/hooks/useScenarioBlocksData";
 import type { Combatant, EncounterEntry, MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
 
@@ -12,16 +12,6 @@ interface BattleMapProps {
   mapTokens: MapToken[];
   onUpdateTokens: (tokens: MapToken[]) => void;
   activeCombatantId?: string | null;
-}
-
-async function uploadBattleMap(file: File): Promise<string | null> {
-  const ext = file.name.split(".").pop();
-  const fileName = `${crypto.randomUUID()}.${ext}`;
-  const filePath = `battlemaps/${fileName}`;
-  const { error } = await supabase.storage.from("wiki-images").upload(filePath, file);
-  if (error) { console.error("Erreur upload battlemap :", error.message); return null; }
-  const { data } = supabase.storage.from("wiki-images").getPublicUrl(filePath);
-  return data.publicUrl;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -147,6 +137,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
 }
 
 function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId }: BattleMapProps) {
+  const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -343,7 +334,13 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     setUploading(true);
-    const url = await uploadBattleMap(file);
+    let url: string | null = null;
+    try {
+      url = await scenarioBlocksData.uploadWikiImage(file, "battlemaps");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erreur inconnue";
+      console.error("Erreur upload battlemap :", message);
+    }
     setUploading(false);
     if (url) { onChange(url); resetView(); }
   };

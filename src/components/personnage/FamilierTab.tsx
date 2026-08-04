@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, X, Search, Loader2, PawPrint, Pencil, ChevronDown, Swords } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
 import type { MonstreStats, MonstreCombat, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
@@ -132,6 +132,7 @@ function CapaciteRow({ cap }: { cap: MonstreCapacite }) {
 // ── Composant principal ───────────────────────────────────────────────────
 
 export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }: FamilierTabProps) {
+  const personnageData = usePersonnageCreationData();
   const [familiers, setFamiliers] = useState<Familier[]>([]);
   const [isLoading, setIsLoading] = useState(true); // true par défaut : on charge toujours au montage
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -158,22 +159,19 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   // ── Chargement ─ pattern sans setState synchrone dans l'effect ──────────
   useEffect(() => {
     let cancelled = false;
-    const col = type === "pj" ? "pj_id" : "pnj_id";
-
-    supabase.from("pj_familiers").select("*").eq(col, ownerId).order("created_at")
-      .then(({ data }) => {
+    personnageData.fetchFamiliers(type, ownerId)
+      .then((data) => {
         if (!cancelled) {
           setFamiliers((data as Familier[]) ?? []);
           setIsLoading(false);
         }
       });
     return () => { cancelled = true; };
-  }, [ownerId, type]);
+  }, [ownerId, type, personnageData]);
 
   const fetchFamiliers = () => {
-    const col = type === "pj" ? "pj_id" : "pnj_id";
-    supabase.from("pj_familiers").select("*").eq(col, ownerId).order("created_at")
-      .then(({ data }) => {
+    personnageData.fetchFamiliers(type, ownerId)
+      .then((data) => {
         setFamiliers((data as Familier[]) ?? []);
       });
   };
@@ -200,10 +198,8 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
 
     // setTimeout(0) pour sortir du corps synchrone de l’effect
     const t = setTimeout(() => setLoadingDataId(expandedId), 0);
-    supabase.from("bestiaire")
-      .select("nom, nc, type_creature, taille, description, stats, combat, attaques, capacites")
-      .eq("id", monsterId).single()
-      .then(({ data: monster }) => {
+    personnageData.fetchBestiaireFamilier(monsterId)
+      .then((monster) => {
         if (cancelled || !monster) { setLoadingDataId(null); return; }
         const pvMax = Number(monster.combat?.pv_max ?? monster.combat?.pv ?? familierPvMax);
         const snapshotData: FamilierData = {
@@ -216,50 +212,37 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
         };
         setLoadingDataId(null);
         setFamiliers((prev) => prev.map((x) => x.id === f.id ? { ...x, data: snapshotData } : x));
-        void supabase.from("pj_familiers").update({ data: snapshotData }).eq("id", f.id);
+        void personnageData.updateFamilier(f.id, { data: snapshotData });
       });
     return () => { cancelled = true; clearTimeout(t); };
-  }, [expandedId]);
+  }, [expandedId, personnageData]);
 
   useEffect(() => {
     if (!isAddOpen || searchMode !== 'bestiaire') return;
     const timer = setTimeout(async () => {
       setIsSearching(true);
-      let query = supabase
-        .from("bestiaire")
-        .select("id, nom, image_url, combat, stats, attaques, capacites, nc, type_creature, taille, description")
-        .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
-        .order("nom").limit(50);
-      if (searchTerm.trim()) query = query.ilike("nom", `%${searchTerm}%`);
-      const { data } = await query;
+      const data = await personnageData.searchBestiaireForFamilier(campaignId, searchTerm);
       setSearchResults((data as MonsterResult[]) ?? []);
       setIsSearching(false);
     }, searchTerm.trim() ? 250 : 0);
     return () => clearTimeout(timer);
-  }, [isAddOpen, searchTerm, campaignId, searchMode]);
+  }, [isAddOpen, searchTerm, campaignId, searchMode, personnageData]);
 
   useEffect(() => {
     if (!isAddOpen || searchMode !== 'pnj') return;
     const timer = setTimeout(async () => {
       setIsSearchingPnj(true);
-      let query = supabase
-        .from("pnj")
-        .select("id, name, image_url, stats")
-        .eq("campaign_id", campaignId)
-        .order("name").limit(50);
-      if (searchTerm.trim()) query = query.ilike("name", `%${searchTerm}%`);
-      const { data } = await query;
+      const data = await personnageData.searchPnjForFamilier(campaignId, searchTerm);
       setPnjResults((data as PnjAllyResult[]) ?? []);
       setIsSearchingPnj(false);
     }, searchTerm.trim() ? 250 : 0);
     return () => clearTimeout(timer);
-  }, [isAddOpen, searchTerm, campaignId, searchMode]);
+  }, [isAddOpen, searchTerm, campaignId, searchMode, personnageData]);
 
   const handleAddPnj = async (pnj: PnjAllyResult) => {
     setAddingId(pnj.id);
     setAddError(null);
     const pvMax = Number(pnj.stats?.pv_max ?? pnj.stats?.pv ?? 10);
-    const col = type === "pj" ? "pj_id" : "pnj_id";
     // On stocke l'id du PNJ dans monster_id (pas de FK vers bestiaire)
     // et on pré-remplit data avec type_creature="PNJ" pour distinguer les alliés
     const snapshotData: FamilierData = {
@@ -278,17 +261,21 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
       attaques: [],
       capacites: [],
     };
-    const { error } = await supabase.from("pj_familiers").insert({
-      [col]: ownerId,
-      monster_id: pnj.id,
-      monster_nom: pnj.name,
-      monster_image_url: pnj.image_url ?? null,
-      pv: pvMax,
-      pv_max: pvMax,
-      data: snapshotData,
-    });
+    let error: string | null = null;
+    try {
+      await personnageData.insertFamilier(type, ownerId, {
+        monster_id: pnj.id,
+        monster_nom: pnj.name,
+        monster_image_url: pnj.image_url ?? null,
+        pv: pvMax,
+        pv_max: pvMax,
+        data: snapshotData,
+      });
+    } catch (e: any) {
+      error = e?.message ?? "Erreur inconnue";
+    }
     setAddingId(null);
-    if (error) { setAddError(error.message); }
+    if (error) { setAddError(error); }
     else { setIsAddOpen(false); setSearchTerm(""); setPnjResults([]); setAddError(null); void fetchFamiliers(); }
   };
 
@@ -296,7 +283,6 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
     setAddingId(monster.id);
     setAddError(null);
     const pvMax = Number(monster.combat?.pv_max ?? monster.combat?.pv ?? 10);
-    const col = type === "pj" ? "pj_id" : "pnj_id";
     const snapshotData: FamilierData = {
       nom: monster.nom, nc: monster.nc ?? "1",
       type_creature: monster.type_creature ?? "Animal", taille: monster.taille ?? "Moyenne",
@@ -305,12 +291,21 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
       combat: { pv: pvMax, pv_max: pvMax, defense: Number(monster.combat?.defense ?? 10), initiative: Number(monster.combat?.initiative ?? 10), rd: Number(monster.combat?.rd ?? 0), attaque_magique: monster.combat?.attaque_magique ?? null },
       attaques: monster.attaques ?? [], capacites: monster.capacites ?? [],
     };
-    const { error } = await supabase.from("pj_familiers").insert({
-      [col]: ownerId, monster_id: monster.id, monster_nom: monster.nom,
-      monster_image_url: monster.image_url ?? null, pv: pvMax, pv_max: pvMax, data: snapshotData,
-    });
+    let error: string | null = null;
+    try {
+      await personnageData.insertFamilier(type, ownerId, {
+        monster_id: monster.id,
+        monster_nom: monster.nom,
+        monster_image_url: monster.image_url ?? null,
+        pv: pvMax,
+        pv_max: pvMax,
+        data: snapshotData,
+      });
+    } catch (e: any) {
+      error = e?.message ?? "Erreur inconnue";
+    }
     setAddingId(null);
-    if (error) { setAddError(error.message); }
+    if (error) { setAddError(error); }
     else { setIsAddOpen(false); setSearchTerm(""); setSearchResults([]); setAddError(null); void fetchFamiliers(); }
   };
 
@@ -318,10 +313,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   const openEdit = async (f: Familier) => {
     if (!f.data && f.monster_id) {
       setLoadingEditId(f.id);
-      const { data: monster } = await supabase
-        .from("bestiaire")
-        .select("nom, nc, type_creature, taille, description, stats, combat, attaques, capacites")
-        .eq("id", f.monster_id).single();
+      const monster = await personnageData.fetchBestiaireFamilier(f.monster_id);
       setLoadingEditId(null);
       if (monster) {
         const pvMax = Number(monster.combat?.pv_max ?? monster.combat?.pv ?? f.pv_max);
@@ -345,7 +337,7 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
   const confirmDelete = async () => {
     if (!familierToDelete) return;
     setIsDeleting(true);
-    await supabase.from("pj_familiers").delete().eq("id", familierToDelete.id);
+    await personnageData.deleteFamilier(familierToDelete.id);
     setIsDeleting(false); setFamilierToDelete(null);
     void fetchFamiliers();
   };
@@ -604,14 +596,13 @@ export default function FamilierTab({ pjId, pnjId, type, campaignId, readOnly }:
           onSavePayload={async (payload, imageUrl) => {
             const combat = payload.combat as MonstreCombat;
             const newNom = (payload.nom as string).trim();
-            const { error } = await supabase.from("pj_familiers").update({
+            await personnageData.updateFamilier(editingFamilier.id, {
               custom_name: newNom !== editingFamilier.monster_nom ? newNom : null,
               pv_max: combat.pv_max,
               pv: Math.min(editingFamilier.pv, combat.pv_max),
               monster_image_url: imageUrl ?? editingFamilier.monster_image_url,
               data: payload,
-            }).eq("id", editingFamilier.id);
-            if (error) throw new Error(error.message);
+            });
           }}
         />
       )}

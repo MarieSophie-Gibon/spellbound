@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 // import { createPortal } from "react-dom";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, ArrowRight, ArrowLeft, Save, Plus, Trash2, ChevronDown, Image as ImageIcon, UploadCloud, Copy, Loader2 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useMonsterWizardData, type ImportCampaign, type ImportMonstre } from "@/hooks/useMonsterWizardData";
 import type { MonstreStats, MonstreCombat, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
 
 // --- Types ---
@@ -57,15 +57,8 @@ function makeEmptyCapacite(): MonstreCapacite {
 
 // --- Composant ---
 
-// Minimal type for campaigns & monsters used in the import panel
-interface ImportCampaign { id: string; nom: string; }
-interface ImportMonstre {
-  id: string; nom: string; nc: string; type_creature: string; taille: string;
-  description: string | null; stats: MonstreStats; combat: MonstreCombat;
-  attaques: MonstreAttaque[]; capacites: MonstreCapacite[]; image_url?: string | null;
-}
-
 export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onSavePayload }: MonsterWizardProps) {
+  const monsterData = useMonsterWizardData();
   const isEditing = !!initialData;
   const [isPrivate, setIsPrivate] = useState(true);
   const [step, setStep] = useState(1);
@@ -80,34 +73,21 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
   const [importSearch, setImportSearch] = useState('');
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) return;
-      supabase
-        .from('campagnes')
-        .select('id, nom')
-        .eq('owner_id', data.user.id)
-        .order('nom')
-        .then(({ data: campaigns }) => {
-          setImportCampaigns(
-            ((campaigns ?? []) as ImportCampaign[]).filter(c => c.id !== campaignId)
-          );
-        });
+    monsterData.fetchOwnedCampaigns(campaignId).then((campaigns) => {
+      setImportCampaigns(campaigns);
     });
-  }, [campaignId]);
+  }, [campaignId, monsterData]);
 
   useEffect(() => {
     if (!importSelectedCampaignId) { setImportMonstres([]); return; }
     setImportLoading(true);
-    supabase
-      .from('bestiaire')
-      .select('*')
-      .or(`campaign_id.eq.${importSelectedCampaignId},campaign_id.is.null`)
-      .order('nom')
-      .then(({ data }) => {
-        setImportMonstres((data ?? []) as ImportMonstre[]);
+    monsterData
+      .fetchMonstresForCampaign(importSelectedCampaignId)
+      .then((data) => {
+        setImportMonstres(data);
         setImportLoading(false);
       });
-  }, [importSelectedCampaignId]);
+  }, [importSelectedCampaignId, monsterData]);
 
   const applyImportedMonster = (m: ImportMonstre) => {
     setNom(m.nom);
@@ -174,12 +154,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
     try {
       let uploadedImageUrl: string | undefined = initialData?.image_url;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `bestiaire/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
-        uploadedImageUrl = urlData.publicUrl;
+        uploadedImageUrl = await monsterData.uploadMonsterImage(imageFile);
       }
 
       const publicMode = campaignId && !isPrivate;
@@ -207,16 +182,10 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
       }
 
       if (isEditing && initialData) {
-        const { error } = await supabase.from("bestiaire").update(payload).eq("id", initialData.id);
-        if (error) throw error;
+        await monsterData.saveMonster({ monsterId: initialData.id, payload });
         onSuccess({ id: initialData.id, nom: payload.nom, image_url: payload.image_url });
       } else {
-        const { data: created, error } = await supabase
-          .from("bestiaire")
-          .insert(payload)
-          .select("id, nom, image_url")
-          .single();
-        if (error) throw error;
+        const created = await monsterData.saveMonster({ payload });
         onSuccess(created ?? undefined);
       }
       onClose();

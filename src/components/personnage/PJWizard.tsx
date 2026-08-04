@@ -22,7 +22,7 @@ import {
   Search,
   History,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { RangCard } from "@/components/ui/RangCard";
 import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
@@ -129,6 +129,7 @@ interface OldPJ {
 }
 
 export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }: PJWizardProps) {
+  const personnageData = usePersonnageCreationData();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -148,9 +149,9 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
 
   useEffect(() => {
     if (playerMode) {
-      supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+      personnageData.getCurrentUserId().then((id) => setCurrentUserId(id));
     }
-  }, [playerMode]);
+  }, [playerMode, personnageData]);
 
   useEffect(() => {
     if (wizardMode !== 'recover') return;
@@ -158,35 +159,11 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
     setRecoverError(null);
     const doFetch = async () => {
       try {
-        // Étape 1 : récupérer les PJs des autres campagnes
-        let query = supabase
-          .from('pj')
-          .select('id, name, image_url, stats, pathways, inventory, peuple_id, profils_id, user_id, campaign_id')
-          .neq('campaign_id', campaignId)
-          .order('name');
-        if (playerMode && currentUserId) {
-          query = query.eq('user_id', currentUserId);
-        }
-        const { data: pjData, error: pjError } = await query;
-        if (pjError) throw pjError;
-
-        // Étape 2 : récupérer les noms des campagnes concernées
-        const uniqueCampaignIds = [...new Set((pjData || []).map((p: any) => p.campaign_id))];
-        let campaignNames: Record<string, string> = {};
-        if (uniqueCampaignIds.length > 0) {
-          const { data: campData } = await supabase
-            .from('campagnes')
-            .select('id, nom')
-            .in('id', uniqueCampaignIds);
-          if (campData) {
-            campaignNames = Object.fromEntries(campData.map((c: any) => [c.id, c.nom]));
-          }
-        }
-
-        setOldPJs((pjData || []).map((pj: any) => ({
-          ...pj,
-          campaign_nom: campaignNames[pj.campaign_id] ?? 'Campagne inconnue',
-        })));
+        const data = await personnageData.fetchOldPjs(
+          campaignId,
+          playerMode ? currentUserId : null,
+        );
+        setOldPJs((data as OldPJ[]) ?? []);
       } catch (err: any) {
         console.error('[PJWizard] fetchOldPJs error:', err);
         setRecoverError(err?.message ?? 'Erreur lors du chargement des anciens PJs.');
@@ -195,7 +172,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
       }
     };
     doFetch();
-  }, [wizardMode, campaignId, playerMode, currentUserId, recoverRetry]);
+  }, [wizardMode, campaignId, playerMode, currentUserId, recoverRetry, personnageData]);
 
   // ── Step 1 ──────────────────────────────────
   const [nom, setNom] = useState("");
@@ -247,21 +224,13 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
   useEffect(() => {
     async function fetchRef() {
       // Joueurs
-      const { data: playersData } = await supabase
-        .from("utilisateurs")
-        .select("id, pseudo, role")
-        .order("pseudo");
+      const playersData = await personnageData.fetchPlayers();
       if (playersData) {
         setPlayers(playersData.filter((p: any) => p.role !== "mj"));
       }
 
       // Peuples avec leur voie
-      const { data: pData } = await supabase
-        .from("peuples")
-        .select(
-          "id, nom, description, data, multi, image_url, voie:voies!peuple_id(id, nom, capacites)",
-        )
-        .order("nom");
+      const pData = await personnageData.fetchPeuplesWithVoie();
       if (pData) {
         setPeuples(
           pData.map((p: any) => {
@@ -282,13 +251,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
       }
 
       // Familles (profils) avec leurs voies et stats de la famille archétype
-      const { data: fData, error: fError } = await supabase
-        .from("profils")
-        .select(
-          "id, nom, description, equipement_base, maitrise_equipement, image_url, data, famille:familles(nom, pv_niveau, de_recuperation, bonus_chance), voies(id, nom, capacites)",
-        )
-        .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
-        .order("nom");
+      const { data: fData, error: fError } = await personnageData.fetchProfilsWithVoies(campaignId);
       if (fError) console.error("[PJWizard] profils error:", fError);
       if (fData) {
         setFamilles(
@@ -317,20 +280,10 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
       }
 
       // Armes et armures
-      const [r1, r2, r3] = await Promise.all([
-        supabase
-          .from("armes_contact")
-          .select("id, nom, dm, type_de_dm")
-          .order("nom"),
-        supabase
-          .from("armes_distance")
-          .select("id, nom, dm, portee")
-          .order("nom"),
-        supabase.from("armures").select("id, nom, bonus_def").order("nom"),
-      ]);
-      if (r1.data)
+      const { armesContact: aContact, armesDistance: aDistance, armures: aArmures } = await personnageData.fetchEquipementsRef();
+      if (aContact)
         setArmesContact(
-          r1.data.map((item: any) => ({
+          aContact.map((item: any) => ({
             id: item.id,
             nom: item.nom,
             source: "arme_contact" as const,
@@ -338,9 +291,9 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
               [item.dm, item.type_de_dm].filter(Boolean).join(" ") || undefined,
           })),
         );
-      if (r2.data)
+      if (aDistance)
         setArmesDistance(
-          r2.data.map((item: any) => ({
+          aDistance.map((item: any) => ({
             id: item.id,
             nom: item.nom,
             source: "arme_distance" as const,
@@ -350,9 +303,9 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
                 .join(" · ") || undefined,
           })),
         );
-      if (r3.data)
+      if (aArmures)
         setArmures(
-          r3.data.map((item: any) => ({
+          aArmures.map((item: any) => ({
             id: item.id,
             nom: item.nom,
             source: "armure" as const,
@@ -361,7 +314,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         );
     }
     fetchRef();
-  }, [campaignId]);
+  }, [campaignId, personnageData]);
 
   const totalStats: StatsMap = {
     FOR: stats.FOR + bonusPeuple.FOR + bonusVoies.FOR,
@@ -507,33 +460,12 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
       } else {
         finalUserId = selectedOldPJ.user_id;
       }
-      const { data: newPJData, error } = await supabase
-        .from('pj')
-        .insert({
-          campaign_id: campaignId,
-          user_id: finalUserId,
-          name: finalName,
-          image_url: selectedOldPJ.image_url,
-          peuple_id: selectedOldPJ.peuple_id,
-          profils_id: selectedOldPJ.profils_id,
-          stats: selectedOldPJ.stats,
-          pathways: selectedOldPJ.pathways,
-          inventory: selectedOldPJ.inventory,
-        })
-        .select();
-      if (error) throw error;
-      const newPJId = newPJData?.[0]?.id;
-      if (newPJId) {
-        const { data: oldItems } = await supabase
-          .from('pj_inventaire')
-          .select('item_type, item_id, nom_custom, description_custom, qte, is_equipped')
-          .eq('pj_id', selectedOldPJ.id);
-        if (oldItems && oldItems.length > 0) {
-          await supabase.from('pj_inventaire').insert(
-            oldItems.map((item) => ({ ...item, pj_id: newPJId }))
-          );
-        }
-      }
+      await personnageData.clonePjWithInventory({
+        campaignId,
+        finalUserId,
+        finalName,
+        source: selectedOldPJ,
+      });
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -550,16 +482,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
     try {
       let imageUrl: string | null = null;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `pj/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("compendium")
-          .upload(path, imageFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage
-          .from("compendium")
-          .getPublicUrl(path);
-        imageUrl = urlData.publicUrl;
+        imageUrl = await personnageData.uploadCompendiumImage("pj", imageFile);
       }
 
 
@@ -596,44 +519,40 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
         });
       }
 
-      const { data: pjInsertData, error } = await supabase
-        .from("pj")
-        .insert({
-          campaign_id: campaignId,
-          user_id: playerMode ? currentUserId : (selectedPlayerId || null),
-          name: nom.trim(),
-          image_url: imageUrl,
-          peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,
-          profils_id: selectedFamilleId,
-          stats: {
-            sexe,
-            age: age.trim() || null,
-            niveau: 1,
-            caracteristiques: totalStats,
-            pv: d.pv,
-            pv_max: d.pv,
-            dr_qty: d.drQty,
-            dr_de: d.drDe,
-            pc: d.pc,
-            pm: d.pm,
-            initiative: d.initiative,
-            defense: d.defense,
-            att_contact: d.attContact,
-            att_distance: d.attDistance,
-            att_magie: d.attMagie,
-            pv_par_niveau: getPvParNiveau(selectedFamille?.groupe),
-            ideal,
-            travers,
-            historique,
-          },
-          pathways: pjVoies,
-          inventory: {
-            equipement_base: selectedFamille?.equipement_base ?? null,
-            selected_equipements: selectedEquipItems,
-          },
-        })
-        .select();
-      if (error) throw error;
+      const pjInsertData = await personnageData.createPj({
+        campaign_id: campaignId,
+        user_id: playerMode ? currentUserId : (selectedPlayerId || null),
+        name: nom.trim(),
+        image_url: imageUrl,
+        peuple_id: isDemiElf ? selectedDemiElfVoieId : selectedPeupleId,
+        profils_id: selectedFamilleId,
+        stats: {
+          sexe,
+          age: age.trim() || null,
+          niveau: 1,
+          caracteristiques: totalStats,
+          pv: d.pv,
+          pv_max: d.pv,
+          dr_qty: d.drQty,
+          dr_de: d.drDe,
+          pc: d.pc,
+          pm: d.pm,
+          initiative: d.initiative,
+          defense: d.defense,
+          att_contact: d.attContact,
+          att_distance: d.attDistance,
+          att_magie: d.attMagie,
+          pv_par_niveau: getPvParNiveau(selectedFamille?.groupe),
+          ideal,
+          travers,
+          historique,
+        },
+        pathways: pjVoies,
+        inventory: {
+          equipement_base: selectedFamille?.equipement_base ?? null,
+          selected_equipements: selectedEquipItems,
+        },
+      });
 
       const newPjId = pjInsertData?.[0]?.id;
       if (newPjId && selectedEquipItems.length > 0) {
@@ -646,10 +565,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
           qte: 1,
           is_equipped: false,
         }));
-        const { error: invErr } = await supabase
-          .from("pj_inventaire")
-          .insert(itemsToInsert);
-        if (invErr) throw invErr;
+        await personnageData.insertInventaireRows(itemsToInsert);
       }
 
       onSuccess();

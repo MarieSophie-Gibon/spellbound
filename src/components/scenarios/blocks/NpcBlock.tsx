@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Users, Search, MessageSquare, Info, X, UserPlus } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useScenarioBlocksData } from "@/hooks/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 
@@ -27,6 +27,7 @@ function isValidUuid(value: string): boolean {
 }
 
 export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
+  const scenarioBlocksData = useScenarioBlocksData();
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<PnjResult[]>([]);
   const [showWizard, setShowWizard] = useState(false);
@@ -70,23 +71,17 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
     }
 
     const searchPnjs = async () => {
-      let query = supabase
-        .from('pnj')
-        .select('id, name, image_url')
-        .eq('campaign_id', campaignId)
-        .limit(5);
-
-      if (searchTerm) {
-        query = query.ilike('name', `%${searchTerm}%`);
+      try {
+        const results = await scenarioBlocksData.searchPnjs(campaignId, searchTerm, { limit: 5 });
+        setSearchResults(results as PnjResult[]);
+      } catch {
+        setSearchResults([]);
       }
-
-      const { data: results } = await query;
-      if (results) setSearchResults(results);
     };
 
     const debounce = setTimeout(searchPnjs, 300);
     return () => clearTimeout(debounce);
-  }, [searchTerm, data.nom, showWizard, campaignId, hasValidCampaignId]);
+  }, [searchTerm, data.nom, showWizard, campaignId, hasValidCampaignId, scenarioBlocksData]);
 
   const visibleResults = (data.nom || showWizard || !hasValidCampaignId) ? [] : searchResults;
 

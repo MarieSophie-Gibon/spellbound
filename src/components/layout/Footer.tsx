@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
-import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/useProfile";
+import { useLobbyData } from "@/hooks/useLobbyData";
 import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw, Copy } from "lucide-react";
 import { useCampaigns } from "@/hooks/useCampaigns";
 import type { Campaign } from "@/hooks/useCampaigns";
@@ -31,6 +31,7 @@ interface FooterProps {
 export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onDuplicateCampaign, onSwitchCampaign }: FooterProps) {
   const { session, signOut, role } = useAuthStore();
   const profile = useProfile();
+  const lobbyData = useLobbyData();
 
   const isMJ = role === "mj" || profile?.role === "mj";
   const effectiveRole: 'mj' | 'player' = isMJ ? 'mj' : 'player';
@@ -112,30 +113,14 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
 
     setIsSavingProfile(true);
     try {
-      const { error } = await supabase
-        .from("utilisateurs")
-        .upsert(
-          {
-            id: session.user.id,
-            pseudo,
-            role: profileRoleDraft,
-          },
-          { onConflict: "id" }
-        );
-
-      if (error) throw error;
-
-      const authPatch: { email?: string; password?: string } = {};
-      const emailChanged = email !== (session.user.email ?? "").toLowerCase();
-      if (emailChanged) authPatch.email = email;
-      if (nextPassword) authPatch.password = nextPassword;
-
-      if (Object.keys(authPatch).length > 0) {
-        const { error: authError } = await supabase.auth.updateUser(authPatch);
-        if (authError) throw authError;
-      }
-
-      window.dispatchEvent(new CustomEvent("spellbound:profile-updated"));
+      const { emailChanged } = await lobbyData.saveLobbyProfile({
+        userId: session.user.id,
+        pseudo,
+        email,
+        role: profileRoleDraft,
+        currentEmail: session.user.email,
+        password: nextPassword || undefined,
+      });
 
       if (emailChanged) {
         setProfileFormInfo("Un email de confirmation a ete envoye pour valider le changement d'adresse.");

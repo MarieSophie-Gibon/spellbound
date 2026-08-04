@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { supabase } from "@/lib/supabase";
 import { PJWizard } from "@/components/personnage/PJWizard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { PersonnageSidebar } from "@/components/personnage/PersonnageSidebar";
@@ -10,23 +9,12 @@ import { AlertTriangle, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useRevealedPnjIds, useToggleRevealedPnj } from "@/hooks/useCampaigns";
+import { usePersonnagesData, type PersonnageListItem } from "@/hooks/usePersonnagesData";
 
 interface PersonnagesProps {
   campaignId: string;
   onBack: () => void;
   isMJ?: boolean;
-}
-
-interface Character {
-  id: string;
-  name: string;
-  image_url: string | null;
-  user_id?: string | null;
-  profil_id?: string | null;
-  profils_id?: string | null;
-  stats: Record<string, unknown>;
-  pathways: Record<string, unknown>;
-  inventory: Record<string, unknown>;
 }
 
 // ─────────────────────────────────────────────
@@ -81,8 +69,9 @@ function DeleteCharacterModal({
 export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesProps) {
   const [searchParams] = useSearchParams();
   const currentUserId = useAuthStore((s) => s.session?.user?.id);
-  const [pjs, setPjs] = useState<Character[]>([]);
-  const [pnjs, setPnjs] = useState<Character[]>([]);
+  const { fetchPersonnages, deletePersonnage } = usePersonnagesData();
+  const [pjs, setPjs] = useState<PersonnageListItem[]>([]);
+  const [pnjs, setPnjs] = useState<PersonnageListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -107,35 +96,11 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
 
   // Récupère les PJ ET les PNJ
   const fetchData = useCallback(async () => {
-    const [pjRes, pnjRes] = await Promise.all([
-      supabase
-        .from("pj")
-        .select("id, name, image_url, user_id, profils_id, stats, pathways, inventory")
-        .eq("campaign_id", campaignId)
-        .order("name"),
-      supabase
-        .from("pnj")
-        .select("id, name, image_url, stats, pathways, inventory")
-        .eq("campaign_id", campaignId)
-        .order("name"),
-    ]);
-
-    if (pjRes.error) {
-      console.error("Erreur fetch PJ:", pjRes.error.message);
-      setPjs([]);
-    } else if (pjRes.data) {
-      setPjs(pjRes.data as Character[]);
-    }
-
-    if (pnjRes.error) {
-      console.error("Erreur fetch PNJ:", pnjRes.error.message);
-      setPnjs([]);
-    } else if (pnjRes.data) {
-      setPnjs(pnjRes.data as Character[]);
-    }
-
+    const { pjs: pjData, pnjs: pnjData } = await fetchPersonnages(campaignId);
+    setPjs(pjData);
+    setPnjs(pnjData);
     setIsLoading(false);
-  }, [campaignId]);
+  }, [campaignId, fetchPersonnages]);
 
   useEffect(() => { 
     const initFetch = async () => {
@@ -189,8 +154,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
   const handleDelete = async () => {
     if (!selectedId) return;
     setIsDeleting(true);
-    const table = selectedType === "pj" ? "pj" : "pnj";
-    await supabase.from(table).delete().eq("id", selectedId);
+    await deletePersonnage(selectedType, selectedId);
     
     setSelectedId(null);
     setShowDeleteConfirm(false);

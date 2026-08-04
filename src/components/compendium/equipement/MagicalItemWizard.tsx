@@ -10,7 +10,7 @@ import {
   Image as ImageIcon,
   UploadCloud,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useEquipementWizardData } from "@/hooks/useEquipementWizardData";
 import type { EquipementPropriete } from "@/types/compendium";
 
 // --- Types ---
@@ -212,6 +212,7 @@ export default function EquipementWizard({
   initialData,
   campaignId,
 }: EquipementWizardProps) {
+  const equipementData = useEquipementWizardData();
   // --- State ---
   const [step, setStep] = useState(1);
   const [nom, setNom] = useState(initialData?.nom || "");
@@ -253,24 +254,13 @@ export default function EquipementWizard({
     try {
       let uploadedImageUrl: string | undefined = initialData?.image_url;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `equipements/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage
-          .from("compendium")
-          .upload(path, imageFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage
-          .from("compendium")
-          .getPublicUrl(path);
-        uploadedImageUrl = urlData.publicUrl;
+        uploadedImageUrl = await equipementData.uploadEquipementImage(imageFile);
       }
 
       const publicMode = campaignId && !isPrivate;
-      let table = "equipements";
       let payload: any = {};
       switch (selectedType) {
         case "arme_contact":
-          table = "armes_contact";
           payload = {
             nom: nom.trim(),
             dm: dm.trim() || null,
@@ -284,7 +274,6 @@ export default function EquipementWizard({
           };
           break;
         case "arme_distance":
-          table = "armes_distance";
           payload = {
             nom: nom.trim(),
             dm: dm.trim() || null,
@@ -299,7 +288,6 @@ export default function EquipementWizard({
           };
           break;
         case "armure":
-          table = "armures";
           payload = {
             nom: nom.trim(),
             bonus_def: bonusDef.trim() || null,
@@ -312,7 +300,6 @@ export default function EquipementWizard({
           break;
         case "equipement":
         default:
-          table = "equipements";
           payload = {
             nom: nom.trim(),
             categorie: categorie.trim() || null,
@@ -329,16 +316,17 @@ export default function EquipementWizard({
       }
 
       if (isEditing && initialData) {
-        const { error } = await supabase
-          .from(table)
-          .update(payload)
-          .eq("id", initialData.id);
-        if (error) throw error;
+        await equipementData.saveEquipement({
+          source: selectedType,
+          payload,
+          equipementId: initialData.id,
+        });
         onSuccess(); // Mode édition, pas besoin de retourner l'objet
       } else {
-        // AJOUTE .select().single() POUR RÉCUPÉRER L'OBJET CRÉÉ
-        const { data: newItem, error } = await supabase.from(table).insert(payload).select().single();
-        if (error) throw error;
+        const newItem = await equipementData.saveEquipement({
+          source: selectedType,
+          payload,
+        });
         onSuccess(newItem); // <-- ON PASSE L'OBJET ICI
       }
 

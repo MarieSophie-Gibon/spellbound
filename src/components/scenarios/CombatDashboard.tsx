@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useCombatDashboardData } from "@/hooks/useCombatDashboardData";
 import {
   type Combatant,
   type CombatFamilier,
@@ -67,6 +67,7 @@ function normalizeCombatState(
 }
 
 export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackToScenario }: CombatDashboardProps) {
+  const combatData = useCombatDashboardData();
   const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
   const [activeCombatantId, setActiveCombatantId] = useState<string | null>(null);
@@ -297,11 +298,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
   // --- Bootstrap (Supabase → localStorage) ---
   useEffect(() => {
     const bootstrap = async () => {
-      const { data: chapterData } = await supabase
-        .from("chapitres")
-        .select("combat_state, content")
-        .eq("id", chapitreId)
-        .single();
+      const chapterData = await combatData.fetchChapitreCombatAndContent(chapitreId);
 
       const chapterBlocks = (chapterData?.content ?? []) as ChapitreBlock[];
       const enemyBlock = enemyBlockId
@@ -326,7 +323,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
             },
           };
         });
-        void supabase.from("chapitres").update({ content: updatedBlocks }).eq("id", chapitreId);
+        void combatData.updateChapitreContent(chapitreId, updatedBlocks);
       }
 
       if (stateToHydrate && typeof stateToHydrate === "object") {
@@ -363,27 +360,23 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
-  }, [chapitreId, enemyBlockId]);
+  }, [chapitreId, combatData, enemyBlockId]);
 
   const persistCombatState = useCallback(async (payload: PersistedCombatState) => {
     if (!enemyBlockId) {
-      await supabase.from("chapitres").update({ combat_state: payload }).eq("id", chapitreId);
+      await combatData.updateChapitreCombatState(chapitreId, payload);
       return;
     }
 
-    const { data: chapterData, error: chapterError } = await supabase
-      .from("chapitres")
-      .select("content")
-      .eq("id", chapitreId)
-      .single();
-
-    if (chapterError) {
-      console.error("Impossible de charger le contenu du chapitre pour persister combatPrep du bloc", chapterError);
+    let content: ChapitreBlock[] = [];
+    try {
+      content = (await combatData.fetchChapitreContent(chapitreId)) as ChapitreBlock[];
+    } catch (error: any) {
+      console.error("Impossible de charger le contenu du chapitre pour persister combatPrep du bloc", error);
       return;
     }
 
-    const blocks = (chapterData?.content ?? []) as ChapitreBlock[];
-    const updatedBlocks = blocks.map((block) => {
+    const updatedBlocks = content.map((block) => {
       if (block.id !== enemyBlockId || block.type !== "enemy") return block;
       return {
         ...block,
@@ -395,11 +388,8 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       };
     });
 
-    await supabase
-      .from("chapitres")
-      .update({ content: updatedBlocks })
-      .eq("id", chapitreId);
-  }, [chapitreId, enemyBlockId]);
+    await combatData.updateChapitreContent(chapitreId, updatedBlocks);
+  }, [chapitreId, combatData, enemyBlockId]);
 
   // --- Persist ---
   useEffect(() => {
@@ -474,27 +464,13 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       setLoadingSearch(true);
       try {
         if (searchType === "monster") {
-          let query = supabase
-            .from("bestiaire")
-            .select("id, nom, image_url, combat, stats, attaques, capacites")
-            .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
-            .order("nom")
-            .limit(100);
-          if (searchTerm.trim()) query = query.ilike("nom", `%${searchTerm}%`);
-          const { data } = await query;
+          const data = await combatData.searchMonsters(campaignId, searchTerm);
           setSearchResults((data ?? []).map((m) => ({
             id: m.id, name: m.nom, image_url: m.image_url, type: "monster" as const,
             combat: m.combat, stats: m.stats, attaques: m.attaques, capacites: m.capacites,
           })));
         } else {
-          let query = supabase
-            .from("pnj")
-            .select("id, name, image_url, stats, pathways")
-            .eq("campaign_id", campaignId)
-            .order("name")
-            .limit(20);
-          if (searchTerm.trim()) query = query.ilike("name", `%${searchTerm}%`);
-          const { data } = await query;
+          const data = await combatData.searchNpcs(campaignId, searchTerm);
           setSearchResults((data ?? []).map((npc) => ({
             id: npc.id, name: npc.name, image_url: npc.image_url, type: "npc" as const, stats: npc.stats, pathways: npc.pathways,
           })));
@@ -502,7 +478,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       } finally { setLoadingSearch(false); }
     }, searchTerm.trim() ? 250 : 0);
     return () => clearTimeout(timer);
-  }, [searchType, searchTerm, campaignId]);
+  }, [searchType, searchTerm, campaignId, combatData]);
 
   // --- Helpers ---
   // const upsertCombatants = useCallback((newEntries: Combatant[]) => {
@@ -527,9 +503,9 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     const run = async () => {
       if (allPJs.length > 0) {
         const ids = allPJs.map((c) => c.entityId!);
-        const [{ data }, { data: pjFamData }] = await Promise.all([
-          supabase.from("pj").select("id, stats, pathways").in("id", ids),
-          supabase.from("pj_familiers").select("*").in("pj_id", ids),
+        const [data, pjFamData] = await Promise.all([
+          combatData.fetchPjRows(ids),
+          combatData.fetchPjFamiliers(ids),
         ]);
         const famsByPJ = new Map<string, CombatFamilier[]>();
         for (const f of pjFamData ?? []) {
@@ -560,9 +536,9 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       }
       if (allNPCs.length > 0) {
         const ids = allNPCs.map((c) => c.entityId!);
-        const [{ data }, { data: npcFamData }] = await Promise.all([
-          supabase.from("pnj").select("id, stats, pathways").in("id", ids),
-          supabase.from("pj_familiers").select("*").in("pnj_id", ids),
+        const [data, npcFamData] = await Promise.all([
+          combatData.fetchPnjRows(ids),
+          combatData.fetchPnjFamiliers(ids),
         ]);
         const famsByNPC = new Map<string, CombatFamilier[]>();
         for (const f of npcFamData ?? []) {
@@ -596,10 +572,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     if (!pathways?.length) return [];
     const ids = pathways.map((p) => p.voie_id).filter(Boolean);
     if (!ids.length) return [];
-    const { data } = await supabase
-      .from("voies")
-      .select("id, nom, type, capacites")
-      .in("id", ids);
+    const data = await combatData.fetchVoiesByIds(ids);
     if (!data) return [];
     return data.map((v) => ({
       id: v.id,
@@ -611,14 +584,12 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
         .flatMap((p) => p.rangs_acquis ?? [])
         .filter((r) => r > 0),
     }));
-  }, []);
+  }, [combatData]);
 
   const importEngagedEnemies = useCallback(async () => {
     setImportingEngaged(true);
     try {
-      const { data, error } = await supabase.from("chapitres").select("content").eq("id", chapitreId).single();
-      if (error) throw error;
-      const blocks = (data?.content ?? []) as ChapitreBlock[];
+      const blocks = (await combatData.fetchChapitreContent(chapitreId)) as ChapitreBlock[];
 
       const monsterIds = new Set<string>();
       const npcIds = new Set<string>();
@@ -640,21 +611,21 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       });
 
       // 3. Fetch groupé des données fraîches (évite le spam N+1 requêtes)
-      const [monstersRes, npcsRes] = await Promise.all([
+      const [monsterRows, npcRows] = await Promise.all([
         monsterIds.size > 0 
-          ? supabase.from("bestiaire").select("id, nom, image_url, combat, stats, attaques, capacites").in("id", Array.from(monsterIds)) 
-          : Promise.resolve({ data: [] }),
+          ? combatData.fetchBestiaireByIds(Array.from(monsterIds))
+          : Promise.resolve([]),
         npcIds.size > 0 
-          ? supabase.from("pnj").select("id, name, image_url, stats, pathways").in("id", Array.from(npcIds)) 
-          : Promise.resolve({ data: [] })
+          ? combatData.fetchNpcsByIds(Array.from(npcIds))
+          : Promise.resolve([])
       ]);
 
-      const monstersMap = new Map((monstersRes.data ?? []).map(m => [m.id, m]));
-      const npcsMap = new Map((npcsRes.data ?? []).map(n => [n.id, n]));
+      const monstersMap = new Map((monsterRows ?? []).map(m => [m.id, m]));
+      const npcsMap = new Map((npcRows ?? []).map(n => [n.id, n]));
 
       const npcsVoies = new Map<string, VoieEntry[]>();
-      if (npcsRes.data && npcsRes.data.length > 0) {
-        await Promise.all(npcsRes.data.map(async (n) => {
+      if (npcRows && npcRows.length > 0) {
+        await Promise.all(npcRows.map(async (n) => {
           npcsVoies.set(n.id, await fetchVoiesForPathways(n.pathways));
         }));
       }
@@ -740,7 +711,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     } finally {
       setImportingEngaged(false);
     }
-  }, [chapitreId, fetchVoiesForPathways, combatants]);
+  }, [chapitreId, combatData, fetchVoiesForPathways, combatants]);
 
   function buildPJStats(pjRow: { stats: any }) {
     return {
@@ -760,8 +731,10 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
 
   // ── Fetch familiers de la campagne ────────────────────────────────────────
   const fetchFamiliersForMenu = async () => {
-    const { data: pjs } = await supabase.from("pj").select("id, name").eq("campaign_id", campaignId);
-    const { data: pnjs } = await supabase.from("pnj").select("id, name").eq("campaign_id", campaignId);
+    const [pjs, pnjs] = await Promise.all([
+      combatData.fetchCampaignPjsNames(campaignId),
+      combatData.fetchCampaignPnjsNames(campaignId),
+    ]);
     const pjIds = (pjs ?? []).map((p) => (p as { id: string }).id);
     const pnjIds = (pnjs ?? []).map((p) => (p as { id: string }).id);
     const pjMap = new Map((pjs ?? []).map((p) => [(p as { id: string; name: string }).id, (p as { id: string; name: string }).name]));
@@ -770,13 +743,13 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
     const results: typeof familierResults = [];
 
     if (pjIds.length > 0) {
-      const { data: fams } = await supabase.from("pj_familiers").select("*").in("pj_id", pjIds);
+      const fams = await combatData.fetchFamiliersByPjIds(pjIds);
       for (const f of fams ?? []) {
         results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pjMap.get(f.pj_id) ?? "PJ", data: f.data });
       }
     }
     if (pnjIds.length > 0) {
-      const { data: fams } = await supabase.from("pj_familiers").select("*").in("pnj_id", pnjIds);
+      const fams = await combatData.fetchFamiliersByPnjIds(pnjIds);
       for (const f of fams ?? []) {
         results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pnjMap.get(f.pnj_id) ?? "PNJ", data: f.data });
       }
@@ -812,14 +785,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
   const importCompany = useCallback(async () => {
     setImportingCompany(true);
     try {
-      const { data, error } = await supabase
-        .from("pj")
-        .select("id, name, image_url, stats, pathways")
-        .eq("campaign_id", campaignId)
-        .order("name");
-      if (error) throw error;
-
-      const rows = data ?? [];
+      const rows = await combatData.fetchCampaignPjs(campaignId);
       // Fetch toutes les voies en parallèle
       const voiesPerPJ = await Promise.all(
         rows.map((pj) => fetchVoiesForPathways(pj.pathways))
@@ -864,7 +830,7 @@ export function CombatDashboard({ chapitreId, enemyBlockId, campaignId, onBackTo
       setIsMenuOpen(false);
     } catch (err) { console.error("Error importing company", err); }
     finally { setImportingCompany(false); }
-  }, [campaignId, fetchVoiesForPathways]);
+  }, [campaignId, combatData, fetchVoiesForPathways]);
 
   // --- Auto-import au premier chargement ---
   useEffect(() => {

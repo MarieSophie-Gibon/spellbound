@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import { Coins, Package, Shield, Sword, Target, Backpack, Loader2, Plus, Pencil, Trash2, X, Save } from "lucide-react";
 import { createPortal } from "react-dom";
-import { supabase } from "@/lib/supabase";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
+import { useInventory, type ItemType } from "@/hooks/useInventory";
 
 interface InventoryTabProps {
   pjId: string;
@@ -19,45 +19,25 @@ interface InventoryTabProps {
   onInventoryChange?: () => void;
 }
 
-type ItemType = "arme_contact" | "arme_distance" | "armure" | "equipement";
-
-const normalizeItemIdForDb = (value: string | number | null) => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
-};
-
-export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false, onInventoryChange }: InventoryTabProps) {
-  const isPnj = !!pnjId;
-  const ownerId = pnjId || pjId;
-  const [isLoading, setIsLoading] = useState(true);
-  const [unifiedItems, setUnifiedItems] = useState<any[]>([]);
+export default function InventoryTab({
+  pjId, pnjId, profilId, pjStats, onUpdateStats, readOnly = false, onInventoryChange,
+}: InventoryTabProps) {
+  const {
+    isLoading, weaponsAndArmor, genericItems, pa, po, pc, updateBourse, toggleEquip, saveItem, deleteItem, fetchCompendiumItems
+  } = useInventory({ pjId, pnjId, profilId, pjStats, onUpdateStats, onInventoryChange });
 
   // Modale CRUD
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
-  // Nouveaux états pour le Compendium dans la modale
+
+  // Compendium
   const [compendiumItems, setCompendiumItems] = useState<any[]>([]);
   const [isFetchingCompendium, setIsFetchingCompendium] = useState(false);
 
-  // Wizard de création d'objet compendium
+  // Wizard
   const [wizardType, setWizardType] = useState<EquipementType | null>(null);
-
-  const handleWizardCreated = (newItem?: any) => {
-    if (!newItem || !wizardType) { setWizardType(null); return; }
-    let desc = newItem.data?.description || "";
-    if (wizardType === "arme_contact" || wizardType === "arme_distance") desc = [newItem.dm, newItem.type_de_dm].filter(Boolean).join(" ");
-    if (wizardType === "armure") desc = newItem.bonus_def ? `Déf. +${newItem.bonus_def}` : "";
-    setFormData(prev => ({ ...prev, item_id: newItem.id, nom_custom: newItem.nom, description_custom: desc }));
-    setCompendiumItems(prev => [...prev.filter(i => i.id !== newItem.id), newItem]);
-    setWizardType(null);
-  };
 
   const [formData, setFormData] = useState({
     item_type: "arme_contact" as ItemType,
@@ -68,61 +48,22 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
     is_equipped: false
   });
 
-  const [pa, setPa] = useState<number>(pjStats?.bourse_pa ?? 0);
-  const [po, setPo] = useState<number>(pjStats?.bourse_po ?? 0);
-  const [pc, setPc] = useState<number>(pjStats?.bourse_pc ?? 0);
-
-  // Sync depuis la prop quand le PJ/PNJ change
-  useEffect(() => {
-    setPa(pjStats?.bourse_pa ?? 0);
-    setPo(pjStats?.bourse_po ?? 0);
-    setPc(pjStats?.bourse_pc ?? 0);
-  }, [ownerId]);
-
-  // --- CHARGEMENT DE L'INVENTAIRE ---
-  const fetchEverything = async () => {
-    setIsLoading(true);
-    if (isPnj) {
-      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
-      const items = data?.inventory?.items ?? [];
-      setUnifiedItems(items);
-    } else {
-      const { data: customInv } = await supabase.from("pj_inventaire").select("*").eq("pj_id", pjId);
-      setUnifiedItems(customInv || []);
-    }
-    setIsLoading(false);
+  const handleWizardCreated = (newItem?: any) => {
+    if (!newItem || !wizardType) { setWizardType(null); return; }
+    const desc = newItem.notes || newItem.description || newItem.data?.description || "";
+    setFormData(prev => ({ ...prev, item_id: newItem.id, nom_custom: newItem.nom, description_custom: desc }));
+    setCompendiumItems(prev => [...prev.filter(i => i.id !== newItem.id), newItem]);
+    setWizardType(null);
   };
 
   useEffect(() => {
-    if (ownerId) fetchEverything();
-  }, [ownerId, profilId]);
-
-  // --- CHARGEMENT DU COMPENDIUM POUR LA MODALE ---
-  useEffect(() => {
     if (!isModalOpen) return;
-
-    const fetchTable = async () => {
-      setIsFetchingCompendium(true);
-      const tableMap: Record<ItemType, string> = {
-        arme_contact: "armes_contact",
-        arme_distance: "armes_distance",
-        armure: "armures",
-        equipement: "equipements"
-      };
-
-      try {
-        const { data } = await supabase.from(tableMap[formData.item_type]).select("*").order("nom");
-        setCompendiumItems(data || []);
-      } catch {
-        setCompendiumItems([]);
-      }
-      setIsFetchingCompendium(false);
-    };
-
-    fetchTable();
+    setIsFetchingCompendium(true);
+    fetchCompendiumItems(formData.item_type)
+      .then(setCompendiumItems)
+      .finally(() => setIsFetchingCompendium(false));
   }, [formData.item_type, isModalOpen]);
 
-  // On ajoute un paramètre defaultType pour savoir depuis quel bloc on a cliqué
   const handleOpenModal = (item?: any, defaultType: ItemType = "arme_contact") => {
     if (item && !item.is_from_profile) {
       setEditingItemId(item.id);
@@ -136,67 +77,27 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
       });
     } else {
       setEditingItemId(null);
-      // On initialise le formulaire avec la catégorie par défaut du bouton cliqué
       setFormData({ item_type: defaultType, item_id: null, nom_custom: "", description_custom: "", qte: 1, is_equipped: false });
     }
     setIsModalOpen(true);
   };
 
-  // Quand l'utilisateur choisit un objet dans le menu déroulant
   const handleCompendiumSelect = (val: string) => {
     if (val === "custom") {
       setFormData({ ...formData, item_id: null, nom_custom: "", description_custom: "" });
     } else {
       const selected = compendiumItems.find(i => i.id.toString() === val);
       if (selected) {
-        let desc = selected.description || selected.data?.description || "";
-        if (formData.item_type === "arme_contact" || formData.item_type === "arme_distance") desc = `Dégâts: ${selected.dm}`;
-        if (formData.item_type === "armure") desc = `Défense: ${selected.bonus_def}`;
-        
-        setFormData({
-          ...formData,
-          item_id: selected.id,
-          nom_custom: selected.nom,
-          description_custom: desc
-        });
+        const desc = selected.notes || selected.description || selected.data?.description || "";
+        setFormData({ ...formData, item_id: selected.id, nom_custom: selected.nom, description_custom: desc });
       }
     }
   };
 
   const handleSaveItem = async () => {
-    if (!formData.nom_custom.trim()) return;
     try {
-      if (isPnj) {
-        const { data, error } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
-        if (error) throw error;
-
-        const current: any[] = data?.inventory?.items ?? [];
-        let updated: any[];
-        if (editingItemId) {
-          updated = current.map((it: any) => it.id === editingItemId ? { ...it, ...formData } : it);
-        } else {
-          updated = [...current, { ...formData, id: crypto.randomUUID() }];
-        }
-        const { error: updateErr } = await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
-        if (updateErr) throw updateErr;
-      } else {
-        const payload = {
-          ...formData,
-          // `pj_inventaire.item_id` is numeric in DB: keep custom labels for non-numeric IDs.
-          item_id: normalizeItemIdForDb(formData.item_id),
-        };
-
-        if (editingItemId) {
-          const { error } = await supabase.from("pj_inventaire").update(payload).eq("id", editingItemId);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase.from("pj_inventaire").insert({ ...payload, pj_id: pjId });
-          if (error) throw error;
-        }
-      }
+      await saveItem(formData, editingItemId);
       setIsModalOpen(false);
-      fetchEverything();
-      onInventoryChange?.();
     } catch (error: any) {
       alert("Impossible d'enregistrer cet objet: " + (error?.message ?? "erreur inconnue"));
     }
@@ -205,53 +106,18 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
   const handleDeleteItem = async () => {
     if (!itemToDelete?.id) return;
     setIsDeleting(true);
-    if (isPnj) {
-      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
-      const current: any[] = data?.inventory?.items ?? [];
-      const updated = current.filter((it: any) => it.id !== itemToDelete.id);
-      await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
-    } else {
-      await supabase.from("pj_inventaire").delete().eq("id", itemToDelete.id);
-    }
+    await deleteItem(itemToDelete.id);
     setIsDeleting(false);
     setItemToDelete(null);
-    fetchEverything();
-    onInventoryChange?.();
   };
 
-  const toggleEquip = async (item: any) => {
-    if (item.is_from_profile) return;
-    if (isPnj) {
-      const { data } = await supabase.from("pnj").select("inventory").eq("id", pnjId).single();
-      const current: any[] = data?.inventory?.items ?? [];
-      const updated = current.map((it: any) => it.id === item.id ? { ...it, is_equipped: !it.is_equipped } : it);
-      await supabase.from("pnj").update({ inventory: { ...(data?.inventory ?? {}), items: updated } }).eq("id", pnjId);
-    } else {
-      await supabase.from("pj_inventaire").update({ is_equipped: !item.is_equipped }).eq("id", item.id);
-    }
-    fetchEverything();
-    onInventoryChange?.();
-  };
-
-  const weaponsAndArmor = unifiedItems.filter(i => ["arme_contact", "arme_distance", "armure"].includes(i.item_type));
-  const genericItems = unifiedItems.filter(i => i.item_type === "equipement" || !i.item_type);
-  const selectedCompendiumItem = formData.item_id
-    ? compendiumItems.find(i => i.id?.toString() === formData.item_id?.toString())
-    : null;
-  const itemTypeLabelMap: Record<ItemType, string> = {
-    arme_contact: "Arme de contact",
-    arme_distance: "Arme a distance",
-    armure: "Armure / Bouclier",
-    equipement: "Equipement divers",
-  };
-  const selectItemClass = "!text-white **:!text-white hover:!text-white focus:!text-white data-highlighted:!text-white hover:bg-white/10 focus:bg-white/10 data-highlighted:bg-white/10 data-[state=checked]:!text-white focus:**:!text-white data-highlighted:**:!text-white";
+  const selectItemClass = "!text-white **:!text-white hover:!text-white focus:!text-white data-highlighted:!text-white hover:bg-white/10 focus:bg-white/10 data-highlighted:bg-white/10 data-[state=checked]:!text-white";
 
   if (isLoading) return <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 text-[#E3CCCD]/50 animate-spin" /></div>;
 
   return (
     <div className="space-y-4 animate-in fade-in duration-200 relative">
-      
-      {/* MINI BLOC : BOURSE */}
+      {/* BOURSE */}
       <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 shadow-inner flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.2em] text-yellow-400/70 flex items-center gap-1.5">
           <Coins className="w-3.5 h-3.5" /> Bourse
@@ -259,20 +125,20 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         <div className="flex gap-4">
           <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/5">
             <span className="text-white/40 text-[10px] font-bold">PA</span>
-            <input type="number" disabled={readOnly} value={pa} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPa(v); onUpdateStats({ ...(pjStats ?? {}), bourse_pa: v, bourse_po: po, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none disabled:opacity-50" />
+            <input type="number" disabled={readOnly} value={pa} onChange={(e) => updateBourse(parseInt(e.target.value) || 0, po, pc)} className="w-10 bg-transparent text-white font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
           <div className="flex items-center gap-2 bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
             <span className="text-yellow-500/60 text-[10px] font-bold">PO</span>
-            <input type="number" disabled={readOnly} value={po} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPo(v); onUpdateStats({ ...(pjStats ?? {}), bourse_pa: pa, bourse_po: v, bourse_pc: pc }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
+            <input type="number" disabled={readOnly} value={po} onChange={(e) => updateBourse(pa, parseInt(e.target.value) || 0, pc)} className="w-10 bg-transparent text-yellow-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
           <div className="flex items-center gap-2 bg-orange-400/10 px-3 py-1.5 rounded-lg border border-orange-400/20">
             <span className="text-orange-500/60 text-[10px] font-bold">PC</span>
-            <input type="number" disabled={readOnly} value={pc} onChange={(e) => { const v = parseInt(e.target.value) || 0; setPc(v); onUpdateStats({ ...(pjStats ?? {}), bourse_pa: pa, bourse_po: po, bourse_pc: v }); }} onKeyDown={(e) => e.stopPropagation()} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
+            <input type="number" disabled={readOnly} value={pc} onChange={(e) => updateBourse(pa, po, parseInt(e.target.value) || 0)} className="w-10 bg-transparent text-orange-100 font-mono text-sm text-right outline-none disabled:opacity-50" />
           </div>
         </div>
       </div>
 
-      {/* BLOC 1 : ARMES & ARMURES */}
+      {/* ARMES & ARMURES */}
       <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-5 shadow-inner">
         <div className="flex items-center justify-between mb-4">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
@@ -313,7 +179,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         )}
       </div>
 
-      {/* BLOC 2 : ÉQUIPEMENT & DIVERS */}
+      {/* ÉQUIPEMENT & DIVERS */}
       <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-5 shadow-inner">
         <div className="flex items-center justify-between mb-4">
           <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
@@ -353,7 +219,7 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         )}
       </div>
 
-      {/* MODALE CRUD (COMPENDIUM AWARE) */}
+      {/* MODALE CRUD */}
       {isModalOpen && !readOnly && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[1px] p-4">
           <div className="bg-[#221B50]/95 border border-[#E3CCCD]/28 rounded-2xl w-full max-w-md p-6 shadow-[0_18px_55px_rgba(7,5,20,0.45)]">
@@ -363,17 +229,16 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
             </div>
             
             <div className="space-y-4">
-              {/* Type d'objet */}
               <div>
                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Catégorie</label>
                 <Select
                   value={formData.item_type}
                   onValueChange={(val) => setFormData({ ...formData, item_type: val as ItemType, item_id: null, nom_custom: "", description_custom: "" })}
                 >
-                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 focus-visible:border-[#E3CCCD]/55">
+                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0">
                     <SelectValue placeholder="Choisir une catégorie" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg overflow-hidden **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg overflow-hidden">
                     <SelectItem value="arme_contact" className={selectItemClass}>Arme de contact</SelectItem>
                     <SelectItem value="arme_distance" className={selectItemClass}>Arme à distance</SelectItem>
                     <SelectItem value="armure" className={selectItemClass}>Armure / Bouclier</SelectItem>
@@ -382,7 +247,6 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
                 </Select>
               </div>
 
-              {/* Sélection depuis le Compendium */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[10px] uppercase tracking-widest text-[#E3CCCD]/60">Objet du Compendium</label>
@@ -403,10 +267,10 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
                   onValueChange={handleCompendiumSelect}
                   disabled={isFetchingCompendium}
                 >
-                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 focus-visible:border-[#E3CCCD]/55 disabled:opacity-50">
+                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 disabled:opacity-50">
                     <SelectValue placeholder="Objet personnalisé..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden **:data-[slot=select-scroll-up-button]:bg-[#2A2458] **:data-[slot=select-scroll-down-button]:bg-[#2A2458]">
+                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden">
                     <SelectItem value="custom" className={selectItemClass}>Objet personnalisé...</SelectItem>
                     {compendiumItems.map(item => (
                       <SelectItem key={item.id} value={item.id.toString()} className={selectItemClass}>
@@ -415,35 +279,26 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
                     ))}
                   </SelectContent>
                 </Select>
-
-                <p className="mt-1 text-[10px] text-white/35">
-                  {isFetchingCompendium
-                    ? "Chargement..."
-                    : selectedCompendiumItem
-                      ? `Source compendium • ${itemTypeLabelMap[formData.item_type]}`
-                      : `Objet personnalisé • ${itemTypeLabelMap[formData.item_type]}`}
-                </p>
               </div>
 
-              {/* Champs (Grise si lié au compendium pour montrer d'où viennent les données) */}
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Nom de l'objet</label>
-                  <input type="text" value={formData.nom_custom} onChange={e => setFormData({...formData, nom_custom: e.target.value})} placeholder="ex: Épée longue" className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/55" />
+                  <input type="text" value={formData.nom_custom} onChange={e => setFormData({...formData, nom_custom: e.target.value})} placeholder="ex: Épée longue" className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-sm outline-none" />
                 </div>
                 <div className="w-20">
                   <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Qté</label>
-                  <input type="number" min={1} value={formData.qte} onChange={e => setFormData({...formData, qte: parseInt(e.target.value)||1})} className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-center font-mono text-sm outline-none focus:border-[#E3CCCD]/55" />
+                  <input type="number" min={1} value={formData.qte} onChange={e => setFormData({...formData, qte: parseInt(e.target.value)||1})} className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-center font-mono text-sm outline-none" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Stats ou Description</label>
-                <input type="text" value={formData.description_custom} onChange={e => setFormData({...formData, description_custom: e.target.value})} placeholder={formData.item_type.includes('arme') ? "ex: Dégâts: 1d8" : formData.item_type === 'armure' ? "ex: Défense: +2" : "ex: Une corde de 15m"} className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-sm outline-none focus:border-[#E3CCCD]/55" />
+                <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1">Description</label>
+                <input type="text" value={formData.description_custom} onChange={e => setFormData({...formData, description_custom: e.target.value})} className="w-full bg-[#2C255F]/65 border border-white/20 rounded-lg p-2.5 text-white text-sm outline-none" />
               </div>
 
               {formData.item_type !== "equipement" && (
-                <label className="flex items-center gap-2 cursor-pointer mt-2 w-max p-2 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/10">
+                <label className="flex items-center gap-2 cursor-pointer mt-2 w-max p-2 rounded-lg hover:bg-white/5 transition-colors">
                   <input type="checkbox" checked={formData.is_equipped} onChange={e => setFormData({...formData, is_equipped: e.target.checked})} className="accent-[#E3CCCD] w-4 h-4 cursor-pointer" />
                   <span className="text-sm text-white/80 select-none">Objet équipé en main / porté</span>
                 </label>
@@ -460,14 +315,9 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
         </div>
       )}
 
-      {/* WIZARD création objet compendium (s'ouvre par-dessus la modale) */}
       {wizardType && createPortal(
         <div className="fixed inset-0 z-200">
-          <EquipementWizard
-            selectedType={wizardType}
-            onClose={() => setWizardType(null)}
-            onSuccess={handleWizardCreated}
-          />
+          <EquipementWizard selectedType={wizardType} onClose={() => setWizardType(null)} onSuccess={handleWizardCreated} />
         </div>,
         document.body
       )}
@@ -477,14 +327,11 @@ export default function InventoryTab({ pjId, pnjId, profilId, pjStats, onUpdateS
           name={itemToDelete.nom_custom || "cet objet"}
           isDeleting={isDeleting}
           onConfirm={handleDeleteItem}
-          onCancel={() => {
-            if (!isDeleting) setItemToDelete(null);
-          }}
+          onCancel={() => { if (!isDeleting) setItemToDelete(null); }}
           title="Supprimer cet équipement ?"
           description={`L'objet "${itemToDelete.nom_custom || "sans nom"}" sera retiré de l'inventaire du personnage.`}
         />
       )}
-
     </div>
   );
 }

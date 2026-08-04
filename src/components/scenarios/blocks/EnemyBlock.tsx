@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Swords, Search, Target, ShieldAlert, X, PlusCircle, Ghost, Users, UploadCloud } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useScenarioBlocksData } from "@/hooks/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
@@ -75,6 +75,7 @@ function isValidUuid(value: string): boolean {
 }
 
 export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = true, onOpenCombatDashboard }: EnemyBlockProps) {
+    const scenarioBlocksData = useScenarioBlocksData();
     const [searchType, setSearchType] = useState<'monster' | 'npc'>('monster');
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -123,13 +124,8 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
         if (!isEditing) return;
         setUploadingBattlemap(true);
         try {
-            const ext = file.name.split(".").pop() || "png";
-            const fileName = `${crypto.randomUUID()}.${ext}`;
-            const filePath = `battlemaps/${fileName}`;
-            const { error } = await supabase.storage.from("wiki-images").upload(filePath, file);
-            if (error) throw error;
-            const { data: publicData } = supabase.storage.from("wiki-images").getPublicUrl(filePath);
-            updateCombatPrep({ battlemapUrl: publicData.publicUrl });
+            const imageUrl = await scenarioBlocksData.uploadWikiImage(file, "battlemaps");
+            updateCombatPrep({ battlemapUrl: imageUrl });
         } catch (err) {
             console.error("Erreur upload battlemap :", err);
         } finally {
@@ -145,96 +141,61 @@ export function EnemyBlock({ blockId, campaignId, data, onChange, isEditing = tr
 
         const fetchResults = async () => {
             if (searchType === 'monster') {
-                let query = supabase
-                    .from('bestiaire')
-                    .select('id, nom, image_url, type_creature, nc')
-                    .order('nom')
-                    .or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
-
-                if (searchTerm) {
-                    query = query.ilike('nom', `%${searchTerm}%`);
-                }
-
-                const { data: results, error } = await query;
-                if (!error && results) {
-                    setSearchResults(
-                        results.map((monster) => ({
-                            id: monster.id,
-                            name: monster.nom,
-                            image_url: monster.image_url,
-                            type_creature: monster.type_creature,
-                            nc: monster.nc,
-                        }))
-                    );
-                }
+                const results = await scenarioBlocksData.searchEnemyMonsters(campaignId, searchTerm);
+                setSearchResults(results as SearchResult[]);
                 return;
             }
 
-            let query = supabase
-                .from('pnj')
-                .select('id, name, image_url')
-                .eq('campaign_id', campaignId)
-                .filter('stats->>is_combatant', 'eq', 'true')
-                .order('name')
-                .limit(20);
-
-            if (searchTerm) {
-                query = query.ilike('name', `%${searchTerm}%`);
-            }
-
-            const { data: results, error } = await query;
-            if (!error && results) {
-                setSearchResults(results);
-            }
+            const results = await scenarioBlocksData.searchPnjs(campaignId, searchTerm, {
+                onlyCombatant: true,
+                limit: 20,
+            });
+            setSearchResults(results as SearchResult[]);
         };
 
         const debounce = setTimeout(fetchResults, 300);
         return () => clearTimeout(debounce);
-    }, [searchTerm, searchType, data.nom, showNpcWizard, showMonsterWizard, campaignId, hasValidCampaignId]);
+    }, [searchTerm, searchType, data.nom, showNpcWizard, showMonsterWizard, campaignId, hasValidCampaignId, scenarioBlocksData]);
 
     const visibleResults = (data.nom || showNpcWizard || showMonsterWizard || !hasValidCampaignId) ? [] : searchResults;
 
     useEffect(() => {
-        if (data.entityType !== 'monster' || !data.entityId) {
+        const entityId = data.entityId;
+        if (data.entityType !== 'monster' || !entityId) {
             setMonsterDetails(null);
             return;
         }
 
         const fetchMonsterDetails = async () => {
-            const { data: details, error } = await supabase
-                .from('bestiaire')
-                .select('stats, combat, attaques, capacites')
-                .eq('id', data.entityId)
-                .single();
-
-            if (!error && details) {
-                setMonsterDetails(details as MonsterDetails);
+            try {
+                const details = await scenarioBlocksData.fetchMonsterDetails(entityId);
+                if (details) setMonsterDetails(details as MonsterDetails);
+            } catch {
+                setMonsterDetails(null);
             }
         };
 
         void fetchMonsterDetails();
-    }, [data.entityType, data.entityId]);
+    }, [data.entityType, data.entityId, scenarioBlocksData]);
 
     useEffect(() => {
-        if (data.entityType !== 'npc' || !data.entityId) {
+        const entityId = data.entityId;
+        if (data.entityType !== 'npc' || !entityId) {
             setPnjDetails(null);
             return;
         }
 
         const fetchPnjDetails = async () => {
-            const { data: details, error } = await supabase
-                .from('pnj')
-                .select('stats')
-                .eq('id', data.entityId)
-                .single();
-
-            if (!error && details) {
-                setPnjDetails(details as PnjDetails);
+            try {
+                const details = await scenarioBlocksData.fetchPnjStats(entityId);
+                if (details) setPnjDetails(details as PnjDetails);
+            } catch {
+                setPnjDetails(null);
             }
         };
 
         void fetchPnjDetails();
-    }, [data.entityType, data.entityId]);
+    }, [data.entityType, data.entityId, scenarioBlocksData]);
 
     const statOrder = ['FOR', 'CON', 'AGI', 'PER', 'INT', 'VOL', 'CHA'];
     const statRows = statOrder

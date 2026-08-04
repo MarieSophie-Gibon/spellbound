@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { BookOpen, AlertTriangle } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { supabase } from "@/lib/supabase";
+import { useGrimoireData } from "@/hooks/useGrimoireData";
 import { GrimoireSidebar } from "@/components/grimoire/GrimoireSidebar";
 import { GrimoireMobile } from "@/components/grimoire/GrimoireMobile";
 import { PageEditor } from "@/components/grimoire/PageEditor";
@@ -20,6 +20,7 @@ interface GrimoireProps {
 
 export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false }: GrimoireProps) {
   const isMobile = useIsMobile();
+  const grimoireData = useGrimoireData();
   const [userId, setUserId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [editingPageData, setEditingPageData] = useState<InitialPageData | null>(null);
@@ -40,9 +41,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const { data: catData } = await supabase
-        .from("categories").select("*")
-        .order("position_index", { ascending: true }).order("name");
+      const catData = await grimoireData.fetchCategories();
       if (catData) {
         if (!isGlobal && campaignId) {
           setCategories(catData.filter((c) => c.campaign_id === campaignId || c.campaign_id === null));
@@ -51,10 +50,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
         }
       }
 
-      let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
-      if (isGlobal) query = query.is("campaign_id", null);
-      else if (campaignId) query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
-      const { data: pagesData } = await query;
+      const pagesData = await grimoireData.fetchWikiPages({ isGlobal, campaignId });
       if (pagesData) setPages(pagesData);
     } finally {
       setIsLoading(false);
@@ -62,8 +58,8 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
   };
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
-  }, []);
+    grimoireData.getCurrentUserId().then((id) => setUserId(id));
+  }, [grimoireData]);
 
   useEffect(() => { fetchData(); }, [isGlobal, campaignId]);
 
@@ -96,7 +92,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    await supabase.from("wiki_pages").delete().eq("id", deleteTarget);
+    await grimoireData.deleteWikiPage(deleteTarget);
     setSelectedPageId(null);
     setDeleteTarget(null);
     fetchData();
@@ -136,7 +132,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
       newSiblings.splice(siblings.findIndex((c) => c.id === targetCat.id), 0, moved);
       const updated = newSiblings.map((c, i) => ({ ...c, position_index: i }));
       setCategories((prev) => prev.map((c) => updated.find((s) => s.id === c.id) || c));
-      await Promise.all(updated.map((c) => supabase.from("categories").update({ position_index: c.position_index }).eq("id", c.id)));
+      await Promise.all(updated.map((c) => grimoireData.updateCategoryPosition(c.id, c.position_index)));
 
     } else if (draggedItem.type === "page") {
       const draggedPage = pages.find((p) => p.id === draggedItem.id);
@@ -171,8 +167,13 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
       else group.splice(targetIndex, 0, movedPage);
       const updatedGroup = group.map((p, idx) => ({ ...p, position_index: idx }));
       setPages((prev) => [...prev.filter((p) => p.id !== movedPage.id && !(p.category_id === newCatId && p.subcategory_id === newSubCatId)), ...updatedGroup]);
-      await supabase.from("wiki_pages").update({ category_id: newCatId, subcategory_id: newSubCatId, position_index: updatedGroup.find((p) => p.id === movedPage.id)?.position_index }).eq("id", movedPage.id);
-      await Promise.all(updatedGroup.map((p) => supabase.from("wiki_pages").update({ position_index: p.position_index }).eq("id", p.id)));
+      await grimoireData.updateWikiPagePlacement(
+        movedPage.id,
+        newCatId,
+        newSubCatId,
+        updatedGroup.find((p) => p.id === movedPage.id)?.position_index
+      );
+      await Promise.all(updatedGroup.map((p) => grimoireData.updateWikiPagePosition(p.id, p.position_index)));
     }
 
     setDraggedItem(null);

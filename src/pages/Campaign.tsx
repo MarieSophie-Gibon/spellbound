@@ -17,7 +17,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useCampaignHomeData } from "@/hooks/useCampaignHomeData";
 import { MagicCard } from "@/components/ui/MagicCard";
 
 interface CampaignActivity {
@@ -48,33 +48,14 @@ export function CampaignHome({
   const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false);
   const activityPanelRef = useRef<HTMLDivElement | null>(null);
   const activityToggleRef = useRef<HTMLButtonElement | null>(null);
+  const { fetchCampaignMembers } = useCampaignHomeData();
   const [membres, setMembres] = useState<Array<{ id: string; pseudo: string }>>(
     [],
   );
 
   useEffect(() => {
-    supabase
-      .from("campaign_members")
-      .select("user_id")
-      .eq("campaign_id", campaign.id)
-      .then(async ({ data: rows }) => {
-        if (!rows?.length) {
-          setMembres([]);
-          return;
-        }
-        const ids = rows.map((r) => r.user_id).filter(Boolean);
-        const { data: users } = await supabase
-          .from("utilisateurs")
-          .select("id, pseudo")
-          .in("id", ids);
-        setMembres(
-          (users ?? []).map((u: { id: string; pseudo: string }) => ({
-            id: u.id,
-            pseudo: u.pseudo,
-          })),
-        );
-      });
-  }, [campaign.id]);
+    fetchCampaignMembers(campaign.id).then(setMembres);
+  }, [campaign.id, fetchCampaignMembers]);
 
   useEffect(() => {
     if (!isActivityPanelOpen) return;

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, Save, FolderPlus, FileText } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { useScenariosData } from "@/hooks/useScenariosData";
 import { validateScenarioForm, validateChapitreForm } from "@/lib/validation/scenarioForms";
 
 // ─────────────────────────────────────────────
@@ -20,6 +20,7 @@ export function ScenarioModal({
   onClose,
   onSuccess,
 }: ScenarioModalProps) {
+  const scenariosData = useScenariosData();
   const [title, setTitle] = useState(initialData?.title || "");
   const [description, setDescription] = useState(initialData?.description || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,25 +34,12 @@ export function ScenarioModal({
     setIsSubmitting(true);
     try {
       const payload = validated.data;
-      if (initialData?.id) {
-        const { error } = await supabase
-          .from("scenarios")
-          .update({ title: payload.title, description: payload.description })
-          .eq("id", initialData.id);
-        if (error) throw error;
-      } else {
-        // Optionnel : Gérer l'ordre (mettre à la fin)
-        const { count, error: countError } = await supabase
-          .from("scenarios")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", campaignId);
-        if (countError) throw countError;
-
-        const { error } = await supabase
-          .from("scenarios")
-          .insert({ campaign_id: campaignId, title: payload.title, description: payload.description, ordre: count || 0 });
-        if (error) throw error;
-      }
+      await scenariosData.saveScenario({
+        campaignId,
+        id: initialData?.id,
+        title: payload.title,
+        description: payload.description,
+      });
       onSuccess();
     } catch (err) {
       if (err instanceof Error) {
@@ -125,6 +113,7 @@ export function ChapitreModal({
   onClose,
   onSuccess,
 }: ChapitreModalProps) {
+  const scenariosData = useScenariosData();
   const [title, setTitle] = useState(initialData?.title || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -137,30 +126,12 @@ export function ChapitreModal({
     setIsSubmitting(true);
     try {
       const payload = validated.data;
-      if (initialData?.id) {
-        const { error } = await supabase
-          .from("chapitres")
-          .update({ title: payload.title })
-          .eq("id", initialData.id);
-        if (error) throw error;
-
-        onSuccess(initialData.id);
-      } else {
-        const { count, error: countError } = await supabase
-          .from("chapitres")
-          .select("*", { count: "exact", head: true })
-          .eq("scenario_id", scenarioId);
-        if (countError) throw countError;
-
-        const { data, error } = await supabase
-          .from("chapitres")
-          .insert({ scenario_id: scenarioId, title: payload.title, ordre: count || 0 })
-          .select("id")
-          .single();
-        if (error) throw error;
-
-        onSuccess(data?.id);
-      }
+      const chapitreId = await scenariosData.saveChapitre({
+        scenarioId,
+        id: initialData?.id,
+        title: payload.title,
+      });
+      onSuccess(chapitreId);
     } catch (err) {
       if (err instanceof Error) {
         alert("Erreur : " + err.message);

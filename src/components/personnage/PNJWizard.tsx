@@ -22,7 +22,7 @@ import {
   History,
   Sparkles,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { usePersonnageCreationData } from "@/hooks/usePersonnageCreationData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { RangCard } from "@/components/ui/RangCard";
 import { normalizeVoieRang, hasRangContent } from "@/lib/voieRanks";
@@ -124,6 +124,7 @@ function normalizeCompendiumItemId(value: unknown): number | null {
 }
 
 export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
+  const personnageData = usePersonnageCreationData();
   // Navigation & Toggle
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -204,7 +205,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   useEffect(() => {
     async function fetchRef() {
       // Les Peuples sont TOUJOURS chargés, même pour les PNJ non-combattants (pour le Lore)
-      const { data: pData } = await supabase.from("peuples").select("id, nom, description, data, multi, image_url, voie:voies!peuple_id(id, nom, capacites)").order("nom");
+      const pData = await personnageData.fetchPeuplesWithVoie();
       if (pData) {
         setPeuples(
           pData.map((p: any) => {
@@ -228,13 +229,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
       if (!isCombatant) return;
 
       // Sinon on charge le reste pour le combat
-      const profilsQuery = supabase
-        .from("profils")
-        .select("id, nom, description, equipement_base, maitrise_equipement, image_url, data, famille:familles(nom, pv_niveau, de_recuperation, bonus_chance), voies(id, nom, capacites)")
-        .order("nom");
-      const { data: fData } = isValidUuid(campaignId)
-        ? await profilsQuery.or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
-        : await profilsQuery.is("campaign_id", null);
+      const fData = await personnageData.fetchProfilsWithVoiesForPnj(campaignId, isValidUuid(campaignId));
       if (fData) {
         setFamilles(
           fData.map((f: any) => {
@@ -257,17 +252,13 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         );
       }
 
-      const [r1, r2, r3] = await Promise.all([
-        supabase.from("armes_contact").select("id, nom, dm, type_de_dm").order("nom"),
-        supabase.from("armes_distance").select("id, nom, dm, portee").order("nom"),
-        supabase.from("armures").select("id, nom, bonus_def").order("nom"),
-      ]);
-      if (r1.data) setArmesContact(r1.data.map((item: any) => ({ id: item.id, nom: item.nom, source: "arme_contact" as const, details: [item.dm, item.type_de_dm].filter(Boolean).join(" ") || undefined })));
-      if (r2.data) setArmesDistance(r2.data.map((item: any) => ({ id: item.id, nom: item.nom, source: "arme_distance" as const, details: [item.dm, item.portee ? `Portée ${item.portee}` : null].filter(Boolean).join(" · ") || undefined })));
-      if (r3.data) setArmures(r3.data.map((item: any) => ({ id: item.id, nom: item.nom, source: "armure" as const, details: item.bonus_def ? `Déf. +${item.bonus_def}` : undefined })));
+      const { armesContact: aContact, armesDistance: aDistance, armures: aArmures } = await personnageData.fetchEquipementsRef();
+      if (aContact) setArmesContact(aContact.map((item: any) => ({ id: item.id, nom: item.nom, source: "arme_contact" as const, details: [item.dm, item.type_de_dm].filter(Boolean).join(" ") || undefined })));
+      if (aDistance) setArmesDistance(aDistance.map((item: any) => ({ id: item.id, nom: item.nom, source: "arme_distance" as const, details: [item.dm, item.portee ? `Portée ${item.portee}` : null].filter(Boolean).join(" · ") || undefined })));
+      if (aArmures) setArmures(aArmures.map((item: any) => ({ id: item.id, nom: item.nom, source: "armure" as const, details: item.bonus_def ? `Déf. +${item.bonus_def}` : undefined })));
     }
     fetchRef();
-  }, [campaignId, isCombatant]);
+  }, [campaignId, isCombatant, personnageData]);
 
   useEffect(() => {
     if (wizardMode !== 'recover') return;
@@ -275,29 +266,8 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
     setRecoverError(null);
     const doFetch = async () => {
       try {
-        const { data: pnjData, error: pnjError } = await supabase
-          .from('pnj')
-          .select('id, name, image_url, stats, pathways, inventory, peuple_id, profils_id, campaign_id')
-          .neq('campaign_id', campaignId)
-          .order('name');
-        if (pnjError) throw pnjError;
-
-        const uniqueCampaignIds = [...new Set((pnjData || []).map((p: any) => p.campaign_id))];
-        let campaignNames: Record<string, string> = {};
-        if (uniqueCampaignIds.length > 0) {
-          const { data: campData } = await supabase
-            .from('campagnes')
-            .select('id, nom')
-            .in('id', uniqueCampaignIds);
-          if (campData) {
-            campaignNames = Object.fromEntries(campData.map((c: any) => [c.id, c.nom]));
-          }
-        }
-
-        setOldPNJs((pnjData || []).map((pnj: any) => ({
-          ...pnj,
-          campaign_nom: campaignNames[pnj.campaign_id] ?? 'Campagne inconnue',
-        })));
+        const data = await personnageData.fetchOldPnjs(campaignId);
+        setOldPNJs((data as OldPNJ[]) ?? []);
       } catch (err: any) {
         console.error('[PNJWizard] fetchOldPNJs error:', err);
         setRecoverError(err?.message ?? 'Erreur lors du chargement des anciens PNJs.');
@@ -306,7 +276,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
       }
     };
     doFetch();
-  }, [wizardMode, campaignId, recoverRetry]);
+  }, [wizardMode, campaignId, recoverRetry, personnageData]);
 
   const totalStats: StatsMap = {
     FOR: stats.FOR + bonusPeuple.FOR,
@@ -420,32 +390,11 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
     setIsRecovering(true);
     try {
       const finalName = recoverName.trim() || selectedOldPNJ.name;
-      const { data: newPNJData, error } = await supabase
-        .from('pnj')
-        .insert({
-          campaign_id: campaignId,
-          name: finalName,
-          image_url: selectedOldPNJ.image_url,
-          peuple_id: selectedOldPNJ.peuple_id,
-          profils_id: selectedOldPNJ.profils_id,
-          stats: selectedOldPNJ.stats,
-          pathways: selectedOldPNJ.pathways,
-          inventory: selectedOldPNJ.inventory,
-        })
-        .select();
-      if (error) throw error;
-      const newPNJId = newPNJData?.[0]?.id;
-      if (newPNJId) {
-        const { data: oldItems } = await supabase
-          .from('pj_inventaire')
-          .select('item_type, item_id, nom_custom, description_custom, qte, is_equipped')
-          .eq('pnj_id', selectedOldPNJ.id);
-        if (oldItems && oldItems.length > 0) {
-          await supabase.from('pj_inventaire').insert(
-            oldItems.map((item) => ({ ...item, pj_id: null, pnj_id: newPNJId }))
-          );
-        }
-      }
+      const newPNJData = await personnageData.clonePnjWithInventory({
+        campaignId,
+        finalName,
+        source: selectedOldPNJ,
+      });
       const created = newPNJData?.[0]
         ? { id: newPNJData[0].id, name: newPNJData[0].name, image_url: newPNJData[0].image_url }
         : undefined;
@@ -465,12 +414,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
     try {
       let imageUrl: string | null = null;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `pnj/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("compendium").upload(path, imageFile, { upsert: true });
-        if (upErr) throw upErr;
-        const { data: urlData } = supabase.storage.from("compendium").getPublicUrl(path);
-        imageUrl = urlData.publicUrl;
+        imageUrl = await personnageData.uploadCompendiumImage("pnj", imageFile);
       }
 
       let pnjStats: any = {
@@ -527,24 +471,19 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         };
       }
 
-      const { data: pnjInsertData, error } = await supabase
-        .from("pnj")
-        .insert({
-          campaign_id: campaignId,
-          name: nom.trim(),
-          image_url: imageUrl,
-          peuple_id: (isDemiElf ? selectedDemiElfVoieId : selectedPeupleId) || null,
-          profils_id: isCombatant ? (selectedFamilleId || null) : null,
-          stats: pnjStats,
-          pathways: pjVoies,
-          inventory: isCombatant ? {
-            equipement_base: selectedFamille?.equipement_base ?? null,
-            selected_equipements: selectedEquipItems,
-          } : { equipement_base: null, selected_equipements: [] },
-        })
-        .select();
-
-      if (error) throw error;
+      const pnjInsertData = await personnageData.createPnj({
+        campaign_id: campaignId,
+        name: nom.trim(),
+        image_url: imageUrl,
+        peuple_id: (isDemiElf ? selectedDemiElfVoieId : selectedPeupleId) || null,
+        profils_id: isCombatant ? (selectedFamilleId || null) : null,
+        stats: pnjStats,
+        pathways: pjVoies,
+        inventory: isCombatant ? {
+          equipement_base: selectedFamille?.equipement_base ?? null,
+          selected_equipements: selectedEquipItems,
+        } : { equipement_base: null, selected_equipements: [] },
+      });
 
       if (isCombatant && pnjInsertData?.[0]?.id && selectedEquipItems.length > 0) {
         const itemsToInsert = selectedEquipItems.map((item) => ({
@@ -556,8 +495,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
           qte: 1,
           is_equipped: false,
         }));
-        const { error: invErr } = await supabase.from("pj_inventaire").insert(itemsToInsert);
-        if (invErr) throw invErr;
+        await personnageData.insertInventaireRows(itemsToInsert);
       }
 
       const created = pnjInsertData?.[0] ? { id: pnjInsertData[0].id, name: pnjInsertData[0].name, image_url: pnjInsertData[0].image_url } : undefined;
