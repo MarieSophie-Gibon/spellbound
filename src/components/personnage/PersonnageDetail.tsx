@@ -25,6 +25,8 @@ import {
   PawPrint,
   Eye,
   EyeOff,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 import { usePersonnageDetail } from "@/hooks/personnage/usePersonnageDetail";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -43,6 +45,7 @@ import VoieEditModal from "@/components/personnage/VoieEditModal";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];
+type InlineFocusField = "pv" | "pvMax" | "initiative" | "defense" | "attContact" | "attDistance" | "attMagie" | "drQty" | "drDe" | "pc" | "pm";
 
 export interface VoieDetail {
   id: string;
@@ -121,6 +124,10 @@ export function PersonnageDetail({
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
+  const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const [pendingInlineFocusField, setPendingInlineFocusField] = useState<InlineFocusField | null>(null);
 
   const [activeTab, setActiveTab] = useState<"stats" | "inventory" | "lore" | "familiers">("stats");
 
@@ -174,6 +181,15 @@ export function PersonnageDetail({
   // PNJ Lore
   const [editDescription, setEditDescription] = useState("");
   const [editNotes, setEditNotes] = useState("");
+
+  const canInlineEditDesktop = !isMobile && !readOnly;
+
+  const startInlineEdit = (focusField?: InlineFocusField) => {
+    if (!canInlineEditDesktop || isEditing) return;
+    setShowSavedFeedback(false);
+    setPendingInlineFocusField(focusField ?? null);
+    setIsEditing(true);
+  };
 
   useEffect(() => {
     if (isEditingVoies && containerRef.current) {
@@ -365,6 +381,12 @@ export function PersonnageDetail({
       });
 
       setIsEditing(false);
+      setPendingInlineFocusField(null);
+      setShowSavedFeedback(true);
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+      }
+      saveFeedbackTimerRef.current = setTimeout(() => setShowSavedFeedback(false), 1600);
       onEditSuccess();
     } catch (err: any) {
       alert(err.message);
@@ -372,6 +394,42 @@ export function PersonnageDetail({
       setIsSaving(false);
     }
   };
+
+  handleSaveRef.current = handleSave;
+
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isEditing || isMobile || readOnly || isSaving) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (containerRef.current?.contains(target)) return;
+      void handleSaveRef.current?.();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isEditing, isMobile, isSaving, readOnly]);
+
+  useEffect(() => {
+    if (!isEditing || isMobile || readOnly || isSaving) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "TEXTAREA") return;
+      event.preventDefault();
+      void handleSaveRef.current?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isEditing, isMobile, isSaving, readOnly]);
 
   const handleSaveLevelUp = async () => {
     if (!pj) return;
@@ -505,6 +563,15 @@ export function PersonnageDetail({
 
       {/* HEADER BAR */}
       <div className={`flex flex-col mb-4 shrink-0 gap-3 ${isMobile ? "rounded-xl border border-[#E3CCCD]/16 bg-[#1E1941]/38 backdrop-blur-md p-2" : "gap-4 mt-1"}`}>
+        {!isMobile && !readOnly && (
+          <div className="px-1">
+            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] uppercase tracking-widest transition-colors ${isEditing ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-white/15 bg-white/5 text-white/45"}`}>
+              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isEditing ? <Pencil className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+              {isSaving ? "Enregistrement..." : isEditing ? "Edition inline active - Enter ou clic exterieur pour valider" : showSavedFeedback ? "Modifications enregistrees" : "Cliquez une zone pour modifier"}
+            </div>
+          </div>
+        )}
+
         {/* Titre et Boutons d'édition */}
         <div className={`flex justify-between px-1 gap-2 ${isMobile ? "items-start" : "flex-col sm:flex-row sm:items-center"}`}>
           <div className="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
@@ -535,7 +602,11 @@ export function PersonnageDetail({
               </>
             ) : (
               <>
-                <h1 className={`font-serif text-white tracking-wider truncate ${isMobile ? "text-xl" : "text-2xl sm:text-3xl"}`}>
+                <h1
+                  onClick={() => startInlineEdit()}
+                  className={`font-serif text-white tracking-wider truncate ${isMobile ? "text-xl" : "text-2xl sm:text-3xl"} ${canInlineEditDesktop ? "cursor-text hover:text-[#EFDCC8]" : ""}`}
+                  title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                >
                   {pj.name}
                 </h1>
                 {!isNonCombatantPNJ && (
@@ -571,7 +642,10 @@ export function PersonnageDetail({
             {isEditing ? (
               <>
                 <button
-                  onClick={() => setIsEditing(false)}
+                  onClick={() => {
+                    setPendingInlineFocusField(null);
+                    setIsEditing(false);
+                  }}
                   className="p-2 sm:p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -827,14 +901,22 @@ export function PersonnageDetail({
                   )}
                   <div className="space-y-2">
                     <h3 className="font-serif text-xl text-[#E3CCCD]">Description</h3>
-                    <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-24">
+                    <div
+                      onClick={() => startInlineEdit()}
+                      className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-24 ${canInlineEditDesktop ? "cursor-text hover:border-[#E3CCCD]/40" : ""}`}
+                      title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                    >
                       {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
                     </div>
                   </div>
                   {isMJ && (
                     <div className="space-y-2">
                       <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
-                      <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24">
+                      <div
+                        onClick={() => startInlineEdit()}
+                        className={`bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24 ${canInlineEditDesktop ? "cursor-text hover:border-sky-400/40" : ""}`}
+                        title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                      >
                         {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
                       </div>
                     </div>
@@ -896,11 +978,13 @@ export function PersonnageDetail({
 
               {(
               <div
+                onClick={() => startInlineEdit()}
                 className="w-full md:w-20 shrink-0 rounded-lg border border-[#E3CCCD]/15 flex md:flex-col flex-row justify-evenly py-3 px-2 flex-wrap"
                 style={{
                   background:
                     "linear-gradient(to bottom, rgba(55,42,132,0.25) 0%, rgba(18,13,47,0.85) 100%)",
                 }}
+                title={canInlineEditDesktop ? "Cliquer pour modifier les caracteristiques" : undefined}
               >
                 {STATS_KEYS.map((stat) => {
                   const v = caract[stat] ?? 0;
@@ -931,7 +1015,11 @@ export function PersonnageDetail({
                 {/* ── Mode Monstre : PV + Initiative + Défense, puis attaques ── */}
                 {isSimpleCombatant ? (
                   <>
-                  <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center">
+                  <div
+                    onClick={() => startInlineEdit()}
+                    className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center ${canInlineEditDesktop ? "cursor-text" : ""}`}
+                    title={canInlineEditDesktop ? "Cliquer pour modifier les stats de combat" : undefined}
+                  >
                     <div className="grid grid-cols-3 gap-3">
                       {isEditing ? (
                         <>
@@ -940,6 +1028,7 @@ export function PersonnageDetail({
                             <div className="flex items-center gap-1">
                               <input
                                 type="number"
+                                autoFocus={pendingInlineFocusField === "pv" || pendingInlineFocusField === "pvMax"}
                                 value={editPv}
                                 onChange={(e) => setEditPv(parseInt(e.target.value) || 0)}
                                 className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
@@ -953,8 +1042,8 @@ export function PersonnageDetail({
                               />
                             </div>
                           </div>
-                          <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} />
-                          <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} />
+                          <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} autoFocus={pendingInlineFocusField === "initiative"} />
+                          <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} autoFocus={pendingInlineFocusField === "defense"} />
                         </>
                       ) : (
                         <>
@@ -964,6 +1053,8 @@ export function PersonnageDetail({
                             value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`}
                             color="text-emerald-400/70"
                             border="border-emerald-400/20"
+                            onClick={() => startInlineEdit("pv")}
+                            title={canInlineEditDesktop ? "Cliquer pour modifier PV" : undefined}
                           />
                           <CombatStatCard
                             icon={Zap}
@@ -971,6 +1062,8 @@ export function PersonnageDetail({
                             value={String(pj.stats?.initiative ?? "—")}
                             color="text-yellow-400/70"
                             border="border-yellow-400/20"
+                            onClick={() => startInlineEdit("initiative")}
+                            title={canInlineEditDesktop ? "Cliquer pour modifier Initiative" : undefined}
                           />
                           <CombatStatCard
                             icon={Shield}
@@ -978,6 +1071,8 @@ export function PersonnageDetail({
                             value={String(pj.stats?.defense ?? "—")}
                             color="text-sky-400/70"
                             border="border-sky-400/20"
+                            onClick={() => startInlineEdit("defense")}
+                            title={canInlineEditDesktop ? "Cliquer pour modifier Defense" : undefined}
                           />
                         </>
                       )}
@@ -1055,34 +1150,40 @@ export function PersonnageDetail({
                   </>
                 ) : (
                   <>
-                <div className="flex-1 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center">
+                <div
+                  onClick={() => startInlineEdit()}
+                  className={`flex-1 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center ${canInlineEditDesktop ? "cursor-text" : ""}`}
+                  title={canInlineEditDesktop ? "Cliquer pour modifier les stats de combat" : undefined}
+                >
                   <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5 mb-2">
                     <Swords className="w-3.5 h-3.5" /> Combat
                   </p>
                   <div className={`grid gap-3 grid-cols-2 md:grid-cols-5`}>
                     {isEditing ? (
                       <>
-                        <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} />
-                        <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} />
-                        <EditNumField label="Contact" value={editAttContact} onChange={setEditAttContact} />
-                        <EditNumField label="Distance" value={editAttDistance} onChange={setEditAttDistance} />
-                        <EditNumField label="Magie" value={editAttMagie} onChange={setEditAttMagie} />
+                        <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} autoFocus={pendingInlineFocusField === "initiative"} />
+                        <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} autoFocus={pendingInlineFocusField === "defense"} />
+                        <EditNumField label="Contact" value={editAttContact} onChange={setEditAttContact} autoFocus={pendingInlineFocusField === "attContact"} />
+                        <EditNumField label="Distance" value={editAttDistance} onChange={setEditAttDistance} autoFocus={pendingInlineFocusField === "attDistance"} />
+                        <EditNumField label="Magie" value={editAttMagie} onChange={setEditAttMagie} autoFocus={pendingInlineFocusField === "attMagie"} />
                       </>
                     ) : (
                       <>
-                        <CombatStatCard icon={Zap} label="Initiative" value={String(pj.stats?.initiative ?? "—")} color="text-yellow-400/70" border="border-yellow-400/20" />
-                        <CombatStatCard icon={Shield} label="Défense" value={String(pj.stats?.defense ?? "—")} color="text-sky-400/70" border="border-sky-400/20" />
-                        <CombatStatCard icon={Sword} label="Contact" value={displayAttContact != null ? `+${displayAttContact}` : "—"} color="text-orange-400/70" border="border-orange-400/20" />
-                        <CombatStatCard icon={Target} label="Distance" value={displayAttDistance != null ? `+${displayAttDistance}` : "—"} color="text-orange-400/70" border="border-orange-400/20" />
-                        <CombatStatCard icon={Wand2} label="Magie" value={displayAttMagie != null ? `+${displayAttMagie}` : "—"} color="text-violet-400/70" border="border-violet-400/20" />
+                        <CombatStatCard icon={Zap} label="Initiative" value={String(pj.stats?.initiative ?? "—")} color="text-yellow-400/70" border="border-yellow-400/20" onClick={() => startInlineEdit("initiative")} title={canInlineEditDesktop ? "Cliquer pour modifier Initiative" : undefined} />
+                        <CombatStatCard icon={Shield} label="Défense" value={String(pj.stats?.defense ?? "—")} color="text-sky-400/70" border="border-sky-400/20" onClick={() => startInlineEdit("defense")} title={canInlineEditDesktop ? "Cliquer pour modifier Defense" : undefined} />
+                        <CombatStatCard icon={Sword} label="Contact" value={displayAttContact != null ? `+${displayAttContact}` : "—"} color="text-orange-400/70" border="border-orange-400/20" onClick={() => startInlineEdit("attContact")} title={canInlineEditDesktop ? "Cliquer pour modifier Attaque contact" : undefined} />
+                        <CombatStatCard icon={Target} label="Distance" value={displayAttDistance != null ? `+${displayAttDistance}` : "—"} color="text-orange-400/70" border="border-orange-400/20" onClick={() => startInlineEdit("attDistance")} title={canInlineEditDesktop ? "Cliquer pour modifier Attaque distance" : undefined} />
+                        <CombatStatCard icon={Wand2} label="Magie" value={displayAttMagie != null ? `+${displayAttMagie}` : "—"} color="text-violet-400/70" border="border-violet-400/20" onClick={() => startInlineEdit("attMagie")} title={canInlineEditDesktop ? "Cliquer pour modifier Attaque magie" : undefined} />
                       </>
                     )}
                   </div>
                 </div>
 
                 <div
+                  onClick={() => startInlineEdit()}
                   className="flex-1 border border-emerald-400/20 rounded-lg p-4 flex flex-col shadow-inner justify-center"
                   style={{ background: "linear-gradient(to right, rgba(16,185,129,0.05) 0%, rgba(6,78,59,0.2) 100%)" }}
+                  title={canInlineEditDesktop ? "Cliquer pour modifier les ressources" : undefined}
                 >
                   <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400/50 flex items-center gap-1.5 mb-2">
                     <Heart className="w-3.5 h-3.5" /> Ressources
@@ -1093,7 +1194,7 @@ export function PersonnageDetail({
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] uppercase text-emerald-400/60">PV / Max</span>
                           <div className="flex items-center gap-1">
-                            <input type="number" value={editPv} onChange={(e) => setEditPv(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                            <input type="number" autoFocus={pendingInlineFocusField === "pv" || pendingInlineFocusField === "pvMax"} value={editPv} onChange={(e) => setEditPv(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                             <span className="text-white/30">/</span>
                             <input type="number" value={editPvMax} onChange={(e) => setEditPvMax(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                           </div>
@@ -1101,20 +1202,20 @@ export function PersonnageDetail({
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] uppercase text-emerald-400/60">Récupération</span>
                           <div className="flex items-center gap-1">
-                            <input type="number" value={editDrQty} onChange={(e) => setEditDrQty(parseInt(e.target.value) || 0)} className="w-10 text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                            <input type="number" autoFocus={pendingInlineFocusField === "drQty"} value={editDrQty} onChange={(e) => setEditDrQty(parseInt(e.target.value) || 0)} className="w-10 text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                             <span className="text-white/30 font-mono">×</span>
-                            <input type="text" value={editDrDe} onChange={(e) => setEditDrDe(e.target.value)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                            <input type="text" autoFocus={pendingInlineFocusField === "drDe"} value={editDrDe} onChange={(e) => setEditDrDe(e.target.value)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
                           </div>
                         </div>
-                        <EditNumField label="Chance (PC)" value={editPc} onChange={setEditPc} />
-                        <EditNumField label="Mana (PM)" value={editPm} onChange={setEditPm} />
+                        <EditNumField label="Chance (PC)" value={editPc} onChange={setEditPc} autoFocus={pendingInlineFocusField === "pc"} />
+                        <EditNumField label="Mana (PM)" value={editPm} onChange={setEditPm} autoFocus={pendingInlineFocusField === "pm"} />
                       </>
                     ) : (
                       <>
-                        <CombatStatCard icon={Heart} label="Points de Vie" value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`} color="text-emerald-400/70" border="border-emerald-400/20" />
-                        <CombatStatCard icon={RefreshCw} label="Récupération" value={pj.stats?.dr_qty != null ? `${pj.stats.dr_qty}×${pj.stats.dr_de ?? "d6"}` : "—"} color="text-emerald-400/70" border="border-emerald-400/20" />
-                        <CombatStatCard icon={Star} label="Chance (PC)" value={String(pj.stats?.pc ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" />
-                        <CombatStatCard icon={Sparkles} label="Mana (PM)" value={String(pj.stats?.pm ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" />
+                        <CombatStatCard icon={Heart} label="Points de Vie" value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("pv")} title={canInlineEditDesktop ? "Cliquer pour modifier PV" : undefined} />
+                        <CombatStatCard icon={RefreshCw} label="Récupération" value={pj.stats?.dr_qty != null ? `${pj.stats.dr_qty}×${pj.stats.dr_de ?? "d6"}` : "—"} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("drQty")} title={canInlineEditDesktop ? "Cliquer pour modifier Recuperation" : undefined} />
+                        <CombatStatCard icon={Star} label="Chance (PC)" value={String(pj.stats?.pc ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("pc")} title={canInlineEditDesktop ? "Cliquer pour modifier PC" : undefined} />
+                        <CombatStatCard icon={Sparkles} label="Mana (PM)" value={String(pj.stats?.pm ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("pm")} title={canInlineEditDesktop ? "Cliquer pour modifier PM" : undefined} />
                       </>
                     )}
                   </div>
@@ -1361,14 +1462,22 @@ export function PersonnageDetail({
                     )}
                     <div className="space-y-2">
                       <h3 className="font-serif text-xl text-[#E3CCCD]">Description</h3>
-                      <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-32">
+                      <div
+                        onClick={() => startInlineEdit()}
+                        className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-32 ${canInlineEditDesktop ? "cursor-text hover:border-[#E3CCCD]/40" : ""}`}
+                        title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                      >
                         {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
                       </div>
                     </div>
                     {isMJ && (
                       <div className="space-y-2">
                         <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
-                        <div className="bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-32">
+                        <div
+                          onClick={() => startInlineEdit()}
+                          className={`bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-32 ${canInlineEditDesktop ? "cursor-text hover:border-sky-400/40" : ""}`}
+                          title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                        >
                           {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
                         </div>
                       </div>
@@ -1381,6 +1490,7 @@ export function PersonnageDetail({
             <LoreTab
               stats={pj.stats}
               isEditing={isEditing}
+              onRequestEdit={canInlineEditDesktop ? startInlineEdit : undefined}
               editSexe={editSexe}
               setEditSexe={setEditSexe}
               editAge={editAge}

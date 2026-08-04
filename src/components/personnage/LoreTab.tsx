@@ -2,6 +2,7 @@
 interface LoreTabProps {
   stats: any;
   isEditing?: boolean;
+  onRequestEdit?: () => void;
   editSexe: string;
   setEditSexe: (v: string) => void;
   editAge: string;
@@ -17,6 +18,7 @@ interface LoreTabProps {
 export default function LoreTab({
   stats,
   isEditing,
+  onRequestEdit,
   editSexe,
   setEditSexe,
   editAge,
@@ -103,7 +105,19 @@ export default function LoreTab({
   }
 
   return (
-    <div className="bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-5 shadow-inner flex gap-4 text-[14px] font-light text-white/90 leading-relaxed animate-in fade-in">
+    <div
+      role={onRequestEdit ? "button" : undefined}
+      tabIndex={onRequestEdit ? 0 : undefined}
+      onClick={onRequestEdit}
+      onKeyDown={onRequestEdit ? (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          onRequestEdit();
+        }
+      } : undefined}
+      className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-5 shadow-inner flex gap-4 text-[14px] font-light text-white/90 leading-relaxed animate-in fade-in ${onRequestEdit ? "cursor-text hover:border-[#E3CCCD]/40" : ""}`}
+      title={onRequestEdit ? "Cliquer pour modifier" : undefined}
+    >
       <div className="shrink-0 mt-1">
         <span className="text-[#E3CCCD] text-lg">✧</span>
       </div>
