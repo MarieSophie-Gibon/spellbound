@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
-import { useCampaigns, useDeleteCampaign, useDuplicateCampaign, useJoinCampaignByCode, useLeaveCampaign } from "@/hooks/campaign/useCampaigns";
+import { useCampaigns, useDeleteCampaign, useJoinCampaignByCode, useLeaveCampaign } from "@/hooks/campaign/useCampaigns";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
 import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
-import { Loader2, Copy, Ticket } from "lucide-react";
+import { Loader2, Ticket } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -30,12 +30,9 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const joinByCode = useJoinCampaignByCode();
   const deleteCampaign = useDeleteCampaign();
   const leaveCampaign = useLeaveCampaign();
-  const duplicateCampaign = useDuplicateCampaign();
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [deletingCampaign, setDeletingCampaign] = useState<Campaign | null>(null);
   const [leavingCampaign, setLeavingCampaign] = useState<Campaign | null>(null);
-  const [duplicatingCampaign, setDuplicatingCampaign] = useState<Campaign | null>(null);
-  const [duplicateName, setDuplicateName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [joinError, setJoinError] = useState<string | null>(null);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
@@ -98,11 +95,6 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
           onEditCampaign={(campaign) => {
             if (isMobileReadOnly) return;
             setEditingCampaign(campaign);
-          }}
-          onDuplicateCampaign={(campaign) => {
-            if (isMobileReadOnly) return;
-            setDuplicateName(`Copie de ${campaign.nom}`);
-            setDuplicatingCampaign(campaign);
           }}
           onDeleteCampaign={(campaign) => {
             if (isMobileReadOnly) return;
@@ -186,7 +178,6 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
                               imageUrl={campaign.image_url}
                               title={campaign.nom}
                               onEdit={isOwner ? (e) => { e.stopPropagation(); setEditingCampaign(campaign); } : undefined}
-                              onDuplicate={isOwner ? (e) => { e.stopPropagation(); setDuplicateName(`Copie de ${campaign.nom}`); setDuplicatingCampaign(campaign); } : undefined}
                               onDelete={isOwner ? (e) => { e.stopPropagation(); setDeletingCampaign(campaign); } : undefined}
                               onLeave={canLeave ? (e) => { e.stopPropagation(); setLeavingCampaign(campaign); } : undefined}
                             />
@@ -281,53 +272,6 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
           onCancel={() => setLeavingCampaign(null)}
         />
       )}
-
-      <Dialog open={!isMobileReadOnly && !!duplicatingCampaign} onOpenChange={(open) => { if (!open) setDuplicatingCampaign(null); }}>
-        <DialogContent className="bg-[#1E1941] border-white/10 text-white max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-lg flex items-center gap-2">
-              <Copy className="w-4 h-4 text-sky-300" />
-              Dupliquer la campagne
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-2">
-            <label className="text-xs text-white/60 mb-1.5 block">Nom de la nouvelle campagne</label>
-            <Input
-              value={duplicateName}
-              onChange={(e) => setDuplicateName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && duplicateName.trim() && duplicatingCampaign) {
-                  duplicateCampaign.mutate(
-                    { sourceId: duplicatingCampaign.id, newNom: duplicateName.trim() },
-                    { onSuccess: () => setDuplicatingCampaign(null) }
-                  );
-                }
-              }}
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30"
-              placeholder="Nom de la copie..."
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDuplicatingCampaign(null)} className="text-white/60 hover:text-white">
-              Annuler
-            </Button>
-            <Button
-              disabled={!duplicateName.trim() || duplicateCampaign.isPending}
-              onClick={() => {
-                if (!duplicatingCampaign) return;
-                duplicateCampaign.mutate(
-                  { sourceId: duplicatingCampaign.id, newNom: duplicateName.trim() },
-                  { onSuccess: () => setDuplicatingCampaign(null) }
-                );
-              }}
-              className="bg-sky-600 hover:bg-sky-500 text-white"
-            >
-              {duplicateCampaign.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Dupliquer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

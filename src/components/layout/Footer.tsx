@@ -3,7 +3,7 @@ import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/core/personnage/useProfile";
 import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
-import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw, Copy } from "lucide-react";
+import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw} from "lucide-react";
 import { useCampaigns } from "@/hooks/campaign/useCampaigns";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -23,12 +23,11 @@ interface FooterProps {
   onCampaignClick?: () => void;
   onEditCampaign?: () => void;
   onDeleteCampaign?: () => void;
-  onDuplicateCampaign?: () => void;
   onSwitchCampaign?: (campaign: Campaign) => void;
 }
 
 
-export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onDuplicateCampaign, onSwitchCampaign }: FooterProps) {
+export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onSwitchCampaign }: FooterProps) {
   const { session, signOut, role } = useAuthStore();
   const profile = useProfile();
   const lobbyData = useLobbyData();
@@ -191,12 +190,6 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                 <DropdownMenuItem onClick={onEditCampaign} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
                   <Pencil className="w-3.5 h-3.5 text-white/50" />
                   Modifier la campagne
-                </DropdownMenuItem>
-              )}
-              {onDuplicateCampaign && (
-                <DropdownMenuItem onClick={onDuplicateCampaign} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
-                  <Copy className="w-3.5 h-3.5 text-white/50" />
-                  Dupliquer la campagne
                 </DropdownMenuItem>
               )}
               {onDeleteCampaign && (

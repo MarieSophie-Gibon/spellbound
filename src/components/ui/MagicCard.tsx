@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Pencil, Trash2, Copy, LogOut } from 'lucide-react'
+import { Pencil, Trash2, LogOut } from 'lucide-react'
 
 interface MagicCardProps {
   title?: ReactNode
@@ -10,12 +10,11 @@ interface MagicCardProps {
   badge?: ReactNode
   onEdit?: (e: React.MouseEvent) => void
   onDelete?: (e: React.MouseEvent) => void
-  onDuplicate?: (e: React.MouseEvent) => void
   onLeave?: (e: React.MouseEvent) => void
   className?: string
 }
 
-export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onDuplicate, onLeave, className }: MagicCardProps) {
+export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onLeave, className }: MagicCardProps) {
   const bgImage = imageUrl || '/default-bg.jpg'
   const isCompact = size === 'compact'
   const isFluid = size === 'fluid'
@@ -50,7 +49,7 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
         />
 
         {/* Edit / Duplicate / Delete buttons */}
-        {(onEdit || onDuplicate || onDelete || onLeave) && (
+        {(onEdit || onDelete || onLeave) && (
           <div className="absolute top-3 right-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             {onEdit && (
               <button
@@ -58,14 +57,6 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
                 className="p-1.5 rounded-full bg-white/70 backdrop-blur-sm text-violet-400/80 hover:text-violet-600 hover:bg-white transition-colors"
               >
                 <Pencil className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {onDuplicate && (
-              <button
-                onClick={onDuplicate}
-                className="p-1.5 rounded-full bg-white/70 backdrop-blur-sm text-sky-400/80 hover:text-sky-600 hover:bg-white transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
               </button>
             )}
             {onDelete && (
