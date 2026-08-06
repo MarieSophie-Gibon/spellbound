@@ -22,7 +22,7 @@ import { VoiePrestigeDetail } from "@/components/compendium/voie de prestige/Voi
 import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { useRevealedMonstres, useToggleRevealedMonstre } from "@/hooks/campaign/useCampaigns";
-import { useCompendiumData } from "@/hooks/compendium/useCompendiumData";
+import { useCompendiumData } from "@/hooks/systems/cof/compendium/useCompendiumData";
 
 interface CompendiumProps {
   onBack: () => void;

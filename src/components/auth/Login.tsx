@@ -5,7 +5,7 @@ import { theme } from '@/lib/theme'
 import { useIsMobile } from '@/hooks/shared/useIsMobile'
 import { LoginMobile } from '@/components/auth/LoginMobile'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useAuthData } from '@/hooks/auth/useAuthData'
+import { useAuthData } from '@/hooks/core/auth/useAuthData'
 import { isRateLimitError, mapAuthErrorMessage, mapRecoveryHashErrorMessage } from '@/lib/authErrors'
 import { validateForgotForm, validateLoginForm, validateResetForm, validateSignupForm } from '@/lib/validation/authForms'
 

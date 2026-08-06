@@ -18,7 +18,7 @@ import {
   Shield,
   Check,
 } from "lucide-react";
-import { useProfilData } from "@/hooks/compendium/useProfilData";
+import { useProfilData } from "@/hooks/systems/cof/compendium/useProfilData";
 import type { FamilleArchetype, FamilleVoie, ProfilWizardProps, RangsState, VoieRang } from "@/types/compendium";
 import { EMPTY_RANGS } from "@/types/compendium";
 import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";

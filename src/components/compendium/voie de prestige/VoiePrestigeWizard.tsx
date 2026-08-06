@@ -7,7 +7,7 @@ import { RangEditorCard } from "@/components/compendium/shared/RangEditorCard";
 import type { VoiePrestigeWizardProps, RangsState, VoieRang } from "@/types/compendium";
 import { EMPTY_RANGS } from "@/types/compendium";
 import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";
-import { useVoiePrestigeData } from "@/hooks/compendium/useVoiePrestigeData";
+import { useVoiePrestigeData } from "@/hooks/systems/cof/compendium/useVoiePrestigeData";
 import {
   addRangItemState,
   duplicateRangItemState,

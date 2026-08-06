@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { X, Image as ImageIcon, UploadCloud } from "lucide-react";
 import { useCreateCampaign, useUpdateCampaign } from "@/hooks/campaign/useCampaigns";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
-import { useLobbyData } from "@/hooks/lobby/useLobbyData";
+import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
 import { validateCampaignForm, validateCampaignImage } from "@/lib/validation/campaignForms";
 
 interface CreateCampaignProps {

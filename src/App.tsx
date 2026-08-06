@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Copy, Loader2, Bell, X } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
-import { useProfile } from "@/hooks/personnage/useProfile";
+import { useProfile } from "@/hooks/core/personnage/useProfile";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { supabase } from "@/lib/supabase";
 

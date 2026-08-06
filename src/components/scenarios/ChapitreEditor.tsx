@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from "react";
-import { useChapitreEditorData } from "@/hooks/scenarios/useChapitreEditorData";
+import { useChapitreEditorData } from "@/hooks/core/scenarios/useChapitreEditorData";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,

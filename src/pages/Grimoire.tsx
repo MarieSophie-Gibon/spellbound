@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { BookOpen, AlertTriangle } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { useGrimoireData } from "@/hooks/grimoire/useGrimoireData";
+import { useGrimoireData } from "@/hooks/core/grimoire/useGrimoireData";
 import { GrimoireSidebar } from "@/components/grimoire/GrimoireSidebar";
 import { GrimoireMobile } from "@/components/grimoire/GrimoireMobile";
 import { PageEditor } from "@/components/grimoire/PageEditor";

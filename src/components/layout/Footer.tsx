@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useProfile } from "@/hooks/personnage/useProfile";
-import { useLobbyData } from "@/hooks/lobby/useLobbyData";
+import { useProfile } from "@/hooks/core/personnage/useProfile";
+import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
 import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw, Copy } from "lucide-react";
 import { useCampaigns } from "@/hooks/campaign/useCampaigns";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
