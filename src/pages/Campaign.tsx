@@ -2,6 +2,9 @@ import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import {
   useCreateCampaignInvitation,
   useRevealedPnjs,
+  useCampaignMembers,
+  usePromoteToCoDM,
+  useDemoteToPlayer,
 } from "@/hooks/campaign/useCampaigns";
 import {
   CalendarDays,
@@ -11,13 +14,14 @@ import {
   Bell,
   X,
   Users,
+  Crown,
+  UserMinus,
 } from "lucide-react";
 import { CampaignHomeMobile } from "@/components/campaign/CampaignHomeMobile";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { PJList } from "@/components/campaign/PJList";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useEffect, useRef, useState } from "react";
-import { useCampaignHomeData } from "@/hooks/campaign/useCampaignHomeData";
 import { MagicCard } from "@/components/ui/MagicCard";
 
 interface CampaignActivity {
@@ -38,24 +42,22 @@ export function CampaignHome({
   onClearActivity,
 }: CampaignProps) {
   const isMobile = useIsMobile();
+  const session = useAuthStore((s) => s.session);
   const role = useAuthStore((s) => s.role);
-  const isMJ = role === "mj";
+  // isMJ is true for global MJs AND for campaign managers (primary owner or Co-DM)
+  const isMJ = role === "mj" || campaign.access_type === 'owner';
+  const isPrimaryOwner = !!session?.user?.id && campaign.owner_id === session.user.id;
   const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
   const createInvitation = useCreateCampaignInvitation();
+  const { data: membres = [], isLoading: membresLoading } = useCampaignMembers(campaign.id);
+  const promoteToCoDM = usePromoteToCoDM();
+  const demoteToPlayer = useDemoteToPlayer();
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false);
   const activityPanelRef = useRef<HTMLDivElement | null>(null);
   const activityToggleRef = useRef<HTMLButtonElement | null>(null);
-  const { fetchCampaignMembers } = useCampaignHomeData();
-  const [membres, setMembres] = useState<Array<{ id: string; pseudo: string }>>(
-    [],
-  );
-
-  useEffect(() => {
-    fetchCampaignMembers(campaign.id).then(setMembres);
-  }, [campaign.id, fetchCampaignMembers]);
 
   useEffect(() => {
     if (!isActivityPanelOpen) return;
@@ -326,14 +328,44 @@ export function CampaignHome({
                   Joueurs{membres.length > 0 ? ` (${membres.length})` : ""}
                 </h3>
               </div>
-              {membres.length > 0 ? (
-                <div className="shrink-0 max-h-28 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 space-y-1">
+              {membresLoading ? (
+                <div className="flex items-center gap-2 text-white/30 text-[11px] shrink-0">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Chargement...
+                </div>
+              ) : membres.length > 0 ? (
+                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 space-y-1">
                   {membres.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0" />
-                      <span className="text-[12px] text-white/80">
+                    <div key={m.id} className="flex items-center gap-2 group">
+                      {m.role === 'OWNER' ? (
+                        <Crown className="w-3 h-3 shrink-0 text-amber-300/70" />
+                      ) : (
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 shrink-0" />
+                      )}
+                      <span className={`flex-1 text-[12px] ${m.role === 'OWNER' ? 'text-amber-100/90' : 'text-white/80'}`}>
                         {m.pseudo}
                       </span>
+                      {/* Promote / demote — primary owner only, cannot demote themselves */}
+                      {isPrimaryOwner && m.user_id !== session?.user?.id && (
+                        m.role === 'PLAYER' ? (
+                          <button
+                            onClick={() => promoteToCoDM.mutate({ campaignId: campaign.id, userId: m.user_id })}
+                            disabled={promoteToCoDM.isPending}
+                            title="Promouvoir Co-MJ"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-amber-300/50 hover:text-amber-300 hover:bg-amber-300/10"
+                          >
+                            <Crown className="w-3 h-3" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => demoteToPlayer.mutate({ campaignId: campaign.id, userId: m.user_id })}
+                            disabled={demoteToPlayer.isPending}
+                            title="Rétrograder en joueur"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-white/30 hover:text-white/70 hover:bg-white/10"
+                          >
+                            <UserMinus className="w-3 h-3" />
+                          </button>
+                        )
+                      )}
                     </div>
                   ))}
                 </div>

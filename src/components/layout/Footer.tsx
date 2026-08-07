@@ -29,6 +29,10 @@ interface FooterProps {
 
 export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onSwitchCampaign }: FooterProps) {
   const { session, signOut, role } = useAuthStore();
+  // Co-DM = has manager access but is not the primary owner
+  const isCoDM = !!activeCampaign
+    && (activeCampaign as { access_type?: string }).access_type === 'owner'
+    && (activeCampaign as { owner_id?: string | null }).owner_id !== session?.user?.id;
   const profile = useProfile();
   const lobbyData = useLobbyData();
 
@@ -177,6 +181,11 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                   <span className="text-[11px] font-serif text-white tracking-widest px-1">
                     {activeCampaign.nom}
                   </span>
+                  {isCoDM && (
+                    <span className="text-[8px] uppercase tracking-widest text-amber-200/80 border border-amber-300/30 rounded px-1 py-0.5 leading-none">
+                      Co-MJ
+                    </span>
+                  )}
                   <div className="w-1 h-1 rotate-45 bg-white/70 shrink-0" />
                 </div>
               </button>
