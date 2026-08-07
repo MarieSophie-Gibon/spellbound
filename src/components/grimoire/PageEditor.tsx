@@ -29,8 +29,9 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
-import { useGrimoireData } from "@/hooks/grimoire/useGrimoireData";
+import { useGrimoireData } from "@/hooks/core/grimoire/useGrimoireData";
 import type { Category, WikiPage } from "@/types/grimoire";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 export interface InitialPageData {
   id: string;
@@ -47,6 +48,7 @@ interface PageEditorProps {
   campaignId?: string;
   isGlobal: boolean;
   isMJ?: boolean;
+  system: RpgSystem;
   onSaveSuccess: (expandCatId?: string, expandSubCatId?: string) => void;
   onCancel: () => void;
   onCategoriesChanged: () => void;
@@ -147,7 +149,7 @@ const ToolbarButton = ({ onClick, isActive, disabled, icon: Icon, title }: any) 
 // --- Main component ---
 
 export function PageEditor({
-  initialData, categories, pages, campaignId, isGlobal, isMJ,
+  initialData, categories, pages, campaignId, isGlobal, isMJ, system,
   onSaveSuccess, onCancel, onCategoriesChanged,
 }: PageEditorProps) {
   const grimoireData = useGrimoireData();
@@ -245,6 +247,7 @@ export function PageEditor({
           parentId: null,
           positionIndex: mainCategories.length,
           campaignId: campaignId || null,
+          system,
         });
         fCatId = nCat.id;
       }
@@ -254,6 +257,7 @@ export function PageEditor({
           parentId: fCatId,
           positionIndex: subCategories.length,
           campaignId: campaignId || null,
+          system,
         });
         fSubCatId = nSub.id;
       }
@@ -265,6 +269,7 @@ export function PageEditor({
         subcategory_id: fSubCatId || null,
         campaign_id: publicMode ? null : campaignId || null,
         is_public: isGlobal || !!publicMode,
+        system,
       };
       if (initialData?.id) {
         await grimoireData.updateWikiPage(initialData.id, payload);

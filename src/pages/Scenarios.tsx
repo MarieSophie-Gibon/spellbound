@@ -281,7 +281,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
 
   return (
     <>
-      <BookLayout spineTitle="Scénarios" sidebar={sidebar} hideSidebar={isFullscreen}>
+      <BookLayout spineTitle="Scénarios" sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
         {selectedChapitreId ? (
           <ChapitreEditor 
             chapitreId={selectedChapitreId} 

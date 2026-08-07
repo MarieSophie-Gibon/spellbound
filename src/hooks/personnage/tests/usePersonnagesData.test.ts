@@ -44,7 +44,7 @@ vi.mock("@/lib/supabase", () => {
   };
 });
 
-import { usePersonnagesData } from "@/hooks/personnage/usePersonnagesData";
+import { usePersonnagesData } from "@/hooks/systems/cof/personnage/usePersonnagesData";
 
 function queueTableResponse(table: string, response: { data: unknown; error: unknown }) {
   const queue = mockState.queueByTable.get(table) ?? [];

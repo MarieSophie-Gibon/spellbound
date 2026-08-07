@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, ChevronDown, Sword, Target, Shield } from "lucide-react";
-import { useProfilData } from "@/hooks/compendium/useProfilData";
+import { useProfilData } from "@/hooks/systems/cof/compendium/useProfilData";
 import type { Famille, FamilleArchetype, FamilleVoie } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { ProfilDetailMobile } from "@/components/compendium/profil/ProfilDetailMobile";

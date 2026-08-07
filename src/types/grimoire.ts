@@ -4,6 +4,7 @@ export interface Category {
   parent_id: string | null;
   position_index: number;
   campaign_id: string | null;
+  system?: string;
 }
 
 export interface WikiPage {
@@ -15,6 +16,7 @@ export interface WikiPage {
   position_index: number;
   campaign_id?: string | null;
   created_by?: string | null;
+  system?: string;
 }
 
 export type DraggedItem = { type: "page" | "category"; id: string } | null;

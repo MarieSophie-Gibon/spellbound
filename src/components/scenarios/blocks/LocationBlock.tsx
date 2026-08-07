@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
 import { MapPin, UploadCloud, Trash2, Loader2 } from "lucide-react";
 
 function preserveScroll(fn: () => void) {

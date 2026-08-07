@@ -10,6 +10,7 @@ export interface Campaign {
   owner_id?: string | null
   created_at?: string | null
   access_type?: 'owner' | 'member' | 'pj'
+  system?: 'COF' | 'DAGGERHEART' | 'DND5E'
 }
 
 function isMissingTableError(err: unknown): boolean {
@@ -71,7 +72,7 @@ export function useCampaigns(role?: 'mj' | 'player') {
       let memberCampaigns: Campaign[] = []
       const { data: memberRows, error: memberErr } = await supabase
         .from('campaign_members')
-        .select('campaign_id')
+        .select('campaign_id, role')
         .eq('user_id', user.id)
       if (memberErr && !isMissingTableError(memberErr)) throw memberErr
       const memberIds = (memberRows ?? []).map((r) => r.campaign_id).filter(Boolean) as string[]
@@ -81,7 +82,11 @@ export function useCampaigns(role?: 'mj' | 'player') {
           .select('*')
           .in('id', memberIds)
         if (mErr) throw mErr
-        memberCampaigns = ((mData ?? []) as Campaign[]).map((c) => ({ ...c, access_type: 'member' as const }))
+        // Co-DMs (role OWNER in campaign_members) get access_type 'owner' so canManageActiveCampaign is true.
+        memberCampaigns = ((mData ?? []) as Campaign[]).map((c) => {
+          const row = memberRows?.find((r) => r.campaign_id === c.id)
+          return { ...c, access_type: row?.role === 'OWNER' ? 'owner' as const : 'member' as const }
+        })
       }
 
       // 3. Campagnes liées via un PJ (accès joueur ancien format)
@@ -536,6 +541,99 @@ export function useToggleRevealedPnj() {
     onSuccess: (_data, { campaignId }) => {
       queryClient.invalidateQueries({ queryKey: ['revealedPnjIds', campaignId] })
       queryClient.invalidateQueries({ queryKey: ['revealedPnjs', campaignId] })
+    },
+  })
+}
+
+// ── Co-DM (multi-owner) ───────────────────────────────────────────────────────
+
+export interface CampaignMemberFull {
+  id: string
+  user_id: string
+  role: 'OWNER' | 'PLAYER'
+  pseudo: string
+}
+
+export function useCampaignMembers(campaignId: string) {
+  return useQuery({
+    queryKey: ['campaignMembers', campaignId],
+    queryFn: async (): Promise<CampaignMemberFull[]> => {
+      // Fetch explicit members (with role)
+      const { data: memberRows, error: memberErr } = await supabase
+        .from('campaign_members')
+        .select('id, user_id, role')
+        .eq('campaign_id', campaignId)
+      if (memberErr) throw memberErr
+
+      // Also include users linked via PJ (legacy format, no campaign_members row)
+      const { data: pjRows } = await supabase
+        .from('pj')
+        .select('user_id')
+        .eq('campaign_id', campaignId)
+        .not('user_id', 'is', null)
+
+      // Merge: explicit members first, then any pj-only users not already covered
+      const memberMap = new Map<string, { id: string; user_id: string; role: 'OWNER' | 'PLAYER' }>(
+        (memberRows ?? []).map((r) => [r.user_id, { id: r.id, user_id: r.user_id, role: (r.role ?? 'PLAYER') as 'OWNER' | 'PLAYER' }])
+      )
+      for (const pj of pjRows ?? []) {
+        if (pj.user_id && !memberMap.has(pj.user_id)) {
+          memberMap.set(pj.user_id, { id: pj.user_id, user_id: pj.user_id, role: 'PLAYER' })
+        }
+      }
+
+      if (memberMap.size === 0) return []
+
+      const ids = Array.from(memberMap.keys())
+      const { data: users, error: usersError } = await supabase
+        .from('utilisateurs')
+        .select('id, pseudo')
+        .in('id', ids)
+      if (usersError) throw usersError
+
+      return Array.from(memberMap.values()).map((entry) => ({
+        id: entry.id,
+        user_id: entry.user_id,
+        role: entry.role,
+        pseudo: users?.find((u) => u.id === entry.user_id)?.pseudo ?? 'Inconnu',
+      }))
+    },
+    enabled: !!campaignId,
+  })
+}
+
+export function usePromoteToCoDM() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ campaignId, userId }: { campaignId: string; userId: string }) => {
+      const { error } = await supabase
+        .from('campaign_members')
+        .update({ role: 'OWNER' })
+        .eq('campaign_id', campaignId)
+        .eq('user_id', userId)
+      if (error) throw error
+    },
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['campaignMembers', campaignId] })
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
+    },
+  })
+}
+
+export function useDemoteToPlayer() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ campaignId, userId }: { campaignId: string; userId: string }) => {
+      const { error } = await supabase
+        .from('campaign_members')
+        .update({ role: 'PLAYER' })
+        .eq('campaign_id', campaignId)
+        .eq('user_id', userId)
+      if (error) throw error
+    },
+    onSuccess: (_, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['campaignMembers', campaignId] })
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
     },
   })
 }

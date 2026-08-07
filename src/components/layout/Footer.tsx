@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
 import { theme } from "@/lib/theme";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useProfile } from "@/hooks/personnage/useProfile";
-import { useLobbyData } from "@/hooks/lobby/useLobbyData";
-import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw, Copy } from "lucide-react";
+import { useProfile } from "@/hooks/core/personnage/useProfile";
+import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
+import { User, UserStar, BookOpen, LogOut, Pencil, Trash2, ArrowLeft, RefreshCw} from "lucide-react";
 import { useCampaigns } from "@/hooks/campaign/useCampaigns";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -23,13 +23,16 @@ interface FooterProps {
   onCampaignClick?: () => void;
   onEditCampaign?: () => void;
   onDeleteCampaign?: () => void;
-  onDuplicateCampaign?: () => void;
   onSwitchCampaign?: (campaign: Campaign) => void;
 }
 
 
-export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onDuplicateCampaign, onSwitchCampaign }: FooterProps) {
+export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onSwitchCampaign }: FooterProps) {
   const { session, signOut, role } = useAuthStore();
+  // Co-DM = has manager access but is not the primary owner
+  const isCoDM = !!activeCampaign
+    && (activeCampaign as { access_type?: string }).access_type === 'owner'
+    && (activeCampaign as { owner_id?: string | null }).owner_id !== session?.user?.id;
   const profile = useProfile();
   const lobbyData = useLobbyData();
 
@@ -178,6 +181,11 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                   <span className="text-[11px] font-serif text-white tracking-widest px-1">
                     {activeCampaign.nom}
                   </span>
+                  {isCoDM && (
+                    <span className="text-[8px] uppercase tracking-widest text-amber-200/80 border border-amber-300/30 rounded px-1 py-0.5 leading-none">
+                      Co-MJ
+                    </span>
+                  )}
                   <div className="w-1 h-1 rotate-45 bg-white/70 shrink-0" />
                 </div>
               </button>
@@ -191,12 +199,6 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                 <DropdownMenuItem onClick={onEditCampaign} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
                   <Pencil className="w-3.5 h-3.5 text-white/50" />
                   Modifier la campagne
-                </DropdownMenuItem>
-              )}
-              {onDuplicateCampaign && (
-                <DropdownMenuItem onClick={onDuplicateCampaign} className="cursor-pointer hover:bg-white/10 text-xs focus:bg-white/10 flex items-center gap-2">
-                  <Copy className="w-3.5 h-3.5 text-white/50" />
-                  Dupliquer la campagne
                 </DropdownMenuItem>
               )}
               {onDeleteCampaign && (

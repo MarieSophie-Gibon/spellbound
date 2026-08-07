@@ -1,14 +1,15 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect } from "react";
 import { BookOpen, AlertTriangle } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { useGrimoireData } from "@/hooks/grimoire/useGrimoireData";
+import { useGrimoireData } from "@/hooks/core/grimoire/useGrimoireData";
 import { GrimoireSidebar } from "@/components/grimoire/GrimoireSidebar";
 import { GrimoireMobile } from "@/components/grimoire/GrimoireMobile";
 import { PageEditor } from "@/components/grimoire/PageEditor";
 import { PageView } from "@/components/grimoire/PageView";
+import { SystemTabs } from "@/components/ui/SystemTabs";
 import type { InitialPageData } from "@/components/grimoire/PageEditor";
 import type { Category, WikiPage, DraggedItem } from "@/types/grimoire";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 
 interface GrimoireProps {
@@ -16,11 +17,17 @@ interface GrimoireProps {
   onBack: () => void;
   campaignId?: string;
   readOnly?: boolean;
+  // campaign's system — provided when opened from within a campaign
+  campaignSystem?: RpgSystem;
 }
 
-export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false }: GrimoireProps) {
+export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false, campaignSystem }: GrimoireProps) {
   const isMobile = useIsMobile();
   const grimoireData = useGrimoireData();
+  // Lobby mode: user picks a system; campaign mode: system is fixed from the campaign
+  const [selectedSystem, setSelectedSystem] = useState<RpgSystem>('COF');
+  const effectiveSystem: RpgSystem = campaignSystem ?? selectedSystem;
+  const showSystemTabs = isGlobal && !campaignId;
   const [userId, setUserId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [editingPageData, setEditingPageData] = useState<InitialPageData | null>(null);
@@ -41,16 +48,10 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const catData = await grimoireData.fetchCategories();
-      if (catData) {
-        if (!isGlobal && campaignId) {
-          setCategories(catData.filter((c) => c.campaign_id === campaignId || c.campaign_id === null));
-        } else {
-          setCategories(catData.filter((c) => c.campaign_id === null));
-        }
-      }
+      const catData = await grimoireData.fetchCategories({ system: effectiveSystem, campaignId });
+      setCategories(catData);
 
-      const pagesData = await grimoireData.fetchWikiPages({ isGlobal, campaignId });
+      const pagesData = await grimoireData.fetchWikiPages({ isGlobal, campaignId, system: effectiveSystem });
       if (pagesData) setPages(pagesData);
     } finally {
       setIsLoading(false);
@@ -61,7 +62,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
     grimoireData.getCurrentUserId().then((id) => setUserId(id));
   }, [grimoireData]);
 
-  useEffect(() => { fetchData(); }, [isGlobal, campaignId]);
+  useEffect(() => { fetchData(); }, [isGlobal, campaignId, effectiveSystem]);
 
   const selectedPage = pages.find((p) => p.id === selectedPageId);
 
@@ -180,7 +181,14 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
   };
 
   const sidebar = !isCreating ? (
-    <GrimoireSidebar
+    <div className="flex flex-col h-full min-h-0">
+      {showSystemTabs && (
+        <div className="shrink-0 px-4 pt-3 pb-2.5 border-b border-white/8">
+          <SystemTabs value={selectedSystem} onChange={(s) => { setSelectedSystem(s); setSelectedPageId(null); }} />
+        </div>
+      )}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <GrimoireSidebar
       pages={pages}
       categories={categories}
       isLoading={isLoading}
@@ -197,8 +205,8 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDrop={handleDrop}
-    />
-  ) : undefined;
+    />    </div>
+    </div>  ) : undefined;
 
   const content = isCreating && canCreatePage ? (
     <PageEditor
@@ -208,6 +216,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
       campaignId={campaignId}
       isGlobal={isGlobal}
       isMJ={!readOnly}
+      system={effectiveSystem}
       onSaveSuccess={handleSaveSuccess}
       onCancel={handleCancel}
       onCategoriesChanged={fetchData}
@@ -232,6 +241,11 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
 
   return (
     <>
+      {showSystemTabs && isMobile && (
+        <div className="shrink-0 px-3 pt-2 pb-1">
+          <SystemTabs value={selectedSystem} onChange={(s) => { setSelectedSystem(s); setSelectedPageId(null); }} />
+        </div>
+      )}
       {deleteTarget && (
         <div className="fixed inset-0 z-300 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#1E1941] border border-[#ff6b6b]/30 p-6 rounded-2xl shadow-2xl max-w-sm w-full animate-in fade-in scale-95">
@@ -280,7 +294,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
           {content}
         </GrimoireMobile>
       ) : (
-        <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen}>
+        <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
           {content}
         </BookLayout>
       )}

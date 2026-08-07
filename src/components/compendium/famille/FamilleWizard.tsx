@@ -5,7 +5,7 @@ import {
   X,
   Save,
 } from "lucide-react";
-import { useFamilleData } from "@/hooks/compendium/useFamilleData";
+import { useFamilleData } from "@/hooks/systems/cof/compendium/useFamilleData";
 import type { FamilleWizardProps } from "@/types/compendium";
 
 export function FamilleWizard({

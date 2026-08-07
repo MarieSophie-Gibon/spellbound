@@ -9,7 +9,7 @@ import { AlertTriangle, X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useRevealedPnjIds, useToggleRevealedPnj } from "@/hooks/campaign/useCampaigns";
-import { usePersonnagesData, type PersonnageListItem } from "@/hooks/personnage/usePersonnagesData";
+import { usePersonnagesData, type PersonnageListItem } from "@/hooks/systems/cof/personnage/usePersonnagesData";
 
 interface PersonnagesProps {
   campaignId: string;

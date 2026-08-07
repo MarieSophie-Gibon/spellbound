@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Loader2, LogOut, Pencil, Plus, Ticket, Trash2, Copy, User, UserStar } from "lucide-react";
+import { Loader2, LogOut, Pencil, Plus, Ticket, Trash2, User, UserStar } from "lucide-react";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useProfile } from "@/hooks/personnage/useProfile";
-import { useLobbyData } from "@/hooks/lobby/useLobbyData";
+import { useProfile } from "@/hooks/core/personnage/useProfile";
+import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,7 +21,7 @@ interface LobbyMobileProps {
   onSelectCampaign: (campaign: Campaign) => void;
   onCreateCampaign: () => void;
   onEditCampaign: (campaign: Campaign) => void;
-  onDuplicateCampaign: (campaign: Campaign) => void;
+  // onDuplicateCampaign: (campaign: Campaign) => void;
   onDeleteCampaign: (campaign: Campaign) => void;
   onLeaveCampaign: (campaign: Campaign) => void;
 }
@@ -38,7 +38,7 @@ export function LobbyMobile({
   onSelectCampaign,
   onCreateCampaign,
   onEditCampaign,
-  onDuplicateCampaign,
+  // onDuplicateCampaign,
   onDeleteCampaign,
   onLeaveCampaign,
 }: LobbyMobileProps) {
@@ -239,13 +239,13 @@ export function LobbyMobile({
                       <Pencil className="w-3 h-3" />
                       Modifier
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => onDuplicateCampaign(campaign)}
                       className="h-8 flex-1 rounded-lg border border-sky-300/32 text-sky-200 hover:bg-sky-400/10 transition-colors flex items-center justify-center gap-1 text-[10px]"
                     >
                       <Copy className="w-3 h-3" />
                       Dupliquer
-                    </button>
+                    </button> */}
                     <button
                       onClick={() => onDeleteCampaign(campaign)}
                       className="h-8 w-9 rounded-lg border border-red-300/38 text-red-200 hover:bg-red-400/10 transition-colors flex items-center justify-center"

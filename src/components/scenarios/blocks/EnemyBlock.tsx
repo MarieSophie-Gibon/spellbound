@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Swords, Search, Target, ShieldAlert, X, PlusCircle, Ghost, Users } from "lucide-react";
-import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
 import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
