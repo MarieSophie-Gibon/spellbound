@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { theme } from "@/lib/theme";
-import { BookMarked, Telescope, ScrollText, Skull, Users, House } from "lucide-react";
+import { BookMarked, Telescope, ScrollText, Skull, Users } from "lucide-react";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 interface SideNavProps {
@@ -63,18 +63,12 @@ export function SideNav({ activeTab, onTabChange, tabs = ["grimoire", "compendiu
       <img
         src="/logo.svg"
         alt="Spellbound Logo"
-        className={`relative z-5 ${isCollapsed ? 'w-16 h-16 mt-2' : 'w-24 h-24'} object-contain transition-all duration-300`}
+        onClick={() => onTabChange('none')}
+        className={`relative z-5 ${isCollapsed ? 'w-16 h-16 mt-2' : 'w-24 h-24'} object-contain transition-all duration-300 cursor-pointer`}
       />
 
       {session && (
         <div className="w-full flex flex-col gap-4 relative z-10 pl-0">
-          <NavItem
-            icon={House}
-            label="Home"
-            active={activeTab === 'none'}
-            onClick={() => onTabChange('none')}
-            isCollapsed={isCollapsed}
-          />
           {tabs.includes("grimoire") && (
             <NavItem
               icon={BookMarked}

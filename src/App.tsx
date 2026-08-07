@@ -189,7 +189,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
       return campaignTabs;
     }
     if (isLobbyRoute) return ["grimoire", "compendium"];
-    return ["grimoire", "compendium", "bestiaire"];
+    return ["grimoire", "compendium"];
   };
 
   // Navigation handler pour SideNav (global ou campagne)
@@ -421,11 +421,6 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
             navigate("/");
           }}
           showBackToLobbyButton={isCampaignRoute}
-          onGoHome={() => {
-            setActiveCampaign(null);
-            navigate("/");
-          }}
-          showHomeButton={!isCampaignRoute}
           onGoToCampaignDashboard={() => {
             if (isCampaignRoute) navigate("/campaign");
           }}

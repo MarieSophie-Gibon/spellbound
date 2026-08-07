@@ -68,7 +68,6 @@ export function VoiePrestigeDetail({ voie, isFullscreen, readOnly, onToggleFulls
         {([1, 2, 3, 4, 5] as const).map((rangNum) => {
           const key = `rang${rangNum}` as keyof typeof voie.capacites;
           const cap = voie.capacites[key];
-          if (!cap?.nom) return null;
           const rang = normalizeVoieRang(cap);
           if (!hasRangContent(rang)) return null;
           return <RangCard key={key} rang={rang} rangNum={rangNum} />;

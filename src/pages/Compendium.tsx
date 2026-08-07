@@ -478,7 +478,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
           )}
         </CompendiumMobile>
       ) : (
-      <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen}>
+      <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
         {activeSection === 'peuples' && selectedPeuple ? (
           <PeupleDetail
             peuple={selectedPeuple}

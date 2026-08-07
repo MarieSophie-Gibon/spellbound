@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from "react";
-import { Menu, X } from "lucide-react";
+import { ArrowLeft, Menu, X } from "lucide-react";
 
 interface BookLayoutProps {
   spineTitle: string;
   sidebar?: ReactNode;
   hideSidebar?: boolean;
   children: ReactNode;
+  onOutsideClick?: () => void;
 }
 
 export function BookLayout({
@@ -13,16 +14,27 @@ export function BookLayout({
   sidebar,
   hideSidebar = false,
   children,
+  onOutsideClick,
 }: BookLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex-1 w-full h-full p-0 sm:p-2 lg:p-8">
+    <div className="flex-1 w-full h-full p-0 sm:p-2 lg:p-8" onClick={onOutsideClick}>
       {/* Responsive layout: mobile/tablet */}
-      <div className="lg:hidden w-full h-full flex flex-col">
+      <div className="lg:hidden w-full h-full flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="sticky top-0 z-20 shrink-0 px-3 pt-3 pb-2 bg-linear-to-b from-[#100c2f]/95 via-[#100c2f]/80 to-transparent backdrop-blur-sm">
           <div className="rounded-2xl border border-white/10 bg-[#1E1941]/70 backdrop-blur-2xl px-3 py-2.5 flex items-center justify-between shadow-[0_12px_28px_rgba(0,0,0,0.28)]">
-            <h2 className="font-serif text-base sm:text-lg tracking-[0.12em] uppercase text-white/90">{spineTitle}</h2>
+            {onOutsideClick ? (
+              <button
+                type="button"
+                onClick={onOutsideClick}
+                className="h-9 px-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center gap-1.5"
+                aria-label="Retour"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            ) : null}
+            <h2 className="font-serif text-base sm:text-lg tracking-[0.12em] uppercase text-white/90 flex-1">{spineTitle}</h2>
             {sidebar && !hideSidebar && (
               <button
                 type="button"
@@ -73,7 +85,7 @@ export function BookLayout({
       </div>
 
       {/* Existing large-screen design (unchanged) */}
-      <div className="hidden lg:flex w-full h-full rounded-[1rem] relative bg-[#1E1941]/40 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden">
+      <div className="hidden lg:flex w-full h-full rounded-[1rem] relative bg-[#1E1941]/40 backdrop-blur-3xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-white/10 overflow-hidden" onClick={e => e.stopPropagation()}>
         <div
           className="absolute inset-1.5 border border-[#E3CCCD]/15 pointer-events-none z-0"
           style={{ borderRadius: "calc(1rem - 5px)" }}

@@ -280,7 +280,7 @@ export function Grimoire({ isGlobal = true, onBack, campaignId, readOnly = false
           {content}
         </GrimoireMobile>
       ) : (
-        <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen}>
+        <BookLayout spineTitle="Grimoire" sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
           {content}
         </BookLayout>
       )}
