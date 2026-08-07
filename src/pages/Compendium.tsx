@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 import { BookOpen as BookOpenIcon } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
+import { SystemTabs } from "@/components/ui/SystemTabs";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
 import { CompendiumMobile } from "@/components/compendium/CompendiumMobile";
 import { PeupleDetail } from "@/components/compendium/peuple/PeupleDetail";
@@ -28,15 +30,21 @@ interface CompendiumProps {
   onBack: () => void;
   campaignId?: string;
   readOnly?: boolean;
-  /** true = l'utilisateur courant est le propriétaire (MJ) de la campagne */
   isOwner?: boolean;
   mode?: 'full' | 'bestiaire';
+  // campaign's system — provided when opened from within a campaign
+  campaignSystem?: RpgSystem;
 }
 
-export function Compendium({ onBack, campaignId, readOnly = false, isOwner = false, mode = 'full' }: CompendiumProps) {
+export function Compendium({ onBack, campaignId, readOnly = false, isOwner = false, mode = 'full', campaignSystem }: CompendiumProps) {
   const isMobile = useIsMobile();
   const isBestiaireOnly = mode === 'bestiaire';
   const compendiumData = useCompendiumData();
+
+  // Lobby mode: user picks system; campaign mode: system is fixed from the campaign
+  const [selectedSystem, setSelectedSystem] = useState<RpgSystem>('COF');
+  const effectiveSystem: RpgSystem = campaignSystem ?? selectedSystem;
+  const showSystemTabs = !campaignId;
 
   // Monstres révélés aux joueurs (uniquement dans le contexte d'une campagne)
   const { data: revealedIds = [] } = useRevealedMonstres(campaignId ?? '');
@@ -333,7 +341,15 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
   };
 
   const sidebar = (
-    <CompendiumSidebar
+    <div className="flex flex-col h-full min-h-0">
+      {showSystemTabs && (
+        <div className="shrink-0 px-4 pt-3 pb-2.5 border-b border-white/8">
+          <SystemTabs value={selectedSystem} onChange={setSelectedSystem} />
+        </div>
+      )}
+      {effectiveSystem === 'COF' && (
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <CompendiumSidebar
       activeSection={activeSection}
       sections={availableSections}
       actionsMode={isBestiaireOnly ? 'bestiaire' : 'compendium'}
@@ -367,6 +383,9 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
       readOnly={readOnly}
       loadingSections={loadingSections}
     />
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -479,7 +498,15 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
         </CompendiumMobile>
       ) : (
       <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
-        {activeSection === 'peuples' && selectedPeuple ? (
+        {effectiveSystem !== 'COF' ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
+            <BookOpenIcon className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />
+            <h2 className="font-serif text-2xl text-white tracking-widest uppercase mb-3 leading-none">
+              {effectiveSystem === 'DAGGERHEART' ? 'Daggerheart' : 'D&D 5E'}
+            </h2>
+            <p className="text-[13px] text-white/50 font-light">Contenu à venir.</p>
+          </div>
+        ) : activeSection === 'peuples' && selectedPeuple ? (
           <PeupleDetail
             peuple={selectedPeuple}
             voie={selectedVoie}

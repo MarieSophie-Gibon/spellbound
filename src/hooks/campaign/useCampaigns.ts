@@ -10,6 +10,7 @@ export interface Campaign {
   owner_id?: string | null
   created_at?: string | null
   access_type?: 'owner' | 'member' | 'pj'
+  system?: 'COF' | 'DAGGERHEART' | 'DND5E'
 }
 
 function isMissingTableError(err: unknown): boolean {

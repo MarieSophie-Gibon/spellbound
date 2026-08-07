@@ -325,6 +325,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                   <Grimoire
                     isGlobal={false}
                     campaignId={activeCampaign?.id}
+                    campaignSystem={activeCampaign?.system ?? 'COF'}
                     readOnly={isMobile || !canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
                   />
@@ -336,6 +337,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                   <Compendium
                     key={`campaign-compendium-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
+                    campaignSystem={activeCampaign?.system ?? 'COF'}
                     readOnly={isMobile || !canManageActiveCampaign}
                     isOwner={canManageActiveCampaign}
                     onBack={() => navigate("/campaign")}
@@ -348,6 +350,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                   <Compendium
                     key={`campaign-bestiaire-${activeCampaign?.id ?? "none"}`}
                     campaignId={activeCampaign?.id}
+                    campaignSystem={activeCampaign?.system ?? 'COF'}
                     readOnly={isMobile || !canManageActiveCampaign}
                     isOwner={canManageActiveCampaign}
                     mode="bestiaire"

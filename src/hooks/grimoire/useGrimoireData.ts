@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Category, WikiPage } from "@/types/grimoire";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface PopupPageListEntry {
   id: string;
@@ -11,6 +12,12 @@ interface PopupPageListEntry {
 interface FetchWikiPagesParams {
   isGlobal: boolean;
   campaignId?: string;
+  system: RpgSystem;
+}
+
+interface FetchCategoriesParams {
+  system: RpgSystem;
+  campaignId?: string;
 }
 
 interface CreateCategoryParams {
@@ -18,6 +25,7 @@ interface CreateCategoryParams {
   parentId: string | null;
   positionIndex: number;
   campaignId: string | null;
+  system: RpgSystem;
 }
 
 export function useGrimoireData() {
@@ -27,20 +35,29 @@ export function useGrimoireData() {
     return data.user?.id ?? null;
   }, []);
 
-  const fetchCategories = useCallback(async (): Promise<Category[]> => {
-    const { data, error } = await supabase
+  const fetchCategories = useCallback(async ({ system, campaignId }: FetchCategoriesParams): Promise<Category[]> => {
+    let query = supabase
       .from("categories")
       .select("*")
       .order("position_index", { ascending: true })
       .order("name");
+    if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},and(campaign_id.is.null,system.eq.${system})`);
+    } else {
+      query = query.is("campaign_id", null).eq("system", system);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     return (data ?? []) as Category[];
   }, []);
 
-  const fetchWikiPages = useCallback(async ({ isGlobal, campaignId }: FetchWikiPagesParams): Promise<WikiPage[]> => {
+  const fetchWikiPages = useCallback(async ({ isGlobal, campaignId, system }: FetchWikiPagesParams): Promise<WikiPage[]> => {
     let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
-    if (isGlobal) query = query.is("campaign_id", null);
-    else if (campaignId) query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    if (isGlobal) {
+      query = query.is("campaign_id", null).eq("system", system);
+    } else if (campaignId) {
+      query = query.or(`campaign_id.eq.${campaignId},and(campaign_id.is.null,system.eq.${system})`);
+    }
 
     const { data, error } = await query;
     if (error) throw error;
@@ -88,7 +105,7 @@ export function useGrimoireData() {
     if (error) throw error;
   }, []);
 
-  const createCategory = useCallback(async ({ name, parentId, positionIndex, campaignId }: CreateCategoryParams): Promise<Category> => {
+  const createCategory = useCallback(async ({ name, parentId, positionIndex, campaignId, system }: CreateCategoryParams): Promise<Category> => {
     const { data, error } = await supabase
       .from("categories")
       .insert({
@@ -96,6 +113,7 @@ export function useGrimoireData() {
         parent_id: parentId,
         position_index: positionIndex,
         campaign_id: campaignId,
+        system,
       })
       .select()
       .single();
