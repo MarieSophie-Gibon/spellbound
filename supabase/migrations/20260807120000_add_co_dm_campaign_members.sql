@@ -8,6 +8,44 @@
 --
 -- New architecture: campaign_members.role drives authorisation going forward.
 -- Hybrid RLS: a user is a "manager" if owner_id = auth.uid()
+-- ============================================================
+--
+-- ── PHASE 2 FRONT-END TODO ───────────────────────────────────────────────────
+--
+-- 1. TYPE  src/hooks/campaign/useCampaigns.ts
+--    - Add `role?: 'OWNER' | 'PLAYER'` to the CampaignMember interface (or create one).
+--    - The Campaign interface's `access_type` ('owner'|'member'|'pj') is still valid
+--      for read access; no change needed there yet.
+--
+-- 2. HOOK  useCampaignMembers (new hook, or extend useCampaigns.ts)
+--    - Fetch campaign_members with role for a given campaignId.
+--    - Expose helpers: isCoDM(userId), promoteToOwner(userId), demoteToPlayer(userId).
+--
+-- 3. PERMISSION HELPER  src/lib/permissions.ts (new file)
+--    - `isManager(campaign, userId)`:
+--        return campaign.owner_id === userId
+--            || campaignMembers.some(m => m.user_id === userId && m.role === 'OWNER')
+--    - Replace every `canManageActiveCampaign` derived value in App.tsx with this helper
+--      once the Co-DM flow is live (today it still reads owner_id, which is fine).
+--
+-- 4. UI  Co-DM management panel (new component, Campaign dashboard)
+--    - List of campaign members with their role badge (OWNER / PLAYER).
+--    - MJ-only: promote/demote buttons calling the new hook mutations.
+--    - Invite flow: reuse existing campaign_invitations + set role = 'OWNER' on join.
+--
+-- 5. UI  SideNav / campaign context
+--    - When a Co-DM (not the primary owner_id) is logged in, `canManageActiveCampaign`
+--      must return true. Update the check in App.tsx to use isManager() from step 3.
+--
+-- 6. UI  Footer / campaign switcher
+--    - Campaign cards: show a small "Co-DM" badge when access_type is 'owner' but
+--      owner_id !== current user (i.e. they are a campaign_members OWNER, not the creator).
+--
+-- 7. SUPABASE  Apply the matching remote migration
+--    - `npx supabase db push` or run the SQL in the Supabase dashboard.
+--    - Verify that existing RLS smoke-tests still pass for primary owners.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
 --             OR they have a row in campaign_members with role = 'OWNER'.
 -- ============================================================
 
