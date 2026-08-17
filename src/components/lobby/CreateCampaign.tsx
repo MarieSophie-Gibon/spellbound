@@ -1,5 +1,3 @@
-
-
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Image as ImageIcon, UploadCloud } from "lucide-react";
@@ -8,6 +6,8 @@ import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
 import { validateCampaignForm, validateCampaignImage } from "@/lib/validation/campaignForms";
 
+type RpgSystem = "COF" | "DAGGERHEART" | "DND5E";
+
 interface CreateCampaignProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -15,13 +15,21 @@ interface CreateCampaignProps {
   initialData?: Campaign;
 }
 
+const RPG_SYSTEMS: Array<{ value: RpgSystem; label: string }> = [
+  { value: "COF", label: "Chroniques Oubliées Fantastiques" },
+  { value: "DND5E", label: "Dungeons & Dragons 5e" },
+  { value: "DAGGERHEART", label: "Daggerheart" },
+];
+
 export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: CreateCampaignProps) {
   const isEditing = !!initialData;
   const [nom, setNom] = useState(initialData?.nom ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
+  const [system, setSystem] = useState<RpgSystem>((initialData?.system as RpgSystem) ?? "COF");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image_url ?? null);
   const [error, setError] = useState<string | null>(null);
+  
   const createCampaign = useCreateCampaign();
   const updateCampaign = useUpdateCampaign();
   const lobbyData = useLobbyData();
@@ -72,7 +80,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
 
     if (isEditing && initialData) {
       updateCampaign.mutate(
-        { id: initialData.id, nom: payload.nom, description: payload.description, image_url },
+        { id: initialData.id, nom: payload.nom, description: payload.description, system, image_url },
         {
           onSuccess: (data) => { onCreated(data); onOpenChange(false); },
           onError: (err: unknown) => { setError((err as Error).message || "Erreur inconnue"); },
@@ -80,7 +88,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
       );
     } else {
       createCampaign.mutate(
-        { nom: payload.nom, description: payload.description, image_url },
+        { nom: payload.nom, description: payload.description, system, image_url },
         {
           onSuccess: (data) => { onCreated(data); onOpenChange(false); },
           onError: (err: unknown) => { setError((err as Error).message || "Erreur inconnue"); },
@@ -95,11 +103,8 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
         className="relative w-full max-w-3xl rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.4)] flex flex-col animate-in zoom-in-95 duration-200 border border-white/10 overflow-hidden"
         style={{ background: "linear-gradient(160deg, rgba(80,95,200,0.38) 0%, rgba(55,48,130,0.42) 50%, rgba(70,80,175,0.38) 100%)" }}
       >
-        {/* Backdrop blur layer */}
         <div className="absolute inset-0 backdrop-blur-3xl -z-10" />
-        {/* Subtle noise/grain overlay */}
         <div className="absolute inset-0 bg-white/3 -z-10" />
-        {/* Inner stroke */}
         <div className="absolute inset-px rounded-2xl border border-white/10 pointer-events-none z-0" />
 
         {/* HEADER */}
@@ -121,17 +126,34 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
 
         {/* FORMULAIRE */}
         <form className="relative z-10 flex flex-col gap-6 px-8 py-7" onSubmit={handleSubmit}>
-          <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Nom de la campagne *</label>
-            <input
-              type="text"
-              value={nom}
-              onChange={e => setNom(e.target.value)}
-              autoFocus
-              required
-              placeholder="ex: Les Héritiers du Feu"
-              className="w-full bg-transparent border-b border-white/30 focus:border-[#E3CCCD]/80 py-2.5 text-white text-lg outline-none transition-colors placeholder:text-white/35"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Nom de la campagne *</label>
+              <input
+                type="text"
+                value={nom}
+                onChange={e => setNom(e.target.value)}
+                autoFocus
+                required
+                placeholder="ex: Les Héritiers du Feu"
+                className="w-full bg-transparent border-b border-white/30 focus:border-[#E3CCCD]/80 py-2.5 text-white text-lg outline-none transition-colors placeholder:text-white/35"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Système de jeu *</label>
+              <select
+                value={system}
+                onChange={e => setSystem(e.target.value as RpgSystem)}
+                className="w-full bg-white/5 border border-white/20 focus:border-white/35 rounded-xl px-3 py-2.5 text-white text-sm outline-none transition-colors cursor-pointer"
+              >
+                {RPG_SYSTEMS.map((s) => (
+                  <option key={s.value} value={s.value} className="bg-[#1E1941] text-white">
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -171,7 +193,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
           <div className="flex gap-2 mt-2 justify-end">
             <button
               type="button"
-              className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white"
+              className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors"
               onClick={() => onOpenChange(false)}
               disabled={createCampaign.isPending || updateCampaign.isPending}
             >
@@ -179,7 +201,7 @@ export function CreateCampaign({ open, onOpenChange, onCreated, initialData }: C
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white"
+              className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
               disabled={createCampaign.isPending || updateCampaign.isPending}
             >
               {createCampaign.isPending || updateCampaign.isPending
