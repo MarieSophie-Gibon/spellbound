@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { GripVertical, Minus, Plus, Swords } from "lucide-react";
 import { useCombatDashboardData } from "@/hooks/scenarios/useCombatDashboardData";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
+import { CONDITION_OPTIONS, readTokenFaceFromCombatant } from "@/components/scenarios/combat/types";
 import { BATTLEMAP_CHANNEL, tokenRingClass, type BattleMapBroadcast } from "@/components/scenarios/combat/BattleMap";
 import { CombatantCard } from "@/components/scenarios/combat/CombatantCard";
 import type { FogRevealStamp, MapToken, PersistedCombatState } from "@/components/scenarios/combat/types";
@@ -698,6 +698,7 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
                       const isMine = ownCombatantIds.has(token.combatantId);
                       const isActive = combatState.activeCombatantId === combatant.id;
                       const activeConditions = CONDITION_OPTIONS.filter((o) => combatant.conditions.includes(o.key));
+                      const tokenFace = readTokenFaceFromCombatant(combatant);
 
                       return (
                         <div
@@ -720,7 +721,8 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
                             <img
                               src={combatant.imageUrl || "/default-avatar.png"}
                               alt={combatant.name}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
+                              style={{ transform: `translate(${tokenFace.offsetX}%, ${tokenFace.offsetY}%) scale(${tokenFace.zoom})` }}
                               draggable={false}
                               onDragStart={(e) => e.preventDefault()}
                             />
@@ -809,7 +811,19 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
             )}
             {ownCombatants.map((c) => (
               <div key={c.id} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5">
-                <img src={c.imageUrl || "/default-avatar.png"} alt={c.name} className="w-7 h-7 rounded-full object-cover border border-white/20" />
+                {(() => {
+                  const tokenFace = readTokenFaceFromCombatant(c);
+                  return (
+                    <div className="w-7 h-7 rounded-full overflow-hidden border border-white/20 shrink-0">
+                      <img
+                        src={c.imageUrl || "/default-avatar.png"}
+                        alt={c.name}
+                        className="w-full h-full object-contain"
+                        style={{ transform: `translate(${tokenFace.offsetX}%, ${tokenFace.offsetY}%) scale(${tokenFace.zoom})` }}
+                      />
+                    </div>
+                  );
+                })()}
                 <div className="min-w-0 flex-1">
                   <p className="text-[12px] text-white/85 truncate">{c.name}</p>
                   <p className="text-[10px] text-white/45">{c.pv}/{c.pvMax} PV</p>

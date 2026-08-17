@@ -1,7 +1,7 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
-import type { Combatant, EncounterEntry, FogRevealStamp, MapToken } from "./types";
+import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type FogRevealStamp, type MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
 
 interface BattleMapProps {
@@ -94,6 +94,7 @@ const MapTokenMarker = memo(function MapTokenMarker({
   const activeConditions = CONDITION_OPTIONS.filter((o) => combatant.conditions.includes(o.key));
   const instanceMatch = combatant.name.match(/^(.*?) #(\d+)$/);
   const instanceNum = instanceMatch ? instanceMatch[2] : null;
+  const tokenFace = readTokenFaceFromCombatant(combatant);
 
   return (
     <div
@@ -109,7 +110,13 @@ const MapTokenMarker = memo(function MapTokenMarker({
         className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
         style={{ width: tokenSize, height: tokenSize, cursor: "grab" }}
       >
-        <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+        <img
+          src={combatant.imageUrl || "/default-avatar.png"}
+          alt={combatant.name}
+          className="w-full h-full object-contain pointer-events-none"
+          style={{ transform: `translate(${tokenFace.offsetX}%, ${tokenFace.offsetY}%) scale(${tokenFace.zoom})` }}
+          draggable={false}
+        />
         {activeConditions.length > 0 && (
           <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-wrap content-center gap-0.5 pointer-events-none" style={{ padding: tokenSize * 0.08 }}>
             {activeConditions.map((opt) => (
@@ -836,6 +843,7 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
         ) : combatants.map((combatant) => {
           const isPlaced = placedCombatantIds.has(combatant.id);
           const isActive = combatant.id === activeCombatantId;
+          const tokenFace = readTokenFaceFromCombatant(combatant);
           return (
             <div
               key={combatant.id}
@@ -850,7 +858,12 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
               title={isPlaced ? `Retirer ${combatant.name} de la carte` : combatant.name}
             >
               <div className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-transform group-hover/tt:scale-110 ${tokenRingClass(combatant.type)} ${isPlaced ? "opacity-60" : ""}`}>
-                <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover pointer-events-none" />
+                <img
+                  src={combatant.imageUrl || "/default-avatar.png"}
+                  alt={combatant.name}
+                  className="w-full h-full object-contain pointer-events-none"
+                  style={{ transform: `translate(${tokenFace.offsetX}%, ${tokenFace.offsetY}%) scale(${tokenFace.zoom})` }}
+                />
                 {isPlaced && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/tt:opacity-100 transition-opacity">
                     <X className="w-4 h-4 text-white" />

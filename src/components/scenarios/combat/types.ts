@@ -85,6 +85,46 @@ export interface Combatant {
   pjStats?: PJStats;
   voies?: VoieEntry[];
   familiers?: CombatFamilier[];
+  tokenFaceZoom?: number;
+  tokenFaceOffsetX?: number;
+  tokenFaceOffsetY?: number;
+}
+
+export interface TokenFaceConfig {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+const TOKEN_FACE_MIN_ZOOM = 0.25;
+const TOKEN_FACE_MAX_ZOOM = 6;
+const TOKEN_FACE_OFFSET_LIMIT = 150;
+
+export const DEFAULT_TOKEN_FACE: TokenFaceConfig = {
+  zoom: 1,
+  offsetX: 0,
+  // Slightly shift image down by default so portraits with faces near the top stay visible in round tokens.
+  offsetY: 18,
+};
+
+export function clampTokenFace(config: Partial<TokenFaceConfig> | null | undefined): TokenFaceConfig {
+  const zoom = Number(config?.zoom);
+  const offsetX = Number(config?.offsetX);
+  const offsetY = Number(config?.offsetY);
+
+  return {
+    zoom: Number.isFinite(zoom) ? Math.max(TOKEN_FACE_MIN_ZOOM, Math.min(TOKEN_FACE_MAX_ZOOM, zoom)) : DEFAULT_TOKEN_FACE.zoom,
+    offsetX: Number.isFinite(offsetX) ? Math.max(-TOKEN_FACE_OFFSET_LIMIT, Math.min(TOKEN_FACE_OFFSET_LIMIT, offsetX)) : DEFAULT_TOKEN_FACE.offsetX,
+    offsetY: Number.isFinite(offsetY) ? Math.max(-TOKEN_FACE_OFFSET_LIMIT, Math.min(TOKEN_FACE_OFFSET_LIMIT, offsetY)) : DEFAULT_TOKEN_FACE.offsetY,
+  };
+}
+
+export function readTokenFaceFromCombatant(combatant: Combatant): TokenFaceConfig {
+  return clampTokenFace({
+    zoom: combatant.tokenFaceZoom,
+    offsetX: combatant.tokenFaceOffsetX,
+    offsetY: combatant.tokenFaceOffsetY,
+  });
 }
 
 export interface ChapitreBlock {

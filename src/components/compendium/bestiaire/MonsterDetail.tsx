@@ -1,6 +1,7 @@
-import { Maximize2, Minimize2, Pencil, Trash2, Image as ImageIcon, Swords, Shield, Zap, Heart, Sparkles, Eye, EyeOff } from "lucide-react";
+import { Maximize2, Minimize2, Pencil, Trash2, Swords, Shield, Zap, Heart, Sparkles, Eye, EyeOff } from "lucide-react";
 import type { Monstre, MonstreAttaque, MonstreCapacite } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
+import { MagicCard } from "@/components/ui/MagicCard";
 
 interface MonsterDetailProps {
     monstre: Monstre;
@@ -274,22 +275,16 @@ function CapaciteBlock({ capacite }: { capacite: MonstreCapacite }) {
 
 function MonstreCard({ monstre }: { monstre: Monstre }) {
     return (
-        <div className="w-44 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
-            {monstre.image_url ? (
-                <img src={monstre.image_url} alt={monstre.nom} className="absolute inset-0 w-full h-full object-cover opacity-90" />
-            ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <ImageIcon className="w-10 h-10 text-white/10" />
-                </div>
-            )}
-            <div className="absolute inset-0 z-10 pointer-events-none"
-                style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
-            />
-            <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
-            <div className="absolute bottom-5 inset-x-0 z-30 pb-3 px-2 text-center">
-                <div className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60 mb-0.5">NC {monstre.nc}</div>
-                <h3 className="font-serif text-sm text-white tracking-widest leading-tight">{monstre.nom}</h3>
-            </div>
-        </div>
+        <MagicCard
+            imageUrl={monstre.image_url ?? null}
+            title={monstre.nom}
+            size="compact"
+            className="!w-44"
+            badge={
+                <span className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/80 border border-[#E3CCCD]/35 rounded-full px-2 py-0.5 bg-[#1E1941]/70 backdrop-blur">
+                    NC {monstre.nc}
+                </span>
+            }
+        />
     );
 }

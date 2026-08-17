@@ -13,6 +13,7 @@ import {
   type PersistedCombatState,
   type RoundTriggerEvent,
   type SearchResult,
+  clampTokenFace,
   type VoieEntry,
   makeCombatantId,
   toNumber,
@@ -523,6 +524,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
                 pjStats: buildPJStats(row),
                 voies: voiesPerPJ[idx],
                 familiers: famsByPJ.get(row.id) ?? [],
+                ...getTokenFaceFromStats(row.stats),
               };
             })
           );
@@ -547,7 +549,13 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               if (c.type !== "npc") return c;
               const idx = data.findIndex((d) => d.id === c.entityId);
               if (idx < 0) return c;
-              return { ...c, voies: voiesPerNPC[idx], pjStats: buildPJStats(data[idx]), familiers: famsByNPC.get(data[idx].id) ?? [] };
+              return {
+                ...c,
+                voies: voiesPerNPC[idx],
+                pjStats: buildPJStats(data[idx]),
+                familiers: famsByNPC.get(data[idx].id) ?? [],
+                ...getTokenFaceFromStats(data[idx].stats),
+              };
             })
           );
         }
@@ -646,7 +654,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               pvMax,
               defense: toNumber(m.combat?.defense, c.defense),
               // On conserve 'c.pv' et 'c.initiative' pour ne pas ruiner le combat en cours
-              details: { stats: m.stats, combat: m.combat, attaques: m.attaques, capacites: m.capacites }
+              details: { stats: m.stats, combat: m.combat, attaques: m.attaques, capacites: m.capacites },
+              ...getTokenFaceFromStats(m.stats),
             };
           } else if (c.type === "npc" && n) {
             const pvMax = toNumber(n.stats?.pv_max ?? n.stats?.pv, c.pvMax);
@@ -656,7 +665,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               pvMax,
               defense: toNumber(n.stats?.defense, c.defense),
               pjStats: buildPJStats({ stats: n.stats }),
-              voies: npcsVoies.get(n.id) ?? c.voies
+              voies: npcsVoies.get(n.id) ?? c.voies,
+              ...getTokenFaceFromStats(n.stats),
             };
           }
         }
@@ -681,7 +691,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               imageUrl: m.image_url ?? b.data.imageUrl, initiative: toNumber(m.combat?.initiative, 0),
               pv: pvMax, pvMax, defense: toNumber(m.combat?.defense, 0), conditions: [],
               tactics: b.data.comportement, notes: b.data.notes,
-              details: { stats: m.stats, combat: m.combat, attaques: m.attaques, capacites: m.capacites }
+              details: { stats: m.stats, combat: m.combat, attaques: m.attaques, capacites: m.capacites },
+              ...getTokenFaceFromStats(m.stats),
             });
             existingKeys.add(key);
           } else if (type === "npc" && n) {
@@ -691,7 +702,8 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               imageUrl: n.image_url ?? b.data.imageUrl, initiative: toNumber(n.stats?.initiative, 0),
               pv: pvMax, pvMax, defense: toNumber(n.stats?.defense, 0), conditions: [],
               tactics: b.data.comportement, notes: b.data.notes,
-              pjStats: buildPJStats({ stats: n.stats }), voies: npcsVoies.get(n.id) ?? []
+              pjStats: buildPJStats({ stats: n.stats }), voies: npcsVoies.get(n.id) ?? [],
+              ...getTokenFaceFromStats(n.stats),
             });
             existingKeys.add(key);
           }
@@ -706,6 +718,21 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       setImportingEngaged(false);
     }
   }, [chapitreId, combatData, fetchVoiesForPathways, combatants]);
+
+  function getTokenFaceFromStats(stats: any): { tokenFaceZoom: number; tokenFaceOffsetX: number; tokenFaceOffsetY: number } {
+    const nested = stats?.token_face ?? null;
+    const normalized = clampTokenFace({
+      zoom: stats?.token_face_zoom ?? nested?.zoom,
+      offsetX: stats?.token_face_offset_x ?? nested?.offsetX,
+      offsetY: stats?.token_face_offset_y ?? nested?.offsetY,
+    });
+
+    return {
+      tokenFaceZoom: normalized.zoom,
+      tokenFaceOffsetX: normalized.offsetX,
+      tokenFaceOffsetY: normalized.offsetY,
+    };
+  }
 
   function buildPJStats(pjRow: { stats: any }) {
     return {
@@ -758,6 +785,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   const addFamilierToCombat = (f: typeof familierResults[number]) => {
     const d = f.data as any;
     const pvMax = f.pv_max;
+    const tokenFace = getTokenFaceFromStats(d?.stats ?? d ?? null);
     const newEntry: Combatant = {
       id: makeCombatantId(),
       entityId: f.id,
@@ -775,6 +803,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
         attaques: d?.attaques ?? [],
         capacites: d?.capacites ?? [],
       },
+      ...tokenFace,
     };
     setCombatants((prev) => [...prev, newEntry]);
     setIsMenuOpen(false);
@@ -806,6 +835,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               defense: toNumber(pj.stats?.defense, 0),
               pjStats: buildPJStats(pj),
               voies,
+              ...getTokenFaceFromStats(pj.stats),
             };
           } else {
             result.push({
@@ -820,6 +850,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
               conditions: [],
               pjStats: buildPJStats(pj),
               voies,
+              ...getTokenFaceFromStats(pj.stats),
             });
           }
         });
@@ -847,6 +878,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
   const addEnemyFromSearch = async (result: SearchResult) => {
     const pvMax = toNumber(result.combat?.pv_max ?? result.combat?.pv ?? result.stats?.pv_max ?? result.stats?.pv, 10);
     const voies = result.type === "npc" ? await fetchVoiesForPathways(result.pathways ?? null) : undefined;
+    const tokenFace = getTokenFaceFromStats(result.stats);
     const newEntry: Combatant = {
       id: makeCombatantId(), entityId: result.id, type: result.type, name: result.name,
       imageUrl: result.image_url ?? undefined,
@@ -856,6 +888,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
       details: result.type === "monster" ? { stats: (result.stats as MonsterStatsMap) ?? undefined, combat: result.combat, attaques: result.attaques, capacites: result.capacites } : undefined,
       pjStats: result.type === "npc" ? buildPJStats({ stats: result.stats }) : undefined,
       voies,
+      ...tokenFace,
     };
     // On ajoute directement sans dédupliquer sur entityId : plusieurs instances du même monstre sont autorisées
     // Numérotation automatique quand plusieurs exemplaires de la même espèce sont présents

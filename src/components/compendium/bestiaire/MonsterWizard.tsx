@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 // import { createPortal } from "react-dom";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import { X, ArrowRight, ArrowLeft, Save, Plus, Trash2, ChevronDown, Image as ImageIcon, UploadCloud, Copy, Loader2 } from "lucide-react";
@@ -47,6 +47,36 @@ const DEFAULT_STATS: MonstreStats = {
   for: { mod: 0, sup: false }, int: { mod: 0, sup: false }, per: { mod: 0, sup: false }, vol: { mod: 0, sup: false },
 };
 const DEFAULT_COMBAT: MonstreCombat = { pv: 10, rd: 0, pv_max: 10, defense: 10, initiative: 10, attaque_magique: null };
+const TOKEN_FACE_MIN_ZOOM = 0.25;
+const TOKEN_FACE_MAX_ZOOM = 6;
+const TOKEN_FACE_MIN_OFFSET = -150;
+const TOKEN_FACE_MAX_OFFSET = 150;
+const TOKEN_FACE_DEFAULT_OFFSET_Y = 18;
+const TOKEN_FACE_PREVIEW_SIZE_PX = 96;
+const TOKEN_FACE_WHEEL_STEP = 0.1;
+
+function clampTokenFaceZoom(value: number) {
+  return Number.isFinite(value) ? Math.max(TOKEN_FACE_MIN_ZOOM, Math.min(TOKEN_FACE_MAX_ZOOM, value)) : 1;
+}
+
+function clampTokenFaceOffset(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  const bounded = Math.max(TOKEN_FACE_MIN_OFFSET, Math.min(TOKEN_FACE_MAX_OFFSET, value));
+  return Math.round(bounded * 100) / 100;
+}
+
+function readTokenFaceFromStats(statsValue: MonstreStats | null | undefined) {
+  const nested = statsValue?.token_face ?? null;
+  const zoom = Number(statsValue?.token_face_zoom ?? nested?.zoom ?? 1);
+  const offsetX = Number(statsValue?.token_face_offset_x ?? nested?.offsetX ?? 0);
+  const offsetY = Number(statsValue?.token_face_offset_y ?? nested?.offsetY ?? TOKEN_FACE_DEFAULT_OFFSET_Y);
+
+  return {
+    zoom: clampTokenFaceZoom(zoom),
+    offsetX: clampTokenFaceOffset(offsetX),
+    offsetY: clampTokenFaceOffset(offsetY),
+  };
+}
 
 function makeEmptyAttaque(): MonstreAttaque {
   return { attaque_base: "", dm: "" };
@@ -98,6 +128,10 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
     setImagePreview(m.image_url ?? null);
     setImageFile(null);
     setStats(structuredClone(m.stats));
+    const importedTokenFace = readTokenFaceFromStats(m.stats);
+    setTokenFaceZoom(importedTokenFace.zoom);
+    setTokenFaceOffsetX(importedTokenFace.offsetX);
+    setTokenFaceOffsetY(importedTokenFace.offsetY);
     setCombat({ ...m.combat });
     setAttaques(structuredClone(m.attaques ?? []));
     setCapacites(structuredClone(m.capacites ?? []));
@@ -113,6 +147,12 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(initialData?.image_url ?? null);
+  const initialTokenFace = readTokenFaceFromStats(initialData?.stats);
+  const [tokenFaceZoom, setTokenFaceZoom] = useState(initialTokenFace.zoom);
+  const [tokenFaceOffsetX, setTokenFaceOffsetX] = useState(initialTokenFace.offsetX);
+  const [tokenFaceOffsetY, setTokenFaceOffsetY] = useState(initialTokenFace.offsetY);
+  const tokenFaceDragRef = useRef<{ pointerId: number; startX: number; startY: number; baseOffsetX: number; baseOffsetY: number; previewSize: number } | null>(null);
+  const [isTokenFaceDragging, setIsTokenFaceDragging] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -130,6 +170,54 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
   const [combat, setCombat] = useState<MonstreCombat>(
     initialData?.combat ? { ...initialData.combat } : { ...DEFAULT_COMBAT }
   );
+
+  const handleTokenFacePreviewPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!imagePreview) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const previewSize = rect.height > 0 ? rect.height : TOKEN_FACE_PREVIEW_SIZE_PX;
+
+    tokenFaceDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseOffsetX: tokenFaceOffsetX,
+      baseOffsetY: tokenFaceOffsetY,
+      previewSize,
+    };
+    setIsTokenFaceDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleTokenFacePreviewPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = tokenFaceDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    const sensitivity = 100 / drag.previewSize;
+    const zoomCompensation = Math.max(tokenFaceZoom, 1);
+
+    setTokenFaceOffsetX(clampTokenFaceOffset(drag.baseOffsetX + (dx * sensitivity) / zoomCompensation));
+    setTokenFaceOffsetY(clampTokenFaceOffset(drag.baseOffsetY + (dy * sensitivity) / zoomCompensation));
+  };
+
+  const handleTokenFacePreviewPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = tokenFaceDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    tokenFaceDragRef.current = null;
+    setIsTokenFaceDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const handleTokenFacePreviewWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!imagePreview) return;
+    e.preventDefault();
+    const direction = e.deltaY < 0 ? 1 : -1;
+    setTokenFaceZoom((prev) => clampTokenFaceZoom(prev + direction * TOKEN_FACE_WHEEL_STEP));
+  };
 
   const updateStat = (key: StatKey, field: "mod" | "sup", value: number | boolean) => {
     setStats(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
@@ -158,13 +246,24 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
       }
 
       const publicMode = campaignId && !isPrivate;
+      const statsWithTokenFace: MonstreStats = {
+        ...stats,
+        token_face_zoom: tokenFaceZoom,
+        token_face_offset_x: tokenFaceOffsetX,
+        token_face_offset_y: tokenFaceOffsetY,
+        token_face: {
+          zoom: tokenFaceZoom,
+          offsetX: tokenFaceOffsetX,
+          offsetY: tokenFaceOffsetY,
+        },
+      };
       const payload = {
         nom: nom.trim(),
         nc: nc.trim(),
         type_creature: typeCreature,
         taille,
         description: description.trim() || null,
-        stats,
+        stats: statsWithTokenFace,
         combat: { ...combat, pv: combat.pv_max },
         attaques,
         capacites,
@@ -402,6 +501,89 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
                       Retirer
                     </button>
                   )}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-2.5 items-center">
+                  <div className="flex flex-col items-center gap-1">
+                    <div
+                      className={`rounded-full overflow-hidden border border-white/18 bg-black/25 shadow-inner ${imagePreview ? (isTokenFaceDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-not-allowed"}`}
+                      style={{ width: TOKEN_FACE_PREVIEW_SIZE_PX, height: TOKEN_FACE_PREVIEW_SIZE_PX }}
+                      onPointerDown={handleTokenFacePreviewPointerDown}
+                      onPointerMove={handleTokenFacePreviewPointerMove}
+                      onPointerUp={handleTokenFacePreviewPointerEnd}
+                      onPointerCancel={handleTokenFacePreviewPointerEnd}
+                      onLostPointerCapture={handleTokenFacePreviewPointerEnd}
+                      onWheel={handleTokenFacePreviewWheel}
+                      title={imagePreview ? "Clique et glisse pour deplacer l'image dans le jeton" : "Ajoute une image pour activer le cadrage"}
+                    >
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt="Apercu jeton"
+                          className="w-full h-full object-contain"
+                          style={{
+                            transformOrigin: "center center",
+                            transform: `translate(${tokenFaceOffsetX}%, ${tokenFaceOffsetY}%) scale(${tokenFaceZoom})`,
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-[10px] text-white/40 text-center px-2">
+                          Pas d'image
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-white/46 uppercase tracking-[0.12em]">Apercu jeton</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-[0.14em] text-white/55">Cadrage jeton battlemap</p>
+                    <label className="text-[11px] text-white/62 flex flex-col gap-1">
+                      <span className="flex items-center justify-between">
+                        <span>Zoom</span>
+                        <span className="text-[10px] text-white/52">{tokenFaceZoom.toFixed(2)}x</span>
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min={TOKEN_FACE_MIN_ZOOM}
+                          max={TOKEN_FACE_MAX_ZOOM}
+                          step={0.05}
+                          value={tokenFaceZoom}
+                          onChange={(e) => setTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
+                          className="w-full accent-white/70"
+                        />
+                        <input
+                          type="number"
+                          min={TOKEN_FACE_MIN_ZOOM}
+                          max={TOKEN_FACE_MAX_ZOOM}
+                          step={0.05}
+                          value={tokenFaceZoom}
+                          onChange={(e) => setTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
+                          className="w-20 bg-white/[0.04] border border-white/12 rounded-md px-2 py-1 text-white/80 text-xs outline-none focus:border-white/30"
+                        />
+                      </div>
+                    </label>
+
+                    <p className="text-[10px] text-white/48 uppercase tracking-[0.12em]">
+                      Position: glisser l'image dans le jeton (molette pour zoom)
+                    </p>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTokenFaceZoom(1);
+                          setTokenFaceOffsetX(0);
+                          setTokenFaceOffsetY(TOKEN_FACE_DEFAULT_OFFSET_Y);
+                        }}
+                        className="text-[10px] px-2 py-1 rounded-md border border-white/12 text-white/62 hover:text-white hover:bg-white/8 transition-colors"
+                      >
+                        Reinitialiser
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
