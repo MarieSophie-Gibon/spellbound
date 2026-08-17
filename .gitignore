@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase local generated state/secrets (never commit)
+supabase/.temp/
+supabase/.branches/
