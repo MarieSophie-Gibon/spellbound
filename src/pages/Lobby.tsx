@@ -4,7 +4,7 @@ import { useCampaigns, useDeleteCampaign, useJoinCampaignByCode, useLeaveCampaig
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
-import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
+import { DeleteConfirmModal } from "@/components/compendium/cof/DeleteConfirmModal";
 import { Loader2, Ticket } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import {

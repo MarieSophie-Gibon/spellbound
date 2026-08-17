@@ -3,7 +3,7 @@ import { Swords, Search, Target, ShieldAlert, X, PlusCircle, Ghost, Users } from
 import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/PNJWizard";
-import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
+import { MonsterWizard } from "@/components/bestiaire/cof/MonsterWizard";
 import type { PersistedCombatState } from "../combat/types";
 
 function createEmptyCombatPrep(): PersistedCombatState {

@@ -19,7 +19,7 @@ import { Scenarios } from "@/pages/Scenarios";
 import { PlayerView } from "@/pages/PlayerView";
 import { Routes, Route, useNavigate, useLocation, Navigate } from "react-router-dom";
 import { CreateCampaign } from "@/components/lobby/CreateCampaign";
-import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
+import { DeleteConfirmModal } from "@/components/compendium/cof/DeleteConfirmModal";
 import { Bell, X } from "lucide-react";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { useProfile } from "@/hooks/core/personnage/useProfile";
