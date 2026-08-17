@@ -144,26 +144,80 @@ export function useCreateCampaignInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ campaignId, expiresInHours = 72 }: { campaignId: string; expiresInHours?: number }) => {
+    mutationFn: async ({
+      campaignId,
+      expiresInHours = 72,
+      forceRegenerate = false,
+    }: {
+      campaignId: string
+      expiresInHours?: number
+      forceRegenerate?: boolean
+    }) => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Utilisateur non connecté')
 
-      const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
+      const now = Date.now()
+
+      // Cleanup best-effort des invitations expirées pour cette campagne.
+      await supabase
+        .from('campaign_invitations')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .lt('expires_at', new Date(now).toISOString())
+
+      const { data: existingRows, error: existingErr } = await supabase
+        .from('campaign_invitations')
+        .select('id, campaign_id, code, expires_at')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false })
+
+      if (existingErr) throw existingErr
+
+      const validExisting = (existingRows ?? []).find((row) => {
+        if (!row.expires_at) return true
+        return new Date(row.expires_at).getTime() >= now
+      })
+
+      if (validExisting && !forceRegenerate) {
+        return validExisting as CampaignInvitation
+      }
+
+      const expiresAt = new Date(now + expiresInHours * 60 * 60 * 1000).toISOString()
+      const candidateRow = (existingRows ?? [])[0]
 
       for (let i = 0; i < 3; i += 1) {
         const code = createInviteCode()
-        const { data, error } = await supabase
-          .from('campaign_invitations')
-          .insert({
-            campaign_id: campaignId,
-            code,
-            created_by: user.id,
-            expires_at: expiresAt,
-          })
-          .select('id, campaign_id, code, expires_at')
-          .single()
 
-        if (!error && data) return data as CampaignInvitation
+        const writeQuery = candidateRow
+          ? supabase
+              .from('campaign_invitations')
+              .update({ code, created_by: user.id, expires_at: expiresAt })
+              .eq('id', candidateRow.id)
+              .select('id, campaign_id, code, expires_at')
+              .single()
+          : supabase
+              .from('campaign_invitations')
+              .insert({
+                campaign_id: campaignId,
+                code,
+                created_by: user.id,
+                expires_at: expiresAt,
+              })
+              .select('id, campaign_id, code, expires_at')
+              .single()
+
+        const { data, error } = await writeQuery
+
+        if (!error && data) {
+          // Best-effort: conserver une seule ligne par campagne.
+          await supabase
+            .from('campaign_invitations')
+            .delete()
+            .eq('campaign_id', campaignId)
+            .neq('id', data.id)
+
+          return data as CampaignInvitation
+        }
         if (error && !String(error.message).toLowerCase().includes('duplicate')) throw error
       }
 
@@ -199,6 +253,8 @@ export function useJoinCampaignByCode() {
       }
 
       if (invitation.expires_at && new Date(invitation.expires_at).getTime() < Date.now()) {
+        // Cleanup best-effort d'un code expiré.
+        await supabase.from('campaign_invitations').delete().eq('id', invitation.id)
         throw new Error("Ce code d'invitation a expiré")
       }
 

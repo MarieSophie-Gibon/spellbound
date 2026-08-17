@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
 import {
@@ -25,8 +26,6 @@ import {
   PawPrint,
   Eye,
   EyeOff,
-  Loader2,
-  CheckCircle2,
 } from "lucide-react";
 import { usePersonnageDetail } from "@/hooks/personnage/usePersonnageDetail";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -124,7 +123,6 @@ export function PersonnageDetail({
   const [isSaving, setIsSaving] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSaveRef = useRef<(() => Promise<void>) | null>(null);
   const [pendingInlineFocusField, setPendingInlineFocusField] = useState<InlineFocusField | null>(null);
@@ -186,7 +184,6 @@ export function PersonnageDetail({
 
   const startInlineEdit = (focusField?: InlineFocusField) => {
     if (!canInlineEditDesktop || isEditing) return;
-    setShowSavedFeedback(false);
     setPendingInlineFocusField(focusField ?? null);
     setIsEditing(true);
   };
@@ -382,11 +379,9 @@ export function PersonnageDetail({
 
       setIsEditing(false);
       setPendingInlineFocusField(null);
-      setShowSavedFeedback(true);
       if (saveFeedbackTimerRef.current) {
         clearTimeout(saveFeedbackTimerRef.current);
       }
-      saveFeedbackTimerRef.current = setTimeout(() => setShowSavedFeedback(false), 1600);
       onEditSuccess();
     } catch (err: any) {
       alert(err.message);
@@ -563,15 +558,6 @@ export function PersonnageDetail({
 
       {/* HEADER BAR */}
       <div className={`flex flex-col mb-4 shrink-0 gap-3 ${isMobile ? "rounded-xl border border-[#E3CCCD]/16 bg-[#1E1941]/38 backdrop-blur-md p-2" : "gap-4 mt-1"}`}>
-        {!isMobile && !readOnly && (
-          <div className="px-1">
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] uppercase tracking-widest transition-colors ${isEditing ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300" : "border-white/15 bg-white/5 text-white/45"}`}>
-              {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isEditing ? <Pencil className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-              {isSaving ? "Enregistrement..." : isEditing ? "Edition inline active - Enter ou clic exterieur pour valider" : showSavedFeedback ? "Modifications enregistrees" : "Cliquez une zone pour modifier"}
-            </div>
-          </div>
-        )}
-
         {/* Titre et Boutons d'édition */}
         <div className={`flex justify-between px-1 gap-2 ${isMobile ? "items-start" : "flex-col sm:flex-row sm:items-center"}`}>
           <div className="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
