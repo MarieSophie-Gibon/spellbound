@@ -196,6 +196,7 @@ alter table public.dnd_subclasses enable row level security;
 alter table public.dnd_subclass_features enable row level security;
 
 -- dnd_classes policies
+drop policy if exists dnd_classes_select on public.dnd_classes;
 create policy dnd_classes_select on public.dnd_classes
 for select to authenticated
 using (
@@ -203,6 +204,7 @@ using (
   or public.dnd_has_campaign_read_access(campaign_id)
 );
 
+drop policy if exists dnd_classes_insert on public.dnd_classes;
 create policy dnd_classes_insert on public.dnd_classes
 for insert to authenticated
 with check (
@@ -210,6 +212,7 @@ with check (
   and public.dnd_has_campaign_read_access(campaign_id)
 );
 
+drop policy if exists dnd_classes_update on public.dnd_classes;
 create policy dnd_classes_update on public.dnd_classes
 for update to authenticated
 using (
@@ -231,6 +234,7 @@ with check (
   )
 );
 
+drop policy if exists dnd_classes_delete on public.dnd_classes;
 create policy dnd_classes_delete on public.dnd_classes
 for delete to authenticated
 using (
@@ -244,40 +248,48 @@ using (
 );
 
 -- dnd_class_progression policies
+drop policy if exists dnd_class_progression_select on public.dnd_class_progression;
 create policy dnd_class_progression_select on public.dnd_class_progression
 for select to authenticated
 using (public.dnd_can_read_class(class_id));
 
+drop policy if exists dnd_class_progression_write on public.dnd_class_progression;
 create policy dnd_class_progression_write on public.dnd_class_progression
 for all to authenticated
 using (public.dnd_can_write_class(class_id))
 with check (public.dnd_can_write_class(class_id));
 
 -- dnd_class_features policies
+drop policy if exists dnd_class_features_select on public.dnd_class_features;
 create policy dnd_class_features_select on public.dnd_class_features
 for select to authenticated
 using (public.dnd_can_read_class(class_id));
 
+drop policy if exists dnd_class_features_write on public.dnd_class_features;
 create policy dnd_class_features_write on public.dnd_class_features
 for all to authenticated
 using (public.dnd_can_write_class(class_id))
 with check (public.dnd_can_write_class(class_id));
 
 -- dnd_subclasses policies
+drop policy if exists dnd_subclasses_select on public.dnd_subclasses;
 create policy dnd_subclasses_select on public.dnd_subclasses
 for select to authenticated
 using (public.dnd_can_read_class(class_id));
 
+drop policy if exists dnd_subclasses_write on public.dnd_subclasses;
 create policy dnd_subclasses_write on public.dnd_subclasses
 for all to authenticated
 using (public.dnd_can_write_class(class_id))
 with check (public.dnd_can_write_class(class_id));
 
 -- dnd_subclass_features policies
+drop policy if exists dnd_subclass_features_select on public.dnd_subclass_features;
 create policy dnd_subclass_features_select on public.dnd_subclass_features
 for select to authenticated
 using (public.dnd_can_read_subclass(subclass_id));
 
+drop policy if exists dnd_subclass_features_write on public.dnd_subclass_features;
 create policy dnd_subclass_features_write on public.dnd_subclass_features
 for all to authenticated
 using (public.dnd_can_write_subclass(subclass_id))
