@@ -29,6 +29,11 @@ interface CreateCategoryParams {
 }
 
 export function useGrimoireData() {
+  const matchesSystem = useCallback((value: unknown, system: RpgSystem): boolean => {
+    if (value === null || value === undefined || value === "") return true
+    return String(value).toUpperCase() === system
+  }, [])
+
   const getCurrentUserId = useCallback(async (): Promise<string | null> => {
     const { data, error } = await supabase.auth.getUser();
     if (error) throw error;
@@ -42,27 +47,43 @@ export function useGrimoireData() {
       .order("position_index", { ascending: true })
       .order("name");
     if (campaignId) {
-      query = query.or(`campaign_id.eq.${campaignId},and(campaign_id.is.null,system.eq.${system})`);
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     } else {
-      query = query.is("campaign_id", null).eq("system", system);
+      query = query.is("campaign_id", null);
     }
     const { data, error } = await query;
     if (error) throw error;
-    return (data ?? []) as Category[];
-  }, []);
+    const rows = (data ?? []) as Category[];
+
+    if (!campaignId) {
+      return rows.filter((c) => matchesSystem(c.system, system));
+    }
+
+    return rows.filter((c) => c.campaign_id === campaignId || matchesSystem(c.system, system));
+  }, [matchesSystem]);
 
   const fetchWikiPages = useCallback(async ({ isGlobal, campaignId, system }: FetchWikiPagesParams): Promise<WikiPage[]> => {
     let query = supabase.from("wiki_pages").select("*").order("position_index", { ascending: true });
     if (isGlobal) {
-      query = query.is("campaign_id", null).eq("system", system);
+      query = query.is("campaign_id", null);
     } else if (campaignId) {
-      query = query.or(`campaign_id.eq.${campaignId},and(campaign_id.is.null,system.eq.${system})`);
+      query = query.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
     }
 
     const { data, error } = await query;
     if (error) throw error;
-    return (data ?? []) as WikiPage[];
-  }, []);
+    const rows = (data ?? []) as WikiPage[];
+
+    if (isGlobal) {
+      return rows.filter((p) => matchesSystem(p.system, system));
+    }
+
+    if (campaignId) {
+      return rows.filter((p) => p.campaign_id === campaignId || matchesSystem(p.system, system));
+    }
+
+    return rows;
+  }, [matchesSystem]);
 
   const fetchPopupIndex = useCallback(async (): Promise<{ pages: PopupPageListEntry[]; categories: Category[] }> => {
     const [{ data: pagesData, error: pagesError }, { data: categoriesData, error: categoriesError }] = await Promise.all([
