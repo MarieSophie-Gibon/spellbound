@@ -136,6 +136,84 @@ src/
 - Preferer les chemins `src/hooks/core/*` ou `src/hooks/systems/cof/*` quand un wrapper existe.
 - Garder des re-exports pour assurer une migration sans regression.
 
+## D&D 5E: est-ce que l'architecture est prete ?
+
+Oui, pour demarrer le developpement D&D 5E proprement, l'architecture actuelle est suffisamment bonne.
+
+Pourquoi c'est un bon point de depart:
+
+- Le type systeme existe deja (`DND5E` dans `src/lib/types/rpgSystem.ts`).
+- Le projet est deja organise en Core (agnostique) + Systems (specifique metier).
+- Les pages principales (Grimoire/Compendium/Personnages/Scenarios) sont deja proches d'un routage par systeme.
+
+Limites actuelles a connaitre:
+
+- La segregation Core/COF est encore partielle (hooks "Mixed" listés dans `src/hooks/HOOK_SEGREGATION_PLAN.md`).
+- La couche `src/hooks/systems/dnd5e` n'est pas encore en place.
+- Une partie du metier reste encore implémentee directement en COF.
+
+Conclusion:
+
+- Architecture "optimum absolu": pas encore.
+- Architecture "optimum pour commencer D&D 5E sans casser l'existant": oui.
+
+## Commencer a coder D&D 5E (guide rapide)
+
+Objectif: ajouter D&D 5E de facon incrementale, sans regression COF.
+
+1. Creer les points d'entree D&D 5E
+
+- Creer les dossiers:
+  - `src/hooks/systems/dnd5e/compendium`
+  - `src/hooks/systems/dnd5e/personnage`
+  - `src/hooks/systems/dnd5e/scenarios`
+  - `src/components/systems/dnd5e`
+- Ajouter des wrappers minimaux (meme API que COF quand possible) pour faciliter le switch.
+
+2. Prioriser la couche Core avant la logique D&D 5E
+
+- Extraire d'abord les parties agnostiques des hooks "Mixed" vers `src/hooks/core/*`.
+- Garder COF inchange tant qu'une version D&D 5E equivalente n'existe pas.
+
+3. Integrer le switch systeme dans chaque domaine
+
+- Lire `campaign.system` (ou systeme selectionne en mode global).
+- Router vers l'impl D&D 5E dans les hooks/views:
+  - Grimoire
+  - Compendium
+  - Personnages
+  - Scenarios/Combat
+
+4. Commencer par un "vertical slice" D&D 5E
+
+- Exemple recommande:
+  - Personnages: lecture liste + fiche detail
+  - Compendium: lecture (classes, races, sorts) sans edition avancee
+  - Grimoire: categories/pages liees au systeme
+- Eviter de lancer tous les modules D&D 5E en parallele.
+
+5. Strategie de schema et donnees
+
+- Eviter les migrations destructives.
+- Ajouter des colonnes/tables D&D 5E de maniere additive.
+- Conserver la compatibilite lecture avec les donnees legacy (valeurs nulles/systeme absent quand necessaire).
+
+6. Regles de qualite avant merge
+
+- Executer `npm run typecheck` minimum.
+- Pour une PR systeme: executer `npm run verify`.
+- Ajouter des tests ciblant:
+  - non regression COF
+  - comportement D&D 5E attendu
+
+7. Convention de livraison
+
+- PRs petites et verticales (1 domaine + 1 objectif fonctionnel).
+- Toujours documenter:
+  - ce qui reste COF
+  - ce qui est deja D&D 5E
+  - les migrations SQL associees
+
 ## Build et deploiement
 
 - Build front: `npm run build`

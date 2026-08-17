@@ -7,10 +7,13 @@ import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioMod
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";
 import { BookOpen, AlertTriangle, Edit3 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
+import { ScenariosSystemSwitcher } from "@/components/systems/ScenariosSystemSwitcher";
 
 interface ScenariosProps {
   campaignId: string;
   onBack: () => void;
+  campaignSystem?: RpgSystem;
 }
 
 // Modale de confirmation de suppression générique
@@ -62,7 +65,7 @@ function DeleteNodeModal({
   );
 }
 
-export function Scenarios({ campaignId, onBack }: ScenariosProps) {
+export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps) {
   const scenariosData = useScenariosData();
   const [searchParams] = useSearchParams();
   const [scenarios, setScenarios] = useState<any[]>([]);
@@ -279,7 +282,7 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
     />
   );
 
-  return (
+  const cofContent = (
     <>
       <BookLayout spineTitle="Scénarios" sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
         {selectedChapitreId ? (
@@ -408,4 +411,6 @@ export function Scenarios({ campaignId, onBack }: ScenariosProps) {
       )}
     </>
   );
+
+  return <ScenariosSystemSwitcher system={campaignSystem} cofContent={cofContent} />;
 }
