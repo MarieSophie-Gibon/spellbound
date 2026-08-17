@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from "react";
-import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { Package, Search, Plus, Minus, Trash2, Loader2, Sword, Shield, Crosshair, Coins, Backpack, Check } from "lucide-react";
-import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
+import EquipementWizard from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import { usePJs } from "@/hooks/campaign/usePJs";
 
 interface LootItem {

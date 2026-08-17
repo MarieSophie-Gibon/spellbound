@@ -4,28 +4,29 @@ import { BookOpen as BookOpenIcon } from "lucide-react";
 import { BookLayout } from "@/components/layout/BookLayout";
 import { SystemTabs } from "@/components/ui/SystemTabs";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
-import { CompendiumSidebar } from "@/components/compendium/CompendiumSidebar";
-import { CompendiumMobile } from "@/components/compendium/CompendiumMobile";
-import { PeupleDetail } from "@/components/compendium/peuple/PeupleDetail";
-import { FamilleDetail } from "@/components/compendium/famille/FamilleDetail";
-import { ProfilDetail } from "@/components/compendium/profil/ProfilDetail";
-import { DeleteConfirmModal } from "@/components/compendium/DeleteConfirmModal";
-import { PeupleWizard } from "@/components/compendium/peuple/PeupleWizard";
-import { FamilleWizard } from "@/components/compendium/famille/FamilleWizard";
-import { ProfilWizard } from "@/components/compendium/profil/ProfilWizard";
-import { MonsterWizard } from "@/components/compendium/bestiaire/MonsterWizard";
-import { MonsterDetail } from "@/components/compendium/bestiaire/MonsterDetail";
-import { MonsterDetailMobile } from "@/components/compendium/bestiaire/MonsterDetailMobile";
-import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
-import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
-import { EquipementDetail } from "@/components/compendium/equipement/MagicalItemDetail";
-import { VoiePrestigeWizard } from "@/components/compendium/voie de prestige/VoiePrestigeWizard";
-import { VoiePrestigeDetail } from "@/components/compendium/voie de prestige/VoiePrestigeDetail";
+import { CompendiumSidebar } from "@/components/compendium/cof/CompendiumSidebar";
+import { CompendiumMobile } from "@/components/compendium/cof/CompendiumMobile";
+import { PeupleDetail } from "@/components/compendium/cof/peuple/PeupleDetail";
+import { FamilleDetail } from "@/components/compendium/cof/famille/FamilleDetail";
+import { ProfilDetail } from "@/components/compendium/cof/profil/ProfilDetail";
+import { DeleteConfirmModal } from "@/components/compendium/cof/DeleteConfirmModal";
+import { PeupleWizard } from "@/components/compendium/cof/peuple/PeupleWizard";
+import { FamilleWizard } from "@/components/compendium/cof/famille/FamilleWizard";
+import { ProfilWizard } from "@/components/compendium/cof/profil/ProfilWizard";
+import { MonsterWizard } from "@/components/bestiaire/cof/MonsterWizard";
+import { MonsterDetail } from "@/components/bestiaire/cof/MonsterDetail";
+import { MonsterDetailMobile } from "@/components/bestiaire/cof/MonsterDetailMobile";
+import EquipementWizard from "@/components/compendium/cof/equipement/MagicalItemWizard";
+import type { EquipementType } from "@/components/compendium/cof/equipement/MagicalItemWizard";
+import { EquipementDetail } from "@/components/compendium/cof/equipement/MagicalItemDetail";
+import { VoiePrestigeWizard } from "@/components/compendium/cof/voie de prestige/VoiePrestigeWizard";
+import { VoiePrestigeDetail } from "@/components/compendium/cof/voie de prestige/VoiePrestigeDetail";
 import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equipement, Section } from "@/types/compendium";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { useRevealedMonstres, useToggleRevealedMonstre } from "@/hooks/campaign/useCampaigns";
 import { useCompendiumData } from "@/hooks/systems/cof/compendium/useCompendiumData";
 import { CompendiumSystemSwitcher } from "@/components/systems/CompendiumSystemSwitcher";
+import { DndCompendiumSidebar } from "@/components/compendium/dnd/DndCompendiumSidebar";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -85,9 +86,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
   const [isDeletingFamilleArchetype, setIsDeletingFamilleArchetype] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  // ProfilWizard modals removed (unused)
-  // Add missing state for commented ProfilWizard modals (to avoid TS errors if uncommented)
-  // Remove if not needed
+
   const [showEditProfil, setShowEditProfil] = useState(false);
   const [showCreateProfil, setShowCreateProfil] = useState(false);
   const [showCreateMonster, setShowCreateMonster] = useState(false);
@@ -386,6 +385,14 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
     />
         </div>
       )}
+      {effectiveSystem === 'DND5E' && (
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <DndCompendiumSidebar
+            onBack={onBack}
+            readOnly={readOnly}
+          />
+        </div>
+      )}
     </div>
   );
 
@@ -500,7 +507,11 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
       ) : (
       <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
         {effectiveSystem !== 'COF' ? (
-          <CompendiumSystemSwitcher system={effectiveSystem} cofContent={<></>} />
+          <CompendiumSystemSwitcher
+            system={effectiveSystem}
+            cofContent={<></>}
+            dnd5eContent={<></>}
+          />
         ) : activeSection === 'peuples' && selectedPeuple ? (
           <PeupleDetail
             peuple={selectedPeuple}

@@ -1,1 +1,1 @@
-export * from "@/hooks/personnage/useProfile";
+export * from "@/hooks/systems/cof/personnage/useProfile";

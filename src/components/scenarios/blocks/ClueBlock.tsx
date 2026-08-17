@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { Search, User, Package, Dices, X, ChevronDown, ChevronUp, Plus, Sword, Target, Shield } from "lucide-react";
-import EquipementWizard from "@/components/compendium/equipement/MagicalItemWizard";
-import type { EquipementType } from "@/components/compendium/equipement/MagicalItemWizard";
+import EquipementWizard from "@/components/compendium/cof/equipement/MagicalItemWizard";
+import type { EquipementType } from "@/components/compendium/cof/equipement/MagicalItemWizard";
 
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, cb: () => void) {
   useEffect(() => {

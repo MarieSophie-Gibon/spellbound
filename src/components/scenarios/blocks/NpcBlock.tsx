@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Users, Search, MessageSquare, Info, X, UserPlus } from "lucide-react";
-import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
-import { PNJWizard } from "@/components/personnage/PNJWizard";
+import { PNJWizard } from "@/components/personnage/cof/wizard/PNJWizard";
 
 interface NpcBlockProps {
   campaignId: string;

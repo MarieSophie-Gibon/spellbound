@@ -1,0 +1,1685 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect, useRef } from "react";
+import {
+  User,
+  Pencil,
+  Trash2,
+  X,
+  Save,
+  UploadCloud,
+  Sword,
+  Target,
+  Shield,
+  Heart,
+  RefreshCw,
+  Star,
+  Sparkles,
+  Zap,
+  Swords,
+  Wand2,
+  ArrowUpCircle,
+  BookOpen,
+  Package,
+  Maximize2,
+  Minimize2,
+  PawPrint,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { usePersonnageDetail } from "@/hooks/systems/cof/personnage/usePersonnageDetail";
+import { MagicCard } from "@/components/ui/MagicCard";
+import { PvBadge } from "@/components/ui/PvBadge";
+import { VoieBlock } from "@/components/ui/VoieBlock";
+import { CombatStatCard } from "@/components/ui/CombatStatCard";
+import { EditNumField } from "@/components/ui/EditNumField";
+import { useIsMobile } from "@/hooks/shared/useIsMobile";
+
+// Imports des sous-composants
+import InventoryTab from "@/components/personnage/cof/InventoryTab";
+import LoreTab from "@/components/personnage/cof/LoreTab";
+import LevelUpOverlay from "@/components/personnage/cof/wizard/LevelUpOverlay";
+import FamilierTab from "@/components/personnage/cof/FamilierTab";
+import VoieEditModal from "@/components/personnage/cof/wizard/VoieEditModal";
+
+const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
+type StatKey = (typeof STATS_KEYS)[number];
+type InlineFocusField = "pv" | "pvMax" | "initiative" | "defense" | "attContact" | "attDistance" | "attMagie" | "drQty" | "drDe" | "pc" | "pm";
+
+export interface VoieDetail {
+  id: string;
+  nom: string;
+  type: string;
+  peuple_id?: string | null;
+  profil_id?: string | null;
+  capacites: Record<
+    string,
+    { nom: string; type?: string; description: string }
+  >;
+}
+
+interface PersonnageDetailProps {
+  pj: {
+    id: string;
+    name: string;
+    image_url: string | null;
+    user_id?: string | null;
+    stats: any;
+    pathways: any;
+    inventory: any;
+  } | null;
+  type?: "pj" | "pnj";
+  campaignId: string;
+  isFullscreen: boolean;
+  readOnly?: boolean;
+  technicalSheetOnly?: boolean;
+  isMJ?: boolean;
+  showFullscreenToggle?: boolean;
+  /** IDs des PNJ déjà révélés aux joueurs (seulement si isMJ && type === "pnj") */
+  revealedPnjIds?: Set<string>;
+  /** Callback pour basculer la visibilité d'un PNJ (seulement si isMJ && type === "pnj") */
+  onToggleRevealPnj?: (pnjId: string, isCurrentlyRevealed: boolean) => void;
+  onToggleFullscreen: () => void;
+  onDeleteClick: () => void;
+  onCreateClick: () => void;
+  onEditSuccess: () => void;
+}
+
+const getCost = (rang: number) => (rang <= 2 ? 1 : 2);
+const isPrestigeType = (type?: string | null) => (type || "").toLowerCase() === "prestige";
+
+function getDerivedAttacks(level: number, characteristics: Record<string, number>) {
+  const forStat = Number(characteristics?.FOR ?? 0);
+  const agi = Number(characteristics?.AGI ?? 0);
+  const vol = Number(characteristics?.VOL ?? 0);
+
+  return {
+    contact: level + forStat,
+    distance: level + agi,
+    magie: level + vol,
+  };
+}
+
+const TOKEN_FACE_MIN_ZOOM = 0.25;
+const TOKEN_FACE_MAX_ZOOM = 6;
+const TOKEN_FACE_MIN_OFFSET = -150;
+const TOKEN_FACE_MAX_OFFSET = 150;
+const TOKEN_FACE_DEFAULT_OFFSET_Y = 18;
+const TOKEN_FACE_PREVIEW_SIZE_PX = 96;
+const TOKEN_FACE_WHEEL_STEP = 0.1;
+
+function clampTokenFaceZoom(value: number) {
+  return Number.isFinite(value) ? Math.max(TOKEN_FACE_MIN_ZOOM, Math.min(TOKEN_FACE_MAX_ZOOM, value)) : 1;
+}
+
+function clampTokenFaceOffset(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  const bounded = Math.max(TOKEN_FACE_MIN_OFFSET, Math.min(TOKEN_FACE_MAX_OFFSET, value));
+  return Math.round(bounded * 100) / 100;
+}
+
+export function PersonnageDetail({
+  pj,
+  type = "pj",
+  campaignId,
+  isFullscreen,
+  readOnly,
+  technicalSheetOnly = false,
+  isMJ = false,
+  showFullscreenToggle = true,
+  revealedPnjIds,
+  onToggleRevealPnj,
+  onToggleFullscreen,
+  onDeleteClick,
+  onEditSuccess,
+}: PersonnageDetailProps) {
+  const personnageDetailApi = usePersonnageDetail();
+  const isMobile = useIsMobile();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [voieDetails, setVoieDetails] = useState<VoieDetail[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const saveFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSaveRef = useRef<(() => Promise<void>) | null>(null);
+  const [pendingInlineFocusField, setPendingInlineFocusField] = useState<InlineFocusField | null>(null);
+
+  const [activeTab, setActiveTab] = useState<"stats" | "inventory" | "lore" | "familiers">("stats");
+
+  // Level Up States
+  const [isLevelingUp, setIsLevelingUp] = useState(false);
+  const [isEditingVoies, setIsEditingVoies] = useState(false);
+  const [pendingRanks, setPendingRanks] = useState<{ voie_id: string; rang: number }[]>([]);
+  const [allVoies, setAllVoies] = useState<VoieDetail[]>([]);
+
+  // Form Fields State
+  const [editName, setEditName] = useState("");
+  const [editUserId, setEditUserId] = useState("");
+  const [players, setPlayers] = useState<Array<{ id: string; pseudo: string }>>([]);
+  const [editSexe, setEditSexe] = useState("Masculin");
+  const [editAge, setEditAge] = useState("");
+  const [editCaract, setEditCaract] = useState<Record<StatKey, number>>(
+    () => Object.fromEntries(STATS_KEYS.map((k) => [k, 0])) as any,
+  );
+  const [editBonusCaract, setEditBonusCaract] = useState<Record<StatKey, boolean>>(
+    () => Object.fromEntries(STATS_KEYS.map((k) => [k, false])) as any,
+  );
+  const [editPv, setEditPv] = useState(0);
+  const [editPvMax, setEditPvMax] = useState(0);
+  const [editDrQty, setEditDrQty] = useState(0);
+  const [editDrDe, setEditDrDe] = useState("d6");
+  const [editPc, setEditPc] = useState(0);
+  const [editPm, setEditPm] = useState(0);
+  const [editInitiative, setEditInitiative] = useState(0);
+  const [editDefense, setEditDefense] = useState(0);
+  const [editAttContact, setEditAttContact] = useState(0);
+  const [editAttDistance, setEditAttDistance] = useState(0);
+  const [editAttMagie, setEditAttMagie] = useState(0);
+  const [editNiveau, setEditNiveau] = useState(1);
+  const [editTokenFaceZoom, setEditTokenFaceZoom] = useState(1);
+  const [editTokenFaceOffsetX, setEditTokenFaceOffsetX] = useState(0);
+  const [editTokenFaceOffsetY, setEditTokenFaceOffsetY] = useState(TOKEN_FACE_DEFAULT_OFFSET_Y);
+  const tokenFaceDragRef = useRef<{ pointerId: number; startX: number; startY: number; baseOffsetX: number; baseOffsetY: number; previewSize: number } | null>(null);
+  const [isTokenFaceDragging, setIsTokenFaceDragging] = useState(false);
+  // PNJ combat type (pour édition)
+  const [editIsCombatant, setEditIsCombatant] = useState(false);
+  const [editCombatStatsMode, setEditCombatStatsMode] = useState<'simple' | 'extended'>('extended');
+  // Attaques et capacités spéciales (mode monstre)
+  const [editAttaques, setEditAttaques] = useState<Array<{nom: string; bonus: string; degats: string; description: string}>>([]);
+  const [editCapacites, setEditCapacites] = useState<Array<{nom: string; description: string}>>([]); 
+
+  // Armes affichées dans la fiche technique
+  const [weapons, setWeapons] = useState<any[]>([]);
+  const [weaponsRefreshKey, setWeaponsRefreshKey] = useState(0);
+    const [localStats, setLocalStats] = useState<Record<string, any> | null>(pj?.stats ?? null);
+  
+  // PJ Lore
+  const [editIdeal, setEditIdeal] = useState("");
+  const [editTravers, setEditTravers] = useState("");
+  const [editHistorique, setEditHistorique] = useState("");
+
+  // PNJ Lore
+  const [editDescription, setEditDescription] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
+  const canInlineEditDesktop = !isMobile && !readOnly;
+
+  const startInlineEdit = (focusField?: InlineFocusField) => {
+    if (!canInlineEditDesktop || isEditing) return;
+    setPendingInlineFocusField(focusField ?? null);
+    setIsEditing(true);
+  };
+
+  useEffect(() => {
+    if (isEditingVoies && containerRef.current) {
+      containerRef.current.scrollTop = 0;
+    }
+  }, [isEditingVoies]);
+
+  useEffect(() => {
+    if (!pj?.pathways?.length) {
+      setVoieDetails([]);
+      return;
+    }
+    personnageDetailApi
+      .fetchVoieDetailsByPathways(pj.pathways as any[])
+      .then((data) => setVoieDetails(data as VoieDetail[]))
+      .catch(() => setVoieDetails([]));
+  }, [personnageDetailApi, pj?.id, pj?.pathways]);
+
+  useEffect(() => {
+    if (isLevelingUp || isEditingVoies) {
+      personnageDetailApi
+        .fetchAllVoies()
+        .then((data) => setAllVoies(data as VoieDetail[]))
+        .catch(() => setAllVoies([]));
+    }
+  }, [isLevelingUp, isEditingVoies, personnageDetailApi]);
+
+  useEffect(() => {
+    if (type !== "pj") return;
+    personnageDetailApi
+      .fetchPlayers()
+      .then((data) => setPlayers(data))
+      .catch(() => setPlayers([]));
+  }, [personnageDetailApi, type]);
+
+  useEffect(() => {
+    if (!pj) return;
+    setEditName(pj.name);
+    setEditUserId(type === "pj" ? (pj.user_id ?? "") : "");
+    setEditSexe(pj.stats?.sexe ?? "Masculin");
+    setEditAge(pj.stats?.age ?? "");
+    const c = pj.stats?.caracteristiques ?? {};
+    setEditCaract(
+      Object.fromEntries(STATS_KEYS.map((k) => [k, c[k] ?? 0])) as any,
+    );
+    const bc = pj.stats?.bonus_caracteristiques ?? {};
+    setEditBonusCaract(
+      Object.fromEntries(STATS_KEYS.map((k) => [k, bc[k] ?? false])) as any,
+    );
+    const levelForDerived = pj.stats?.niveau ?? 1;
+    setEditPv(pj.stats?.pv ?? 0);
+    setEditPvMax(Math.max(Number(pj.stats?.pv_max ?? 0), Number(pj.stats?.pv ?? 0)));
+    setEditDrQty(pj.stats?.dr_qty ?? 0);
+    setEditDrDe(pj.stats?.dr_de ?? "d6");
+    setEditPc(pj.stats?.pc ?? 0);
+    setEditPm(pj.stats?.pm ?? 0);
+    setEditInitiative(pj.stats?.initiative ?? 0);
+    setEditDefense(pj.stats?.defense ?? 0);
+    const derivedFromStats = getDerivedAttacks(levelForDerived, c);
+    setEditAttContact(typeof pj.stats?.att_contact === "number" ? pj.stats.att_contact : derivedFromStats.contact);
+    setEditAttDistance(typeof pj.stats?.att_distance === "number" ? pj.stats.att_distance : derivedFromStats.distance);
+    setEditAttMagie(typeof pj.stats?.att_magie === "number" ? pj.stats.att_magie : derivedFromStats.magie);
+    setEditNiveau(pj.stats?.niveau ?? 1);
+    
+    // Lore dynamique selon PJ ou PNJ
+    setEditIdeal(pj.stats?.ideal ?? "");
+    setEditTravers(pj.stats?.travers ?? "");
+    setEditHistorique(pj.stats?.historique ?? "");
+    setEditDescription(pj.stats?.description ?? "");
+    setEditNotes(pj.stats?.notes ?? "");
+    setEditIsCombatant(pj.stats?.is_combatant ?? false);
+    setEditCombatStatsMode((pj.stats?.combat_stats_mode as 'simple' | 'extended') ?? 'extended');
+    setEditAttaques(Array.isArray(pj.stats?.attaques) ? pj.stats.attaques : []);
+    setEditCapacites(Array.isArray(pj.stats?.capacites_speciales) ? pj.stats.capacites_speciales : []);
+
+    const tokenFaceNested = pj.stats?.token_face ?? {};
+    const tokenFaceZoom = Number(pj.stats?.token_face_zoom ?? tokenFaceNested.zoom ?? 1);
+    const tokenFaceOffsetX = Number(pj.stats?.token_face_offset_x ?? tokenFaceNested.offsetX ?? 0);
+    const tokenFaceOffsetY = Number(pj.stats?.token_face_offset_y ?? tokenFaceNested.offsetY ?? TOKEN_FACE_DEFAULT_OFFSET_Y);
+    setEditTokenFaceZoom(clampTokenFaceZoom(tokenFaceZoom));
+    setEditTokenFaceOffsetX(clampTokenFaceOffset(tokenFaceOffsetX));
+    setEditTokenFaceOffsetY(clampTokenFaceOffset(tokenFaceOffsetY));
+
+    setIsEditing(false);
+    setIsLevelingUp(false);
+    
+    // Si c'est un PJ ou un PNJ combattant, on remet l'onglet stats par défaut
+    setActiveTab("stats");
+  }, [pj, type]);
+
+  useEffect(() => {
+    if (!technicalSheetOnly) return;
+    setActiveTab("stats");
+    setIsLevelingUp(false);
+  }, [technicalSheetOnly]);
+
+ /// Chargement des armes depuis l'inventaire
+  useEffect(() => {
+    if (!pj?.id) { setWeapons([]); return; }
+
+    const fetchWeapons = async () => {
+      try {
+        const data = await personnageDetailApi.fetchWeapons(pj.id, type);
+        setWeapons(data);
+      } catch {
+        setWeapons([]);
+      }
+    };
+
+    fetchWeapons();
+  }, [personnageDetailApi, pj?.id, type, weaponsRefreshKey]);
+
+  console.log("weapons", weapons);
+  const handleSave = async () => {
+    if (!pj) return;
+    setIsSaving(true);
+    try {
+      let imageUrl = pj.image_url;
+      if (imageFile) {
+        imageUrl = await personnageDetailApi.uploadImage(type, imageFile);
+      }
+
+      const normalizedPvMaxForSave = Math.max(Number(editPvMax ?? 0), Number(editPv ?? 0));
+
+      const statsToSave = type === "pnj" ? {
+        ...pj.stats,
+        sexe: editSexe,
+        age: editAge,
+        description: editDescription,
+        notes: editNotes,
+        is_combatant: editIsCombatant,
+        combat_stats_mode: editIsCombatant ? editCombatStatsMode : undefined,
+        ...(editIsCombatant ? {
+          pv: editPv,
+          pv_max: normalizedPvMaxForSave,
+          dr_qty: editDrQty,
+          dr_de: editDrDe,
+          initiative: editInitiative,
+          defense: editDefense,
+          ...(editCombatStatsMode === 'extended' ? {
+            caracteristiques: editCaract,
+            bonus_caracteristiques: editBonusCaract,
+            pc: editPc,
+            pm: editPm,
+            att_contact: editAttContact,
+            att_distance: editAttDistance,
+            att_magie: editAttMagie,
+            niveau: editNiveau,
+          } : {
+            att_contact: editAttContact,
+            att_distance: editAttDistance,
+            att_magie: editAttMagie,
+            caracteristiques: editCaract,
+            attaques: editAttaques,
+            capacites_speciales: editCapacites,
+          })
+        } : {})
+        ,
+        token_face_zoom: editTokenFaceZoom,
+        token_face_offset_x: editTokenFaceOffsetX,
+        token_face_offset_y: editTokenFaceOffsetY,
+        token_face: {
+          zoom: editTokenFaceZoom,
+          offsetX: editTokenFaceOffsetX,
+          offsetY: editTokenFaceOffsetY,
+        },
+      } : {
+        ...pj.stats,
+        sexe: editSexe,
+        age: editAge,
+        caracteristiques: editCaract,
+        bonus_caracteristiques: editBonusCaract,
+        pv: editPv,
+        pv_max: normalizedPvMaxForSave,
+        dr_qty: editDrQty,
+        dr_de: editDrDe,
+        pc: editPc,
+        pm: editPm,
+        initiative: editInitiative,
+        defense: editDefense,
+        att_contact: editAttContact,
+        att_distance: editAttDistance,
+        att_magie: editAttMagie,
+        niveau: editNiveau,
+        ideal: editIdeal,
+        travers: editTravers,
+        historique: editHistorique,
+        token_face_zoom: editTokenFaceZoom,
+        token_face_offset_x: editTokenFaceOffsetX,
+        token_face_offset_y: editTokenFaceOffsetY,
+        token_face: {
+          zoom: editTokenFaceZoom,
+          offsetX: editTokenFaceOffsetX,
+          offsetY: editTokenFaceOffsetY,
+        },
+      };
+
+      // Déduire peuple_id depuis la voie du peuple (si elle existe)
+      let peupleId: string | null = null;
+      if (pj.pathways && Array.isArray(pj.pathways)) {
+        // Cherche la voie qui correspond à un peuple (type === 'peuple')
+        const peupleVoie = pj.pathways.find((v: any) => v.type === 'peuple' || v.isPeuple);
+        if (peupleVoie && peupleVoie.voie_id) {
+          peupleId = peupleVoie.voie_id;
+        }
+      }
+
+      await personnageDetailApi.updateCharacter(pj.id, type, {
+        name: editName.trim() || pj.name,
+        image_url: imageUrl,
+        stats: statsToSave,
+        ...(type === "pj" ? { user_id: editUserId || null } : {}),
+        ...(peupleId ? { peuple_id: peupleId } : {}),
+      });
+
+      setIsEditing(false);
+      setPendingInlineFocusField(null);
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+      }
+      onEditSuccess();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  handleSaveRef.current = handleSave;
+
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimerRef.current) {
+        clearTimeout(saveFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isEditing || isMobile || readOnly || isSaving) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (containerRef.current?.contains(target)) return;
+      void handleSaveRef.current?.();
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isEditing, isMobile, isSaving, readOnly]);
+
+  useEffect(() => {
+    if (!isEditing || isMobile || readOnly || isSaving) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === "TEXTAREA") return;
+      event.preventDefault();
+      void handleSaveRef.current?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isEditing, isMobile, isSaving, readOnly]);
+
+  const handleSaveLevelUp = async () => {
+    if (!pj) return;
+    setIsSaving(true);
+    try {
+      await personnageDetailApi.saveLevelUp(
+        { id: pj.id, stats: pj.stats ?? null, pathways: pj.pathways ?? null },
+        type,
+        pendingRanks,
+      );
+        
+      setIsLevelingUp(false);
+      setPendingRanks([]);
+      onEditSuccess();
+    } catch (err: any) {
+      alert("Erreur lors du passage de niveau : " + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!pj) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center px-10 gap-4">
+        <User className="w-12 h-12 text-white/10" />
+        <p className="text-white/30 text-sm italic">
+          Sélectionnez un personnage ou créez-en un nouveau.
+        </p>
+      </div>
+    );
+  }
+
+  // Vérification stricte : c'est un PNJ et la case combatant n'est pas cochée
+  const isNonCombatantPNJ = type === "pnj" && (isEditing ? !editIsCombatant : pj.stats?.is_combatant !== true);
+  const effectiveCombatStatsMode = isEditing ? editCombatStatsMode : ((pj.stats?.combat_stats_mode as 'simple' | 'extended') ?? 'extended');
+  const isSimpleCombatant = !isNonCombatantPNJ && type === "pnj" && effectiveCombatStatsMode === 'simple';
+
+  const caract = pj.stats?.caracteristiques ?? {};
+  const displayImageUrl = imagePreview ?? pj.image_url;
+  const assignedPlayer = players.find((p) => p.id === (pj.user_id ?? ""));
+  const currentLevel = pj.stats?.niveau ?? 1;
+  const derivedCurrentAttacks = getDerivedAttacks(currentLevel, caract as Record<string, number>);
+  const derivedCurrentPvMax = Math.max(Number(pj.stats?.pv_max ?? 0), Number(pj.stats?.pv ?? 0));
+  const displayAttContact = typeof pj.stats?.att_contact === "number" ? pj.stats.att_contact : derivedCurrentAttacks.contact;
+  const displayAttDistance = typeof pj.stats?.att_distance === "number" ? pj.stats.att_distance : derivedCurrentAttacks.distance;
+  const displayAttMagie = typeof pj.stats?.att_magie === "number" ? pj.stats.att_magie : derivedCurrentAttacks.magie;
+  const targetLevel = currentLevel + 1;
+  const pointsSpent = pendingRanks.reduce((acc, curr) => {
+    const voie =
+      allVoies.find((v) => v.id === curr.voie_id) ||
+      voieDetails.find((v) => v.id === curr.voie_id);
+    const cost = isPrestigeType(voie?.type) ? 2 : getCost(curr.rang);
+    return acc + cost;
+  }, 0);
+  const pointsRemaining = 2 - pointsSpent;
+
+  const mobileNavItems: Array<{
+    key: "stats" | "inventory" | "lore" | "familiers";
+    label: string;
+    icon: typeof Shield;
+  }> = [];
+
+  if (!isNonCombatantPNJ) {
+    mobileNavItems.push(
+      { key: "stats", label: "Technique", icon: Shield },
+      { key: "inventory", label: "Equipement", icon: Package },
+    );
+
+    if (!technicalSheetOnly) {
+      mobileNavItems.push(
+        { key: "lore", label: type === "pnj" ? "Description" : "Lore", icon: BookOpen },
+        { key: "familiers", label: "Familiers & Alliés", icon: PawPrint },
+      );
+    }
+  }
+
+  const handleTokenFacePreviewPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!displayImageUrl) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const previewSize = rect.height > 0 ? rect.height : TOKEN_FACE_PREVIEW_SIZE_PX;
+    tokenFaceDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseOffsetX: editTokenFaceOffsetX,
+      baseOffsetY: editTokenFaceOffsetY,
+      previewSize,
+    };
+    setIsTokenFaceDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleTokenFacePreviewPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = tokenFaceDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    const sensitivity = 100 / drag.previewSize;
+    const zoomCompensation = Math.max(editTokenFaceZoom, 1);
+
+    setEditTokenFaceOffsetX(clampTokenFaceOffset(drag.baseOffsetX + (dx * sensitivity) / zoomCompensation));
+    setEditTokenFaceOffsetY(clampTokenFaceOffset(drag.baseOffsetY + (dy * sensitivity) / zoomCompensation));
+  };
+
+  const handleTokenFacePreviewPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = tokenFaceDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    tokenFaceDragRef.current = null;
+    setIsTokenFaceDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const handleTokenFacePreviewWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!displayImageUrl) return;
+    e.preventDefault();
+    const direction = e.deltaY < 0 ? 1 : -1;
+    setEditTokenFaceZoom((prev) => clampTokenFaceZoom(prev + direction * TOKEN_FACE_WHEEL_STEP));
+  };
+
+  return (
+    <div ref={containerRef} className={`flex-1 flex flex-col h-full min-h-0 scrollbar-thin scrollbar-thumb-white/10 relative ${isEditingVoies ? "overflow-hidden" : "overflow-y-auto"} ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
+      {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
+      {isEditingVoies && !readOnly && (
+        <VoieEditModal
+          pj={pj}
+          type={type}
+          voieDetails={voieDetails}
+          allVoies={allVoies}
+          onSaved={onEditSuccess}
+          onClose={() => setIsEditingVoies(false)}
+          positionAbsolute
+        />
+      )}
+
+      {isLevelingUp && !readOnly && !technicalSheetOnly && (
+        <LevelUpOverlay
+          pj={pj}
+          targetLevel={targetLevel}
+          pointsRemaining={pointsRemaining}
+          pendingRanks={pendingRanks}
+          setPendingRanks={setPendingRanks}
+          voieDetails={voieDetails}
+          allVoies={allVoies}
+          handleSaveLevelUp={handleSaveLevelUp}
+          setIsLevelingUp={setIsLevelingUp}
+        />
+      )}
+
+      {mobileNavItems.length > 0 && (
+        <div className="md:hidden sticky top-0 z-20 mb-3">
+          <div className={`grid gap-1 rounded-xl border border-[#E3CCCD]/20 bg-[#1E1941]/85 backdrop-blur-xl p-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.35)] ${mobileNavItems.length >= 4 ? "grid-cols-4" : "grid-cols-2"}`}>
+            {mobileNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.key;
+
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveTab(item.key)}
+                  className={`h-10 rounded-lg text-[9px] font-bold uppercase tracking-wide transition-all flex flex-col items-center justify-center gap-0.5 ${
+                    isActive
+                      ? "bg-[#29206A]/45 text-[#EFDCC8] border border-[#E3CCCD]/35"
+                      : "text-white/55 border border-transparent"
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* HEADER BAR */}
+      <div className={`flex flex-col mb-4 shrink-0 gap-3 ${isMobile ? "rounded-xl border border-[#E3CCCD]/16 bg-[#1E1941]/38 backdrop-blur-md p-2" : "gap-4 mt-1"}`}>
+        {/* Titre et Boutons d'édition */}
+        <div className={`flex justify-between px-1 gap-2 ${isMobile ? "items-start" : "flex-col sm:flex-row sm:items-center"}`}>
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0 flex-1 sm:mr-3">
+            {isEditing ? (
+              <>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  autoFocus
+                  className="font-serif text-3xl text-white tracking-wider bg-transparent border-b border-[#E3CCCD]/40 outline-none focus:border-[#E3CCCD]/80 w-full"
+                />
+                {!isNonCombatantPNJ && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] uppercase tracking-widest text-white/40">
+                      Niv.
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={editNiveau}
+                      onChange={(e) =>
+                        setEditNiveau(parseInt(e.target.value) || 1)
+                      }
+                      className="w-10 text-center font-mono text-sm text-white bg-white/8 border border-white/15 rounded-lg py-0.5 outline-none focus:border-[#E3CCCD]/50"
+                    />
+                  </div>
+                )}
+                {type === "pj" && (
+                  <div className="flex items-center gap-1.5 shrink-0 min-w-[170px]">
+                    <span className="text-[10px] uppercase tracking-widest text-white/40">Joueur</span>
+                    <select
+                      value={editUserId}
+                      onChange={(e) => setEditUserId(e.target.value)}
+                      className="min-w-0 flex-1 bg-white/5 border border-white/15 focus:border-[#E3CCCD]/45 rounded-lg px-2 py-1 text-white/85 text-xs outline-none transition-colors appearance-none cursor-pointer"
+                    >
+                      <option value="" className="bg-[#1E1941] text-white/50">Non assigne</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">{p.pseudo}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h1
+                  onClick={() => startInlineEdit()}
+                  className={`font-serif text-white tracking-wider truncate ${isMobile ? "text-xl" : "text-2xl sm:text-3xl"} ${canInlineEditDesktop ? "cursor-text hover:text-[#EFDCC8]" : ""}`}
+                  title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                >
+                  {pj.name}
+                </h1>
+                {!isNonCombatantPNJ && (
+                  <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-3 py-1 shrink-0">
+                    Niv. {currentLevel}
+                  </span>
+                )}
+                {type === "pj" && (
+                  <span className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/55 border border-[#E3CCCD]/20 rounded-full px-2.5 py-1 shrink-0">
+                    Joueur: {assignedPlayer?.pseudo ?? "Non assigne"}
+                  </span>
+                )}
+                {/* Level Up caché pour les PNJ non combattants */}
+                {!isNonCombatantPNJ && !readOnly && !technicalSheetOnly && (
+                  <button
+                    onClick={() => setIsLevelingUp(true)}
+                    className="text-[10px] font-bold uppercase tracking-widest text-emerald-300 border border-emerald-400/50 bg-emerald-400/20 hover:bg-emerald-400/30 rounded-full px-3 py-1 shrink-0 flex items-center gap-1.5 transition-all sm:ml-2 animate-pulse hover:animate-none shadow-[0_0_10px_rgba(52,211,153,0.3)] hover:shadow-[0_0_15px_rgba(52,211,153,0.5)]"
+                  >
+                    <ArrowUpCircle className="w-3.5 h-3.5" /> Level Up
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          <div className={`${isMobile ? "self-auto w-auto" : "self-end sm:self-auto"} flex items-center gap-1 bg-[#1E1941]/80 border border-[#E3CCCD]/20 rounded-full px-2 py-1 backdrop-blur-md shadow-xl shrink-0`}>
+            {showFullscreenToggle && (
+              <>
+                <button
+                  onClick={onToggleFullscreen}
+                  className="p-2 sm:p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors mr-1"
+                  title={isFullscreen ? "Réduire" : "Plein écran"}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+                <div className="w-px h-4 bg-white/20 mx-1"></div>
+              </>
+            )}
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => {
+                    setPendingInlineFocusField(null);
+                    setIsEditing(false);
+                  }}
+                  className="p-2 sm:p-1.5 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="p-2 sm:p-1.5 text-emerald-400/80 hover:text-emerald-300 hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                {isMJ && type === "pnj" && onToggleRevealPnj && pj && (
+                  <>
+                    <button
+                      onClick={() => onToggleRevealPnj(pj.id, revealedPnjIds?.has(pj.id) ?? false)}
+                      title={revealedPnjIds?.has(pj.id) ? "Masquer aux joueurs" : "Révéler aux joueurs"}
+                      className={`p-2 sm:p-1 rounded-full transition-colors ${
+                        revealedPnjIds?.has(pj.id)
+                          ? "text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10"
+                          : "text-white/40 hover:text-white hover:bg-white/10"
+                      }`}
+                    >
+                      {revealedPnjIds?.has(pj.id) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                    </button>
+                    <div className="w-px h-4 bg-white/20 mx-1" />
+                  </>
+                )}
+                {!readOnly && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="p-2 sm:p-1 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
+                {!readOnly && (
+                  <button
+                    onClick={onDeleteClick}
+                    className="p-2 sm:p-1 text-white/60 hover:text-[#ff6b6b] hover:bg-[#ff6b6b]/10 rounded-full transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {type === "pnj" && isEditing && isMJ && (
+          <div className="px-3 mt-2 flex flex-wrap gap-2 items-center">
+            <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border border-sky-500/35 bg-sky-500/8 hover:bg-sky-500/12 transition-colors">
+              <input
+                type="checkbox"
+                checked={editIsCombatant}
+                onChange={(e) => {
+                  setEditIsCombatant(e.target.checked);
+                  if (!e.target.checked) setActiveTab("stats");
+                }}
+                className="w-4 h-4 accent-sky-500"
+              />
+              <span className="text-[12px] text-sky-300/90 font-medium select-none">Combattant</span>
+            </label>
+            {editIsCombatant && (
+              <div className="flex items-center rounded-lg border border-white/15 overflow-hidden text-[11px] font-medium">
+                <button
+                  type="button"
+                  onClick={() => setEditCombatStatsMode('simple')}
+                  className={`px-3 py-1.5 transition-colors ${editCombatStatsMode === 'simple' ? 'bg-white/20 text-white' : 'text-white/40 hover:bg-white/8 hover:text-white/70'}`}
+                >
+                  Monstre
+                </button>
+                <div className="w-px h-4 bg-white/15" />
+                <button
+                  type="button"
+                  onClick={() => setEditCombatStatsMode('extended')}
+                  className={`px-3 py-1.5 transition-colors ${editCombatStatsMode === 'extended' ? 'bg-white/20 text-white' : 'text-white/40 hover:bg-white/8 hover:text-white/70'}`}
+                >
+                  Personnage
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isEditing && !readOnly && (
+          <div className="px-2.5 mt-2 rounded-lg border border-white/10 bg-white/3 p-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-2.5 items-stretch">
+              <div className="flex flex-col items-center gap-1 md:pr-1 self-center">
+                <div
+                  className={`rounded-full overflow-hidden border border-white/18 bg-black/25 shadow-inner ${displayImageUrl ? (isTokenFaceDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-not-allowed"}`}
+                  style={{ width: TOKEN_FACE_PREVIEW_SIZE_PX, height: TOKEN_FACE_PREVIEW_SIZE_PX }}
+                  onPointerDown={handleTokenFacePreviewPointerDown}
+                  onPointerMove={handleTokenFacePreviewPointerMove}
+                  onPointerUp={handleTokenFacePreviewPointerEnd}
+                  onPointerCancel={handleTokenFacePreviewPointerEnd}
+                  onLostPointerCapture={handleTokenFacePreviewPointerEnd}
+                  onWheel={handleTokenFacePreviewWheel}
+                  title={displayImageUrl ? "Clique et glisse pour deplacer l'image dans le jeton" : "Ajoute une image pour activer le cadrage"}
+                >
+                  {displayImageUrl ? (
+                    <img
+                      src={displayImageUrl}
+                      alt="Apercu jeton"
+                      className="w-full h-full object-contain"
+                      style={{
+                        transformOrigin: "center center",
+                        transform: `translate(${editTokenFaceOffsetX}%, ${editTokenFaceOffsetY}%) scale(${editTokenFaceZoom})`,
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-white/40 text-center px-2">
+                      Pas d'image
+                    </div>
+                  )}
+                </div>
+                <span className="text-[9px] text-white/46 uppercase tracking-[0.12em]">Apercu live</span>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/55">
+                  Cadrage jeton battlemap (focus visage)
+                </p>
+                <label className="text-[11px] text-white/62 flex flex-col gap-1">
+                  <span className="flex items-center justify-between">
+                    <span>Zoom</span>
+                    <span className="text-[10px] text-white/52">{editTokenFaceZoom.toFixed(2)}x</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={TOKEN_FACE_MIN_ZOOM}
+                      max={TOKEN_FACE_MAX_ZOOM}
+                      step={0.05}
+                      value={editTokenFaceZoom}
+                      onChange={(e) => setEditTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
+                      className="w-full accent-white/70"
+                    />
+                    <input
+                      type="number"
+                      min={TOKEN_FACE_MIN_ZOOM}
+                      max={TOKEN_FACE_MAX_ZOOM}
+                      step={0.05}
+                      value={editTokenFaceZoom}
+                      onChange={(e) => setEditTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
+                      className="w-20 bg-white/4 border border-white/12 rounded-md px-2 py-1 text-white/80 text-xs outline-none focus:border-white/30"
+                    />
+                  </div>
+                </label>
+
+                <p className="text-[10px] text-white/48 uppercase tracking-[0.12em]">
+                  Position: glisser l'image dans le jeton
+                </p>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditTokenFaceZoom(1);
+                      setEditTokenFaceOffsetX(0);
+                      setEditTokenFaceOffsetY(TOKEN_FACE_DEFAULT_OFFSET_Y);
+                    }}
+                    className="text-[10px] px-2 py-1 rounded-md border border-white/12 text-white/62 hover:text-white hover:bg-white/8 transition-colors"
+                  >
+                    Reinitialiser
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TABS SELECTOR - Masqué si PNJ Non Combattant */}
+        {!isNonCombatantPNJ && (
+          <div className="hidden md:flex gap-1 border-b border-[#E3CCCD]/20 px-2 mt-2 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10">
+            <button
+              onClick={() => setActiveTab("stats")}
+              className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                activeTab === "stats"
+                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5" /> Fiche Technique
+            </button>
+
+            <button
+              onClick={() => setActiveTab("inventory")}
+              className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                activeTab === "inventory"
+                  ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                  : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+              }`}
+            >
+              <Package className="w-3.5 h-3.5" /> Sac & Équipement
+            </button>
+
+            {!technicalSheetOnly && (
+              <>
+                <button
+                  onClick={() => setActiveTab("lore")}
+                  className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                    activeTab === "lore"
+                      ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                      : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+                  }`}
+                >
+                  <BookOpen className="w-3.5 h-3.5" /> {type === "pnj" ? (isMJ ? "Description & Notes" : "Description") : "Histoire & Lore"}
+                </button>
+
+                <button
+                  onClick={() => setActiveTab("familiers")}
+                  className={`shrink-0 flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-2.5 rounded-t-xl text-[10px] sm:text-[11px] font-bold uppercase tracking-widest transition-all border border-b-0 ${
+                    activeTab === "familiers"
+                      ? "bg-[#1E1941]/60 border-[#E3CCCD]/30 text-[#E3CCCD] relative z-10 -mb-px shadow-[0_-5px_15px_rgba(0,0,0,0.2)]"
+                      : "bg-black/10 border-transparent text-white/40 hover:text-white/80 hover:bg-white/5"
+                  }`}
+                >
+                  🐾 Familiers & Alliés
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-4 flex-1">
+        
+        {/* ========================================================= */}
+        {/* VUE UNIQUE : PNJ NON COMBATTANT                           */}
+        {/* ========================================================= */}
+        {isNonCombatantPNJ && (
+          <div className="flex flex-col md:flex-row gap-6 items-stretch animate-in fade-in duration-200 mt-2">
+            <div className="relative shrink-0 mx-auto md:mx-0">
+              <MagicCard
+                imageUrl={displayImageUrl}
+                title={pj.name}
+              />
+              {isEditing && (
+                <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
+                  <UploadCloud className="w-8 h-8 text-white/80" />
+                  <span className="text-[12px] text-white/70">Changer l'image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setImageFile(f);
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+                      reader.readAsDataURL(f);
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            
+            <div className="flex-1 space-y-6">
+              {isEditing ? (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Sexe</label>
+                      <select
+                        value={editSexe}
+                        onChange={(e) => setEditSexe(e.target.value)}
+                        className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                      >
+                        <option value="Masculin" className="bg-[#1E1941]">Masculin</option>
+                        <option value="Féminin" className="bg-[#1E1941]">Féminin</option>
+                        <option value="Autre" className="bg-[#1E1941]">Autre</option>
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Âge</label>
+                      <input
+                        type="text"
+                        value={editAge}
+                        onChange={(e) => setEditAge(e.target.value)}
+                        placeholder="ex : 45 ans"
+                        className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description publique</label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={4}
+                      className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl p-3.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed"
+                    />
+                  </div>
+                  {isMJ && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
+                      <textarea
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        rows={5}
+                        className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {(pj.stats?.sexe || pj.stats?.age) && (
+                    <div className="flex items-center gap-2 text-[12px] text-[#E3CCCD]/60 uppercase tracking-widest font-medium">
+                      {pj.stats.sexe} {pj.stats.age ? ` · ${pj.stats.age}` : ""}
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h3 className="font-serif text-xl text-[#E3CCCD]">Description</h3>
+                    <div
+                      onClick={() => startInlineEdit()}
+                      className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-24 ${canInlineEditDesktop ? "cursor-text hover:border-[#E3CCCD]/40" : ""}`}
+                      title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                    >
+                      {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
+                    </div>
+                  </div>
+                  {isMJ && (
+                    <div className="space-y-2">
+                      <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
+                      <div
+                        onClick={() => startInlineEdit()}
+                        className={`bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-24 ${canInlineEditDesktop ? "cursor-text hover:border-sky-400/40" : ""}`}
+                        title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                      >
+                        {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* FAMILIERS : PNJ NON COMBATTANT (affiché sous la fiche) */}
+        {isNonCombatantPNJ && !isEditing && (
+          <div className="mt-2">
+            <FamilierTab
+              pjId=""
+              pnjId={pj.id}
+              type="pnj"
+              campaignId={campaignId}
+              readOnly={readOnly}
+            />
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VUES À ONGLETS : PJ & PNJ COMBATTANTS                     */}
+        {/* ========================================================= */}
+        {!isNonCombatantPNJ && activeTab === "stats" && (
+          <>
+            <div className="flex flex-col md:flex-row gap-3 items-stretch animate-in fade-in duration-200">
+              <div className="relative shrink-0 mx-auto md:mx-0">
+                <MagicCard
+                  imageUrl={displayImageUrl}
+                  title={pj.name}
+                  badge={derivedCurrentPvMax ? <PvBadge pvMax={derivedCurrentPvMax} /> : undefined}
+                />
+                {isEditing && (
+                  <label className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 rounded-lg cursor-pointer opacity-0 hover:opacity-100 transition-opacity z-10">
+                    <UploadCloud className="w-8 h-8 text-white/80" />
+                    <span className="text-[12px] text-white/70">
+                      Changer l'image
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setImageFile(f);
+                        const reader = new FileReader();
+                        reader.onload = (ev) =>
+                          setImagePreview(ev.target?.result as string);
+                        reader.readAsDataURL(f);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {(
+              <div
+                onClick={() => startInlineEdit()}
+                className="w-full md:w-20 shrink-0 rounded-lg border border-[#E3CCCD]/15 flex md:flex-col flex-row justify-evenly py-3 px-2 flex-wrap"
+                style={{
+                  background:
+                    "linear-gradient(to bottom, rgba(55,42,132,0.25) 0%, rgba(18,13,47,0.85) 100%)",
+                }}
+                title={canInlineEditDesktop ? "Cliquer pour modifier les caracteristiques" : undefined}
+              >
+                {STATS_KEYS.map((stat) => {
+                  const v = caract[stat] ?? 0;
+                  const ev = editCaract[stat] ?? 0;
+                  const hasBonus = isEditing && ev !== v;
+                  const sup = pj.stats?.bonus_caracteristiques?.[stat] ?? false;
+                  return (
+                    <div
+                      key={stat}
+                      className="flex flex-col items-center gap-0.5 min-w-10 md:min-w-0"
+                    >
+                      <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">
+                        {stat}
+                      </span>
+                      <span className={`font-mono text-sm font-bold leading-none ${(isEditing ? ev : v) > 0 ? (hasBonus ? "text-[#E3CCCD]" : "text-white") : (isEditing ? ev : v) < 0 ? "text-red-400/70" : "text-white/25"}`}>
+                        {(isEditing ? ev : v) > 0 ? `+${isEditing ? ev : v}` : `${isEditing ? ev : v}`}{hasBonus && <span className="text-[#E3CCCD]/60 text-[9px]">*</span>}
+                      </span>
+                      {sup && !isEditing && (
+                        <span className="text-[8px] font-bold text-amber-400 border border-amber-400/40 rounded px-0.5 leading-tight">◈</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              )}
+
+              <div className="flex-1 flex flex-col gap-3 min-w-0">
+                {/* ── Mode Monstre : PV + Initiative + Défense, puis attaques ── */}
+                {isSimpleCombatant ? (
+                  <>
+                  <div
+                    onClick={() => startInlineEdit()}
+                    className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center ${canInlineEditDesktop ? "cursor-text" : ""}`}
+                    title={canInlineEditDesktop ? "Cliquer pour modifier les stats de combat" : undefined}
+                  >
+                    <div className="grid grid-cols-3 gap-3">
+                      {isEditing ? (
+                        <>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] uppercase text-emerald-400/60">PV / Max</span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                autoFocus={pendingInlineFocusField === "pv" || pendingInlineFocusField === "pvMax"}
+                                value={editPv}
+                                onChange={(e) => setEditPv(parseInt(e.target.value) || 0)}
+                                className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
+                              />
+                              <span className="text-white/30">/</span>
+                              <input
+                                type="number"
+                                value={editPvMax}
+                                onChange={(e) => setEditPvMax(parseInt(e.target.value) || 0)}
+                                className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1"
+                              />
+                            </div>
+                          </div>
+                          <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} autoFocus={pendingInlineFocusField === "initiative"} />
+                          <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} autoFocus={pendingInlineFocusField === "defense"} />
+                        </>
+                      ) : (
+                        <>
+                          <CombatStatCard
+                            icon={Heart}
+                            label="PV"
+                            value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`}
+                            color="text-emerald-400/70"
+                            border="border-emerald-400/20"
+                            onClick={() => startInlineEdit("pv")}
+                            title={canInlineEditDesktop ? "Cliquer pour modifier PV" : undefined}
+                          />
+                          <CombatStatCard
+                            icon={Zap}
+                            label="Initiative"
+                            value={String(pj.stats?.initiative ?? "—")}
+                            color="text-yellow-400/70"
+                            border="border-yellow-400/20"
+                            onClick={() => startInlineEdit("initiative")}
+                            title={canInlineEditDesktop ? "Cliquer pour modifier Initiative" : undefined}
+                          />
+                          <CombatStatCard
+                            icon={Shield}
+                            label="Défense"
+                            value={String(pj.stats?.defense ?? "—")}
+                            color="text-sky-400/70"
+                            border="border-sky-400/20"
+                            onClick={() => startInlineEdit("defense")}
+                            title={canInlineEditDesktop ? "Cliquer pour modifier Defense" : undefined}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Attaques */}
+                  <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5">
+                        <Swords className="w-3.5 h-3.5" /> Attaques
+                      </p>
+                      {isEditing && (
+                        <button
+                          type="button"
+                          onClick={() => setEditAttaques(prev => [...prev, { nom: '', bonus: '', degats: '', description: '' }])}
+                          className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/70 border border-[#E3CCCD]/30 rounded-full px-2.5 py-0.5 hover:bg-white/5 transition-colors"
+                        >
+                          + Ajouter
+                        </button>
+                      )}
+                    </div>
+                    {isEditing ? (
+                      editAttaques.length === 0 ? (
+                        <p className="text-[12px] text-white/30 italic">Aucune attaque. Cliquez sur + Ajouter.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {editAttaques.map((att, idx) => (
+                            <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-3 space-y-2">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  value={att.nom}
+                                  onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, nom: e.target.value } : a))}
+                                  placeholder="Nom de l'attaque..."
+                                  className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50"
+                                />
+                                <button type="button" onClick={() => setEditAttaques(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <div className="flex-1 space-y-1">
+                                  <span className="text-[9px] uppercase tracking-widest text-white/40">Bonus Att.</span>
+                                  <input value={att.bonus} onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, bonus: e.target.value } : a))} placeholder="+5" className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                  <span className="text-[9px] uppercase tracking-widest text-white/40">Dégâts</span>
+                                  <input value={att.degats} onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, degats: e.target.value } : a))} placeholder="2d6+3" className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                                </div>
+                              </div>
+                              <textarea value={att.description} onChange={(e) => setEditAttaques(prev => prev.map((a, i) => i === idx ? { ...a, description: e.target.value } : a))} placeholder="Description (optionnel)..." rows={2} className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50 resize-none placeholder:text-white/25" />
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    ) : (
+                      (pj.stats?.attaques as any[] ?? []).length === 0 ? (
+                        <p className="text-[12px] text-white/30 italic">Aucune attaque définie.</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2">
+                          {(pj.stats?.attaques as any[] ?? []).map((att: any, idx: number) => (
+                            <div key={idx} className="rounded-lg border border-white/10 bg-white/4 px-3 py-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-medium text-[12px] text-white">{att.nom || 'Attaque'}</span>
+                                {att.bonus && <span className="text-[11px] font-mono text-orange-400/80 border border-orange-400/25 rounded px-1.5 py-0.5">{att.bonus}</span>}
+                                {att.degats && <span className="text-[11px] font-mono text-red-400/80 border border-red-400/25 rounded px-1.5 py-0.5">{att.degats}</span>}
+                              </div>
+                              {att.description && <p className="text-[11px] text-white/50 mt-0.5 leading-relaxed line-clamp-2">{att.description}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
+                  </div>
+                  </>
+                ) : (
+                  <>
+                <div
+                  onClick={() => startInlineEdit()}
+                  className={`flex-1 bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-lg p-4 flex flex-col shadow-inner justify-center ${canInlineEditDesktop ? "cursor-text" : ""}`}
+                  title={canInlineEditDesktop ? "Cliquer pour modifier les stats de combat" : undefined}
+                >
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 flex items-center gap-1.5 mb-2">
+                    <Swords className="w-3.5 h-3.5" /> Combat
+                  </p>
+                  <div className={`grid gap-3 grid-cols-2 md:grid-cols-5`}>
+                    {isEditing ? (
+                      <>
+                        <EditNumField label="Initiative" value={editInitiative} onChange={setEditInitiative} autoFocus={pendingInlineFocusField === "initiative"} />
+                        <EditNumField label="Défense" value={editDefense} onChange={setEditDefense} autoFocus={pendingInlineFocusField === "defense"} />
+                        <EditNumField label="Contact" value={editAttContact} onChange={setEditAttContact} autoFocus={pendingInlineFocusField === "attContact"} />
+                        <EditNumField label="Distance" value={editAttDistance} onChange={setEditAttDistance} autoFocus={pendingInlineFocusField === "attDistance"} />
+                        <EditNumField label="Magie" value={editAttMagie} onChange={setEditAttMagie} autoFocus={pendingInlineFocusField === "attMagie"} />
+                      </>
+                    ) : (
+                      <>
+                        <CombatStatCard icon={Zap} label="Initiative" value={String(pj.stats?.initiative ?? "—")} color="text-yellow-400/70" border="border-yellow-400/20" onClick={() => startInlineEdit("initiative")} title={canInlineEditDesktop ? "Cliquer pour modifier Initiative" : undefined} />
+                        <CombatStatCard icon={Shield} label="Défense" value={String(pj.stats?.defense ?? "—")} color="text-sky-400/70" border="border-sky-400/20" onClick={() => startInlineEdit("defense")} title={canInlineEditDesktop ? "Cliquer pour modifier Defense" : undefined} />
+                        <CombatStatCard icon={Sword} label="Contact" value={displayAttContact != null ? `+${displayAttContact}` : "—"} color="text-orange-400/70" border="border-orange-400/20" onClick={() => startInlineEdit("attContact")} title={canInlineEditDesktop ? "Cliquer pour modifier Attaque contact" : undefined} />
+                        <CombatStatCard icon={Target} label="Distance" value={displayAttDistance != null ? `+${displayAttDistance}` : "—"} color="text-orange-400/70" border="border-orange-400/20" onClick={() => startInlineEdit("attDistance")} title={canInlineEditDesktop ? "Cliquer pour modifier Attaque distance" : undefined} />
+                        <CombatStatCard icon={Wand2} label="Magie" value={displayAttMagie != null ? `+${displayAttMagie}` : "—"} color="text-violet-400/70" border="border-violet-400/20" onClick={() => startInlineEdit("attMagie")} title={canInlineEditDesktop ? "Cliquer pour modifier Attaque magie" : undefined} />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => startInlineEdit()}
+                  className="flex-1 border border-emerald-400/20 rounded-lg p-4 flex flex-col shadow-inner justify-center"
+                  style={{ background: "linear-gradient(to right, rgba(16,185,129,0.05) 0%, rgba(6,78,59,0.2) 100%)" }}
+                  title={canInlineEditDesktop ? "Cliquer pour modifier les ressources" : undefined}
+                >
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400/50 flex items-center gap-1.5 mb-2">
+                    <Heart className="w-3.5 h-3.5" /> Ressources
+                  </p>
+                  <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+                    {isEditing ? (
+                      <>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] uppercase text-emerald-400/60">PV / Max</span>
+                          <div className="flex items-center gap-1">
+                            <input type="number" autoFocus={pendingInlineFocusField === "pv" || pendingInlineFocusField === "pvMax"} value={editPv} onChange={(e) => setEditPv(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                            <span className="text-white/30">/</span>
+                            <input type="number" value={editPvMax} onChange={(e) => setEditPvMax(parseInt(e.target.value) || 0)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] uppercase text-emerald-400/60">Récupération</span>
+                          <div className="flex items-center gap-1">
+                            <input type="number" autoFocus={pendingInlineFocusField === "drQty"} value={editDrQty} onChange={(e) => setEditDrQty(parseInt(e.target.value) || 0)} className="w-10 text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                            <span className="text-white/30 font-mono">×</span>
+                            <input type="text" autoFocus={pendingInlineFocusField === "drDe"} value={editDrDe} onChange={(e) => setEditDrDe(e.target.value)} className="w-full text-center font-mono text-xs text-white bg-white/8 border border-white/15 rounded py-1" />
+                          </div>
+                        </div>
+                        <EditNumField label="Chance (PC)" value={editPc} onChange={setEditPc} autoFocus={pendingInlineFocusField === "pc"} />
+                        <EditNumField label="Mana (PM)" value={editPm} onChange={setEditPm} autoFocus={pendingInlineFocusField === "pm"} />
+                      </>
+                    ) : (
+                      <>
+                        <CombatStatCard icon={Heart} label="Points de Vie" value={`${pj.stats?.pv ?? 0} / ${derivedCurrentPvMax}`} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("pv")} title={canInlineEditDesktop ? "Cliquer pour modifier PV" : undefined} />
+                        <CombatStatCard icon={RefreshCw} label="Récupération" value={pj.stats?.dr_qty != null ? `${pj.stats.dr_qty}×${pj.stats.dr_de ?? "d6"}` : "—"} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("drQty")} title={canInlineEditDesktop ? "Cliquer pour modifier Recuperation" : undefined} />
+                        <CombatStatCard icon={Star} label="Chance (PC)" value={String(pj.stats?.pc ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("pc")} title={canInlineEditDesktop ? "Cliquer pour modifier PC" : undefined} />
+                        <CombatStatCard icon={Sparkles} label="Mana (PM)" value={String(pj.stats?.pm ?? 0)} color="text-emerald-400/70" border="border-emerald-400/20" onClick={() => startInlineEdit("pm")} title={canInlineEditDesktop ? "Cliquer pour modifier PM" : undefined} />
+                      </>
+                    )}
+                  </div>
+                </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Capacités spéciales — Mode Monstre (pleine largeur sous la ligne image) */}
+            {isSimpleCombatant && (
+              <div className="rounded-lg border border-violet-400/40 bg-violet-500/15 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-violet-300/90 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Capacités spéciales
+                  </p>
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setEditCapacites(prev => [...prev, { nom: '', description: '' }])}
+                      className="text-[10px] uppercase tracking-widest text-violet-400/70 border border-violet-400/30 rounded-full px-2.5 py-0.5 hover:bg-violet-400/10 transition-colors"
+                    >
+                      + Ajouter
+                    </button>
+                  )}
+                </div>
+                {isEditing ? (
+                  editCapacites.length === 0 ? (
+                    <p className="text-[12px] text-white/30 italic">Aucune capacité. Cliquez sur + Ajouter.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {editCapacites.map((cap, idx) => (
+                        <div key={idx} className="rounded-lg border border-white/10 bg-white/4 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input value={cap.nom} onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, nom: e.target.value } : c))} placeholder="Nom de la capacité..." className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50" />
+                            <button type="button" onClick={() => setEditCapacites(prev => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0"><X className="w-4 h-4" /></button>
+                          </div>
+                          <textarea value={cap.description} onChange={(e) => setEditCapacites(prev => prev.map((c, i) => i === idx ? { ...c, description: e.target.value } : c))} placeholder="Description de la capacité..." rows={3} className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50 resize-none placeholder:text-white/25" />
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  (pj.stats?.capacites_speciales as any[] ?? []).length === 0 ? (
+                    <p className="text-[12px] text-violet-400/30 italic">Aucune capacité spéciale définie.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(pj.stats?.capacites_speciales as any[] ?? []).map((cap: any, idx: number) => (
+                        <div key={idx} className="rounded-lg border border-violet-400/30 bg-violet-500/20 px-3 py-2">
+                          <p className="font-medium text-[13px] text-violet-100">{cap.nom || 'Capacité'}</p>
+                          {cap.description && <p className="text-[12px] text-violet-100/80 mt-1 leading-relaxed">{cap.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Grille d'édition des caractéristiques – visible en mode édition */}
+            {isEditing && (
+              <div className="rounded-lg border border-[#E3CCCD]/20 bg-white/3 p-4">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50 mb-3">Caractéristiques</p>
+                <div className="grid grid-cols-7 gap-2">
+                  {STATS_KEYS.map((stat) => {
+                    const v = editCaract[stat];
+                    const sup = editBonusCaract[stat];
+                    return (
+                      <div key={stat} className="flex flex-col items-center gap-1 p-2 rounded-lg border border-white/10 bg-white/4">
+                        <span className="text-[9px] uppercase tracking-widest text-[#E3CCCD]/50">{stat}</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditCaract((prev) => ({ ...prev, [stat]: prev[stat] + 1 }))}
+                          className="w-7 h-5 rounded text-[12px] border border-white/15 text-white/40 hover:border-[#E3CCCD]/50 hover:text-[#E3CCCD] transition-all leading-none flex items-center justify-center"
+                        >+</button>
+                        <span className={`font-mono text-sm font-bold tabular-nums ${v > 0 ? "text-[#E3CCCD]" : v < 0 ? "text-red-400/70" : "text-white/30"}`}>
+                          {v > 0 ? `+${v}` : `${v}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setEditCaract((prev) => ({ ...prev, [stat]: prev[stat] - 1 }))}
+                          className="w-7 h-5 rounded text-[12px] border border-white/15 text-white/40 hover:border-red-400/40 hover:text-red-400/70 transition-all leading-none flex items-center justify-center"
+                        >−</button>
+                        <button
+                          type="button"
+                          onClick={() => setEditBonusCaract((prev) => ({ ...prev, [stat]: !prev[stat] }))}
+                          className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider transition-all ${sup ? "border-amber-400/50 bg-amber-400/15 text-amber-400" : "border-white/15 text-white/25 hover:text-white/50 hover:border-white/30"}`}
+                        >
+                          BONUS
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Armes ── */}
+            {!isSimpleCombatant && weapons.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] uppercase tracking-widest text-orange-300/60 flex items-center gap-1 shrink-0">
+                  <Sword className="w-3 h-3" /> 
+                </span>
+                {weapons.map((w, idx) => (
+                  <div
+                    key={w.id ?? idx}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-orange-400/25 bg-orange-400/8"
+                  >
+                    <span className="text-[11px] text-white/90 font-medium">{w.nom_custom || 'Arme'}</span>
+                    {w.degats && <span className="text-[10px] text-white/50 font-mono">{w.degats}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Voies actives */}
+            {pj.pathways?.length > 0 && (
+              <div className="space-y-2 mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#E3CCCD]/50">
+                    Voies Apprises
+                  </p>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingVoies(true)}
+                      className="flex items-center gap-1 text-[9px] uppercase tracking-widest font-bold px-2 py-1 rounded-lg border border-[#E3CCCD]/25 text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Modifier
+                    </button>
+                  )}
+                </div>
+                {(pj.pathways as any[]).map((pathway, i) => {
+                  const voie = voieDetails.find(
+                    (v) => v.id === pathway.voie_id,
+                  );
+                  
+                  // On filtre les capacités pour ne garder que celles explicitement acquises
+                  const rangsAcquis: number[] = pathway.rangs_acquis ?? [];
+                  const filteredCapacites = voie?.capacites
+                    ? Object.fromEntries(
+                        Object.entries(voie.capacites).filter(([key]) => {
+                          const rangMatch = key.match(/rang(\d+)/);
+                          return rangMatch ? rangsAcquis.includes(parseInt(rangMatch[1], 10)) : false;
+                        })
+                      )
+                    : {};
+
+                  return (
+                    <VoieBlock
+                      key={i}
+                      voieNom={voie?.nom ?? `Voie ${i + 1}`}
+                      capacites={filteredCapacites}
+                      rangsAcquis={rangsAcquis}
+                      defaultOpen={i === 0}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ONGLET 2 : INVENTAIRE */}
+        {!isNonCombatantPNJ && activeTab === "inventory" && (
+          <InventoryTab 
+            pjId={type === "pj" ? pj.id : ""}
+            pnjId={type === "pnj" ? pj.id : null}
+            profilId={pj.stats?.profil_id || voieDetails.find(v => v.profil_id)?.profil_id} 
+            pjStats={localStats ?? pj.stats}
+            readOnly={readOnly || technicalSheetOnly}
+            onInventoryChange={() => setWeaponsRefreshKey(k => k + 1)}
+            onUpdateStats={async (newStats) => {
+              try {
+                await personnageDetailApi.updateCharacterStats(pj.id, type, newStats);
+                setLocalStats(newStats);
+              } catch {
+                // Ne pas mettre a jour l'etat local si la persistance echoue.
+              }
+              // Ne pas appeler onEditSuccess() ici : cela rechargerait le pj et resetterait l'onglet actif
+            }}
+          />
+        )}
+
+        {/* ONGLET 3 : LORE (POUR PJ OU PNJ COMBATTANT) */}
+        {!isNonCombatantPNJ && activeTab === "lore" && (
+          type === "pnj" ? (
+            <div className="flex flex-col gap-6 items-stretch animate-in fade-in duration-200 mt-2">
+              <div className="flex-1 space-y-6">
+                {isEditing ? (
+                  <>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Sexe</label>
+                        <select
+                          value={editSexe}
+                          onChange={(e) => setEditSexe(e.target.value)}
+                          className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
+                        >
+                          <option value="Masculin" className="bg-[#1E1941]">Masculin</option>
+                          <option value="Féminin" className="bg-[#1E1941]">Féminin</option>
+                          <option value="Autre" className="bg-[#1E1941]">Autre</option>
+                        </select>
+                      </div>
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Âge</label>
+                        <input
+                          type="text"
+                          value={editAge}
+                          onChange={(e) => setEditAge(e.target.value)}
+                          placeholder="ex : 45 ans"
+                          className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2.5 text-white text-sm outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Description publique</label>
+                      <textarea
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        rows={6}
+                        className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl p-3.5 text-white text-sm outline-none transition-colors resize-none placeholder:text-white/25 leading-relaxed"
+                      />
+                    </div>
+                    {isMJ && (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-sky-400/60">Notes du MJ (Secret)</label>
+                        <textarea
+                          value={editNotes}
+                          onChange={(e) => setEditNotes(e.target.value)}
+                          rows={6}
+                          className="w-full bg-sky-500/5 border border-sky-500/20 focus:border-sky-400/50 rounded-xl p-3.5 text-sky-100 text-sm outline-none transition-colors resize-none placeholder:text-sky-200/30 leading-relaxed"
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {(pj.stats?.sexe || pj.stats?.age) && (
+                      <div className="flex items-center gap-2 text-[12px] text-[#E3CCCD]/60 uppercase tracking-widest font-medium">
+                        {pj.stats.sexe} {pj.stats.age ? ` · ${pj.stats.age}` : ""}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <h3 className="font-serif text-xl text-[#E3CCCD]">Description</h3>
+                      <div
+                        onClick={() => startInlineEdit()}
+                        className={`bg-[#1E1941]/40 border border-[#E3CCCD]/20 rounded-xl p-4 text-[13px] leading-relaxed text-white/80 whitespace-pre-wrap shadow-inner min-h-32 ${canInlineEditDesktop ? "cursor-text hover:border-[#E3CCCD]/40" : ""}`}
+                        title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                      >
+                        {pj.stats?.description || <span className="text-white/30 italic">Aucune description...</span>}
+                      </div>
+                    </div>
+                    {isMJ && (
+                      <div className="space-y-2">
+                        <h3 className="font-serif text-xl text-sky-400">Notes du MJ</h3>
+                        <div
+                          onClick={() => startInlineEdit()}
+                          className={`bg-sky-500/5 border border-sky-500/20 rounded-xl p-4 text-[13px] leading-relaxed text-sky-100 whitespace-pre-wrap shadow-inner min-h-32 ${canInlineEditDesktop ? "cursor-text hover:border-sky-400/40" : ""}`}
+                          title={canInlineEditDesktop ? "Cliquer pour modifier" : undefined}
+                        >
+                          {pj.stats?.notes || <span className="text-sky-200/40 italic">Aucune note secrète...</span>}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <LoreTab
+              stats={pj.stats}
+              isEditing={isEditing}
+              onRequestEdit={canInlineEditDesktop ? startInlineEdit : undefined}
+              editSexe={editSexe}
+              setEditSexe={setEditSexe}
+              editAge={editAge}
+              setEditAge={setEditAge}
+              editIdeal={editIdeal}
+              setEditIdeal={setEditIdeal}
+              editTravers={editTravers}
+              setEditTravers={setEditTravers}
+              editHistorique={editHistorique}
+              setEditHistorique={setEditHistorique}
+            />
+          )
+        )}
+
+        {/* ONGLET 4 : FAMILIERS */}
+        {!isNonCombatantPNJ && activeTab === "familiers" && (
+          <FamilierTab
+            pjId={type === "pj" ? pj.id : ""}
+            pnjId={type === "pnj" ? pj.id : undefined}
+            type={type}
+            campaignId={campaignId}
+            readOnly={readOnly}
+          />
+        )}
+      </div>
+
+    </div>
+  );
+}
