@@ -144,26 +144,80 @@ export function useCreateCampaignInvitation() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ campaignId, expiresInHours = 72 }: { campaignId: string; expiresInHours?: number }) => {
+    mutationFn: async ({
+      campaignId,
+      expiresInHours = 72,
+      forceRegenerate = false,
+    }: {
+      campaignId: string
+      expiresInHours?: number
+      forceRegenerate?: boolean
+    }) => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Utilisateur non connecté')
 
-      const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000).toISOString()
+      const now = Date.now()
+
+      // Cleanup best-effort des invitations expirées pour cette campagne.
+      await supabase
+        .from('campaign_invitations')
+        .delete()
+        .eq('campaign_id', campaignId)
+        .lt('expires_at', new Date(now).toISOString())
+
+      const { data: existingRows, error: existingErr } = await supabase
+        .from('campaign_invitations')
+        .select('id, campaign_id, code, expires_at')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false })
+
+      if (existingErr) throw existingErr
+
+      const validExisting = (existingRows ?? []).find((row) => {
+        if (!row.expires_at) return true
+        return new Date(row.expires_at).getTime() >= now
+      })
+
+      if (validExisting && !forceRegenerate) {
+        return validExisting as CampaignInvitation
+      }
+
+      const expiresAt = new Date(now + expiresInHours * 60 * 60 * 1000).toISOString()
+      const candidateRow = (existingRows ?? [])[0]
 
       for (let i = 0; i < 3; i += 1) {
         const code = createInviteCode()
-        const { data, error } = await supabase
-          .from('campaign_invitations')
-          .insert({
-            campaign_id: campaignId,
-            code,
-            created_by: user.id,
-            expires_at: expiresAt,
-          })
-          .select('id, campaign_id, code, expires_at')
-          .single()
 
-        if (!error && data) return data as CampaignInvitation
+        const writeQuery = candidateRow
+          ? supabase
+              .from('campaign_invitations')
+              .update({ code, created_by: user.id, expires_at: expiresAt })
+              .eq('id', candidateRow.id)
+              .select('id, campaign_id, code, expires_at')
+              .single()
+          : supabase
+              .from('campaign_invitations')
+              .insert({
+                campaign_id: campaignId,
+                code,
+                created_by: user.id,
+                expires_at: expiresAt,
+              })
+              .select('id, campaign_id, code, expires_at')
+              .single()
+
+        const { data, error } = await writeQuery
+
+        if (!error && data) {
+          // Best-effort: conserver une seule ligne par campagne.
+          await supabase
+            .from('campaign_invitations')
+            .delete()
+            .eq('campaign_id', campaignId)
+            .neq('id', data.id)
+
+          return data as CampaignInvitation
+        }
         if (error && !String(error.message).toLowerCase().includes('duplicate')) throw error
       }
 
@@ -199,6 +253,8 @@ export function useJoinCampaignByCode() {
       }
 
       if (invitation.expires_at && new Date(invitation.expires_at).getTime() < Date.now()) {
+        // Cleanup best-effort d'un code expiré.
+        await supabase.from('campaign_invitations').delete().eq('id', invitation.id)
         throw new Error("Ce code d'invitation a expiré")
       }
 
@@ -577,27 +633,44 @@ export function useCampaignMembers(campaignId: string) {
   return useQuery({
     queryKey: ['campaignMembers', campaignId],
     queryFn: async (): Promise<CampaignMemberFull[]> => {
-      // Fetch explicit members (with role)
-      const { data: memberRows, error: memberErr } = await supabase
+      // Fetch explicit members (with role). Compat legacy if `role` is missing.
+      type MemberRow = { id: string; user_id: string; role?: 'OWNER' | 'PLAYER' | null }
+      let memberRows: MemberRow[] = []
+
+      const { data: rowsWithRole, error: memberErr } = await supabase
         .from('campaign_members')
         .select('id, user_id, role')
         .eq('campaign_id', campaignId)
-      if (memberErr) throw memberErr
+
+      if (memberErr) {
+        if (isMissingColumnError(memberErr)) {
+          const { data: legacyRows, error: legacyErr } = await supabase
+            .from('campaign_members')
+            .select('id, user_id')
+            .eq('campaign_id', campaignId)
+          if (legacyErr) throw legacyErr
+          memberRows = (legacyRows ?? []) as MemberRow[]
+        } else {
+          throw memberErr
+        }
+      } else {
+        memberRows = (rowsWithRole ?? []) as MemberRow[]
+      }
 
       // Also include users linked via PJ (legacy format, no campaign_members row)
       const { data: pjRows } = await supabase
         .from('pj')
-        .select('user_id')
+        .select('user_id, player_id')
         .eq('campaign_id', campaignId)
-        .not('user_id', 'is', null)
 
       // Merge: explicit members first, then any pj-only users not already covered
       const memberMap = new Map<string, { id: string; user_id: string; role: 'OWNER' | 'PLAYER' }>(
         (memberRows ?? []).map((r) => [r.user_id, { id: r.id, user_id: r.user_id, role: (r.role ?? 'PLAYER') as 'OWNER' | 'PLAYER' }])
       )
       for (const pj of pjRows ?? []) {
-        if (pj.user_id && !memberMap.has(pj.user_id)) {
-          memberMap.set(pj.user_id, { id: pj.user_id, user_id: pj.user_id, role: 'PLAYER' })
+        const linkedUserId = (pj.user_id ?? pj.player_id) as string | null
+        if (linkedUserId && !memberMap.has(linkedUserId)) {
+          memberMap.set(linkedUserId, { id: linkedUserId, user_id: linkedUserId, role: 'PLAYER' })
         }
       }
 
@@ -608,7 +681,16 @@ export function useCampaignMembers(campaignId: string) {
         .from('utilisateurs')
         .select('id, pseudo')
         .in('id', ids)
-      if (usersError) throw usersError
+
+      // Ne pas bloquer l'affichage de la liste si les profils utilisateurs sont inaccessibles.
+      if (usersError) {
+        return Array.from(memberMap.values()).map((entry) => ({
+          id: entry.id,
+          user_id: entry.user_id,
+          role: entry.role,
+          pseudo: entry.user_id.slice(0, 8),
+        }))
+      }
 
       return Array.from(memberMap.values()).map((entry) => ({
         id: entry.id,

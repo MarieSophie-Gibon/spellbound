@@ -368,6 +368,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                   !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
                     <Scenarios
                       campaignId={activeCampaign.id}
+                      campaignSystem={activeCampaign.system ?? 'COF'}
                       onBack={() => navigate("/campaign")}
                     />
                   )
@@ -381,6 +382,7 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                     <Personnages
                       campaignId={activeCampaign.id}
                       isMJ={canManageActiveCampaign}
+                      campaignSystem={activeCampaign.system ?? 'COF'}
                       onBack={() => navigate("/campaign")}
                     />
                   ) : (

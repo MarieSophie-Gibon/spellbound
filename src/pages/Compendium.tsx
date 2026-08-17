@@ -25,6 +25,7 @@ import type { Peuple, Voie, Famille, FamilleArchetype, FamilleVoie, Monstre, Equ
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { useRevealedMonstres, useToggleRevealedMonstre } from "@/hooks/campaign/useCampaigns";
 import { useCompendiumData } from "@/hooks/systems/cof/compendium/useCompendiumData";
+import { CompendiumSystemSwitcher } from "@/components/systems/CompendiumSystemSwitcher";
 
 interface CompendiumProps {
   onBack: () => void;
@@ -499,13 +500,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
       ) : (
       <BookLayout spineTitle={isBestiaireOnly ? "Bestiaire" : "Compendium"} sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
         {effectiveSystem !== 'COF' ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-10 h-full opacity-60">
-            <BookOpenIcon className="w-16 h-16 text-[#E3CCCD]/20 mb-6" />
-            <h2 className="font-serif text-2xl text-white tracking-widest uppercase mb-3 leading-none">
-              {effectiveSystem === 'DAGGERHEART' ? 'Daggerheart' : 'D&D 5E'}
-            </h2>
-            <p className="text-[13px] text-white/50 font-light">Contenu à venir.</p>
-          </div>
+          <CompendiumSystemSwitcher system={effectiveSystem} cofContent={<></>} />
         ) : activeSection === 'peuples' && selectedPeuple ? (
           <PeupleDetail
             peuple={selectedPeuple}

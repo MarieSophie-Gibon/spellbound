@@ -10,11 +10,14 @@ import { useSearchParams } from "react-router-dom";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useRevealedPnjIds, useToggleRevealedPnj } from "@/hooks/campaign/useCampaigns";
 import { usePersonnagesData, type PersonnageListItem } from "@/hooks/systems/cof/personnage/usePersonnagesData";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
+import { PersonnagesSystemSwitcher } from "@/components/systems/PersonnagesSystemSwitcher";
 
 interface PersonnagesProps {
   campaignId: string;
   onBack: () => void;
   isMJ?: boolean;
+  campaignSystem?: RpgSystem;
 }
 
 // ─────────────────────────────────────────────
@@ -66,7 +69,7 @@ function DeleteCharacterModal({
   );
 }
 
-export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesProps) {
+export function Personnages({ campaignId, onBack, isMJ = false, campaignSystem }: PersonnagesProps) {
   const [searchParams] = useSearchParams();
   const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const { fetchPersonnages, deletePersonnage } = usePersonnagesData();
@@ -162,7 +165,7 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
     fetchData();
   };
 
-  return (
+  const cofContent = (
     <>
       {/* Mobile-native flow */}
       <div className="lg:hidden h-full min-h-0 flex flex-col relative">
@@ -290,4 +293,6 @@ export function Personnages({ campaignId, onBack, isMJ = false }: PersonnagesPro
       )}
     </>
   );
+
+  return <PersonnagesSystemSwitcher system={campaignSystem} cofContent={cofContent} />;
 }
