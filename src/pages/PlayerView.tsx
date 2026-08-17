@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Swords } from "lucide-react";
-import type { Combatant, EncounterEntry, MapToken } from "@/components/scenarios/combat/types";
+import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
 import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
 
@@ -231,6 +231,7 @@ export function PlayerView() {
                     const smoothed = smoothedTokenPositions[token.combatantId] ?? target;
                     const sz = mapTokenSize;
                     const activeConditions = CONDITION_OPTIONS.filter(o => combatant.conditions.includes(o.key));
+                    const tokenFace = readTokenFaceFromCombatant(combatant);
                     return (
                       <div
                         key={token.combatantId}
@@ -244,7 +245,13 @@ export function PlayerView() {
                           className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
                           style={{ width: sz, height: sz }}
                         >
-                          <img src={combatant.imageUrl || "/default-avatar.png"} alt={combatant.name} className="w-full h-full object-cover" draggable={false} />
+                          <img
+                            src={combatant.imageUrl || "/default-avatar.png"}
+                            alt={combatant.name}
+                            className="w-full h-full object-contain"
+                            style={{ transform: `translate(${tokenFace.offsetX}%, ${tokenFace.offsetY}%) scale(${tokenFace.zoom})` }}
+                            draggable={false}
+                          />
                           {activeConditions.length > 0 && (
                             <div className="absolute inset-0 bg-black/70 flex items-center justify-center flex-wrap content-center gap-0.5 pointer-events-none" style={{ padding: sz * 0.08 }}>
                               {activeConditions.map(opt => (

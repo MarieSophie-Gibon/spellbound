@@ -100,6 +100,24 @@ function getDerivedAttacks(level: number, characteristics: Record<string, number
   };
 }
 
+const TOKEN_FACE_MIN_ZOOM = 0.25;
+const TOKEN_FACE_MAX_ZOOM = 6;
+const TOKEN_FACE_MIN_OFFSET = -150;
+const TOKEN_FACE_MAX_OFFSET = 150;
+const TOKEN_FACE_DEFAULT_OFFSET_Y = 18;
+const TOKEN_FACE_PREVIEW_SIZE_PX = 96;
+const TOKEN_FACE_WHEEL_STEP = 0.1;
+
+function clampTokenFaceZoom(value: number) {
+  return Number.isFinite(value) ? Math.max(TOKEN_FACE_MIN_ZOOM, Math.min(TOKEN_FACE_MAX_ZOOM, value)) : 1;
+}
+
+function clampTokenFaceOffset(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  const bounded = Math.max(TOKEN_FACE_MIN_OFFSET, Math.min(TOKEN_FACE_MAX_OFFSET, value));
+  return Math.round(bounded * 100) / 100;
+}
+
 export function PersonnageDetail({
   pj,
   type = "pj",
@@ -159,6 +177,11 @@ export function PersonnageDetail({
   const [editAttDistance, setEditAttDistance] = useState(0);
   const [editAttMagie, setEditAttMagie] = useState(0);
   const [editNiveau, setEditNiveau] = useState(1);
+  const [editTokenFaceZoom, setEditTokenFaceZoom] = useState(1);
+  const [editTokenFaceOffsetX, setEditTokenFaceOffsetX] = useState(0);
+  const [editTokenFaceOffsetY, setEditTokenFaceOffsetY] = useState(TOKEN_FACE_DEFAULT_OFFSET_Y);
+  const tokenFaceDragRef = useRef<{ pointerId: number; startX: number; startY: number; baseOffsetX: number; baseOffsetY: number; previewSize: number } | null>(null);
+  const [isTokenFaceDragging, setIsTokenFaceDragging] = useState(false);
   // PNJ combat type (pour édition)
   const [editIsCombatant, setEditIsCombatant] = useState(false);
   const [editCombatStatsMode, setEditCombatStatsMode] = useState<'simple' | 'extended'>('extended');
@@ -262,6 +285,14 @@ export function PersonnageDetail({
     setEditAttaques(Array.isArray(pj.stats?.attaques) ? pj.stats.attaques : []);
     setEditCapacites(Array.isArray(pj.stats?.capacites_speciales) ? pj.stats.capacites_speciales : []);
 
+    const tokenFaceNested = pj.stats?.token_face ?? {};
+    const tokenFaceZoom = Number(pj.stats?.token_face_zoom ?? tokenFaceNested.zoom ?? 1);
+    const tokenFaceOffsetX = Number(pj.stats?.token_face_offset_x ?? tokenFaceNested.offsetX ?? 0);
+    const tokenFaceOffsetY = Number(pj.stats?.token_face_offset_y ?? tokenFaceNested.offsetY ?? TOKEN_FACE_DEFAULT_OFFSET_Y);
+    setEditTokenFaceZoom(clampTokenFaceZoom(tokenFaceZoom));
+    setEditTokenFaceOffsetX(clampTokenFaceOffset(tokenFaceOffsetX));
+    setEditTokenFaceOffsetY(clampTokenFaceOffset(tokenFaceOffsetY));
+
     setIsEditing(false);
     setIsLevelingUp(false);
     
@@ -336,6 +367,15 @@ export function PersonnageDetail({
             capacites_speciales: editCapacites,
           })
         } : {})
+        ,
+        token_face_zoom: editTokenFaceZoom,
+        token_face_offset_x: editTokenFaceOffsetX,
+        token_face_offset_y: editTokenFaceOffsetY,
+        token_face: {
+          zoom: editTokenFaceZoom,
+          offsetX: editTokenFaceOffsetX,
+          offsetY: editTokenFaceOffsetY,
+        },
       } : {
         ...pj.stats,
         sexe: editSexe,
@@ -357,6 +397,14 @@ export function PersonnageDetail({
         ideal: editIdeal,
         travers: editTravers,
         historique: editHistorique,
+        token_face_zoom: editTokenFaceZoom,
+        token_face_offset_x: editTokenFaceOffsetX,
+        token_face_offset_y: editTokenFaceOffsetY,
+        token_face: {
+          zoom: editTokenFaceZoom,
+          offsetX: editTokenFaceOffsetX,
+          offsetY: editTokenFaceOffsetY,
+        },
       };
 
       // Déduire peuple_id depuis la voie du peuple (si elle existe)
@@ -501,6 +549,52 @@ export function PersonnageDetail({
     }
   }
 
+  const handleTokenFacePreviewPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!displayImageUrl) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const previewSize = rect.height > 0 ? rect.height : TOKEN_FACE_PREVIEW_SIZE_PX;
+    tokenFaceDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      baseOffsetX: editTokenFaceOffsetX,
+      baseOffsetY: editTokenFaceOffsetY,
+      previewSize,
+    };
+    setIsTokenFaceDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleTokenFacePreviewPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = tokenFaceDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    const sensitivity = 100 / drag.previewSize;
+    const zoomCompensation = Math.max(editTokenFaceZoom, 1);
+
+    setEditTokenFaceOffsetX(clampTokenFaceOffset(drag.baseOffsetX + (dx * sensitivity) / zoomCompensation));
+    setEditTokenFaceOffsetY(clampTokenFaceOffset(drag.baseOffsetY + (dy * sensitivity) / zoomCompensation));
+  };
+
+  const handleTokenFacePreviewPointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = tokenFaceDragRef.current;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    tokenFaceDragRef.current = null;
+    setIsTokenFaceDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const handleTokenFacePreviewWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (!displayImageUrl) return;
+    e.preventDefault();
+    const direction = e.deltaY < 0 ? 1 : -1;
+    setEditTokenFaceZoom((prev) => clampTokenFaceZoom(prev + direction * TOKEN_FACE_WHEEL_STEP));
+  };
+
   return (
     <div ref={containerRef} className={`flex-1 flex flex-col h-full min-h-0 scrollbar-thin scrollbar-thumb-white/10 relative ${isEditingVoies ? "overflow-hidden" : "overflow-y-auto"} ${isMobile ? "p-2 pb-5" : "p-3 md:p-5 pb-24 md:pb-5"}`}>
       {/* OVERLAY DE NIVEAU DÉCOUPÉ */}
@@ -585,6 +679,21 @@ export function PersonnageDetail({
                     />
                   </div>
                 )}
+                {type === "pj" && (
+                  <div className="flex items-center gap-1.5 shrink-0 min-w-[170px]">
+                    <span className="text-[10px] uppercase tracking-widest text-white/40">Joueur</span>
+                    <select
+                      value={editUserId}
+                      onChange={(e) => setEditUserId(e.target.value)}
+                      className="min-w-0 flex-1 bg-white/5 border border-white/15 focus:border-[#E3CCCD]/45 rounded-lg px-2 py-1 text-white/85 text-xs outline-none transition-colors appearance-none cursor-pointer"
+                    >
+                      <option value="" className="bg-[#1E1941] text-white/50">Non assigne</option>
+                      {players.map((p) => (
+                        <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">{p.pseudo}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -598,6 +707,11 @@ export function PersonnageDetail({
                 {!isNonCombatantPNJ && (
                   <span className="text-[11px] uppercase tracking-widest text-[#E3CCCD]/60 border border-[#E3CCCD]/30 rounded-full px-3 py-1 shrink-0">
                     Niv. {currentLevel}
+                  </span>
+                )}
+                {type === "pj" && (
+                  <span className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/55 border border-[#E3CCCD]/20 rounded-full px-2.5 py-1 shrink-0">
+                    Joueur: {assignedPlayer?.pseudo ?? "Non assigne"}
                   </span>
                 )}
                 {/* Level Up caché pour les PNJ non combattants */}
@@ -683,30 +797,6 @@ export function PersonnageDetail({
           </div>
         </div>
 
-        {type === "pj" && (
-          <div className="px-2 mt-1">
-            {isEditing ? (
-              <div className="max-w-sm space-y-1.5">
-                <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Joueur rattaché</label>
-                <select
-                  value={editUserId}
-                  onChange={(e) => setEditUserId(e.target.value)}
-                  className="w-full bg-white/5 border border-white/15 focus:border-[#E3CCCD]/50 rounded-xl px-3.5 py-2 text-white text-sm outline-none transition-colors appearance-none cursor-pointer"
-                >
-                  <option value="" className="bg-[#1E1941] text-white/50">— Aucun joueur assigné —</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id} className="bg-[#1E1941] text-white">{p.pseudo}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <p className="text-[11px] text-[#E3CCCD]/60 uppercase tracking-widest">
-                Joueur : {assignedPlayer?.pseudo ?? "Non assigné"}
-              </p>
-            )}
-          </div>
-        )}
-
         {type === "pnj" && isEditing && isMJ && (
           <div className="px-3 mt-2 flex flex-wrap gap-2 items-center">
             <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border border-sky-500/35 bg-sky-500/8 hover:bg-sky-500/12 transition-colors">
@@ -740,6 +830,93 @@ export function PersonnageDetail({
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {isEditing && !readOnly && (
+          <div className="px-2.5 mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-2.5 items-stretch">
+              <div className="flex flex-col items-center gap-1 md:pr-1 self-center">
+                <div
+                  className={`rounded-full overflow-hidden border border-white/18 bg-black/25 shadow-inner ${displayImageUrl ? (isTokenFaceDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-not-allowed"}`}
+                  style={{ width: TOKEN_FACE_PREVIEW_SIZE_PX, height: TOKEN_FACE_PREVIEW_SIZE_PX }}
+                  onPointerDown={handleTokenFacePreviewPointerDown}
+                  onPointerMove={handleTokenFacePreviewPointerMove}
+                  onPointerUp={handleTokenFacePreviewPointerEnd}
+                  onPointerCancel={handleTokenFacePreviewPointerEnd}
+                  onLostPointerCapture={handleTokenFacePreviewPointerEnd}
+                  onWheel={handleTokenFacePreviewWheel}
+                  title={displayImageUrl ? "Clique et glisse pour deplacer l'image dans le jeton" : "Ajoute une image pour activer le cadrage"}
+                >
+                  {displayImageUrl ? (
+                    <img
+                      src={displayImageUrl}
+                      alt="Apercu jeton"
+                      className="w-full h-full object-contain"
+                      style={{
+                        transformOrigin: "center center",
+                        transform: `translate(${editTokenFaceOffsetX}%, ${editTokenFaceOffsetY}%) scale(${editTokenFaceZoom})`,
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-white/40 text-center px-2">
+                      Pas d'image
+                    </div>
+                  )}
+                </div>
+                <span className="text-[9px] text-white/46 uppercase tracking-[0.12em]">Apercu live</span>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/55">
+                  Cadrage jeton battlemap (focus visage)
+                </p>
+                <label className="text-[11px] text-white/62 flex flex-col gap-1">
+                  <span className="flex items-center justify-between">
+                    <span>Zoom</span>
+                    <span className="text-[10px] text-white/52">{editTokenFaceZoom.toFixed(2)}x</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={TOKEN_FACE_MIN_ZOOM}
+                      max={TOKEN_FACE_MAX_ZOOM}
+                      step={0.05}
+                      value={editTokenFaceZoom}
+                      onChange={(e) => setEditTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
+                      className="w-full accent-white/70"
+                    />
+                    <input
+                      type="number"
+                      min={TOKEN_FACE_MIN_ZOOM}
+                      max={TOKEN_FACE_MAX_ZOOM}
+                      step={0.05}
+                      value={editTokenFaceZoom}
+                      onChange={(e) => setEditTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
+                      className="w-20 bg-white/[0.04] border border-white/12 rounded-md px-2 py-1 text-white/80 text-xs outline-none focus:border-white/30"
+                    />
+                  </div>
+                </label>
+
+                <p className="text-[10px] text-white/48 uppercase tracking-[0.12em]">
+                  Position: glisser l'image dans le jeton
+                </p>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditTokenFaceZoom(1);
+                      setEditTokenFaceOffsetX(0);
+                      setEditTokenFaceOffsetY(TOKEN_FACE_DEFAULT_OFFSET_Y);
+                    }}
+                    className="text-[10px] px-2 py-1 rounded-md border border-white/12 text-white/62 hover:text-white hover:bg-white/8 transition-colors"
+                  >
+                    Reinitialiser
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

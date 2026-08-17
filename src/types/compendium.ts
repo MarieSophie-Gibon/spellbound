@@ -128,6 +128,14 @@ export interface MonstreStats {
   int: { mod: number; sup: boolean };
   per: { mod: number; sup: boolean };
   vol: { mod: number; sup: boolean };
+  token_face_zoom?: number;
+  token_face_offset_x?: number;
+  token_face_offset_y?: number;
+  token_face?: {
+    zoom?: number;
+    offsetX?: number;
+    offsetY?: number;
+  };
 }
 
 export interface MonstreCombat {

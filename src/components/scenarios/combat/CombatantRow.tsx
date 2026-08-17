@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, Eye, EyeOff, X } from "lucide-react";
-import { CONDITION_OPTIONS, FANION_BG } from "./types";
+import { CONDITION_OPTIONS, FANION_BG, readTokenFaceFromCombatant } from "./types";
 import type { Combatant, ConditionKey } from "./types";
 
 interface CombatantRowProps {
@@ -20,6 +20,7 @@ export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMo
   const instanceMatch = combatant.name.match(/^(.*?) #(\d+)$/);
   const displayName = instanceMatch ? instanceMatch[1] : combatant.name;
   const instanceNum = instanceMatch ? instanceMatch[2] : null;
+  const tokenFace = readTokenFaceFromCombatant(combatant);
 
   return (
     <div
@@ -38,7 +39,8 @@ export function CombatantRow({ combatant, isActive, isSelected, canMoveUp, canMo
           <img
             src={combatant.imageUrl || "/default-avatar.png"}
             alt={combatant.name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
+            style={{ transform: `translate(${tokenFace.offsetX}%, ${tokenFace.offsetY}%) scale(${tokenFace.zoom})` }}
           />
         </div>
 
