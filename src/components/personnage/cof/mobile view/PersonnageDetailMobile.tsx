@@ -34,11 +34,11 @@ import { VoieBlock } from "@/components/ui/VoieBlock";
 import type { VoieSection } from "@/components/ui/RangCard";
 import { EditNumField } from "@/components/ui/EditNumField";
 
-import InventoryTabMobile from "@/components/personnage/mobile view/InventoryTabMobile";
-import LoreTabMobile from "@/components/personnage/mobile view/LoreTabMobile";
-import LevelUpOverlayMobile from "@/components/personnage/mobile view/LevelUpOverlayMobile";
-import FamilierTab from "@/components/personnage/FamilierTab";
-import VoieEditModal from "@/components/personnage/VoieEditModal";
+import InventoryTabMobile from "@/components/personnage/cof/mobile view/InventoryTabMobile";
+import LoreTabMobile from "@/components/personnage/cof/mobile view/LoreTabMobile";
+import LevelUpOverlayMobile from "@/components/personnage/cof/mobile view/LevelUpOverlayMobile";
+import FamilierTab from "@/components/personnage/cof/FamilierTab";
+import VoieEditModal from "@/components/personnage/cof/wizard/VoieEditModal";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];

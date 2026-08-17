@@ -36,11 +36,11 @@ import { EditNumField } from "@/components/ui/EditNumField";
 import { useIsMobile } from "@/hooks/shared/useIsMobile";
 
 // Imports des sous-composants
-import InventoryTab from "@/components/personnage/InventoryTab";
-import LoreTab from "@/components/personnage/LoreTab";
-import LevelUpOverlay from "@/components/personnage/LevelUpOverlay";
-import FamilierTab from "@/components/personnage/FamilierTab";
-import VoieEditModal from "@/components/personnage/VoieEditModal";
+import InventoryTab from "@/components/personnage/cof/InventoryTab";
+import LoreTab from "@/components/personnage/cof/LoreTab";
+import LevelUpOverlay from "@/components/personnage/cof/wizard/LevelUpOverlay";
+import FamilierTab from "@/components/personnage/cof/FamilierTab";
+import VoieEditModal from "@/components/personnage/cof/wizard/VoieEditModal";
 
 const STATS_KEYS = ["FOR", "CON", "AGI", "PER", "CHA", "INT", "VOL"] as const;
 type StatKey = (typeof STATS_KEYS)[number];
@@ -834,7 +834,7 @@ export function PersonnageDetail({
         )}
 
         {isEditing && !readOnly && (
-          <div className="px-2.5 mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2.5">
+          <div className="px-2.5 mt-2 rounded-lg border border-white/10 bg-white/3 p-2.5">
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-2.5 items-stretch">
               <div className="flex flex-col items-center gap-1 md:pr-1 self-center">
                 <div
@@ -893,7 +893,7 @@ export function PersonnageDetail({
                       step={0.05}
                       value={editTokenFaceZoom}
                       onChange={(e) => setEditTokenFaceZoom(clampTokenFaceZoom(Number(e.target.value)))}
-                      className="w-20 bg-white/[0.04] border border-white/12 rounded-md px-2 py-1 text-white/80 text-xs outline-none focus:border-white/30"
+                      className="w-20 bg-white/4 border border-white/12 rounded-md px-2 py-1 text-white/80 text-xs outline-none focus:border-white/30"
                     />
                   </div>
                 </label>

@@ -1,6 +1,6 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
-import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type FogRevealStamp, type MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Swords, Search, Target, ShieldAlert, X, PlusCircle, Ghost, Users } from "lucide-react";
-import { useScenarioBlocksData } from "@/hooks/systems/cof/scenarios/useScenarioBlocksData";
+import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
-import { PNJWizard } from "@/components/personnage/PNJWizard";
+import { PNJWizard } from "@/components/personnage/cof/wizard/PNJWizard";
 import { MonsterWizard } from "@/components/bestiaire/cof/MonsterWizard";
 import type { PersistedCombatState } from "../combat/types";
 
