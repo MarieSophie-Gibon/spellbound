@@ -69,13 +69,32 @@ export function useCampaigns(role?: 'mj' | 'player') {
       const ownedCampaigns = ((ownedData ?? []) as Campaign[]).map((c) => ({ ...c, access_type: 'owner' as const }))
 
       // 2. Campagnes rejointes via invitation (campaign_members)
+      // Compat legacy: certains environnements n'ont pas encore la colonne `role`.
       let memberCampaigns: Campaign[] = []
-      const { data: memberRows, error: memberErr } = await supabase
+      type MemberRow = { campaign_id: string | null; role?: string | null }
+      let memberRows: MemberRow[] = []
+
+      const { data: memberRowsWithRole, error: memberErr } = await supabase
         .from('campaign_members')
         .select('campaign_id, role')
         .eq('user_id', user.id)
-      if (memberErr && !isMissingTableError(memberErr)) throw memberErr
-      const memberIds = (memberRows ?? []).map((r) => r.campaign_id).filter(Boolean) as string[]
+
+      if (memberErr) {
+        if (isMissingColumnError(memberErr)) {
+          const { data: fallbackRows, error: fallbackErr } = await supabase
+            .from('campaign_members')
+            .select('campaign_id')
+            .eq('user_id', user.id)
+          if (fallbackErr && !isMissingTableError(fallbackErr)) throw fallbackErr
+          memberRows = (fallbackRows ?? []) as MemberRow[]
+        } else if (!isMissingTableError(memberErr)) {
+          throw memberErr
+        }
+      } else {
+        memberRows = (memberRowsWithRole ?? []) as MemberRow[]
+      }
+
+      const memberIds = memberRows.map((r) => r.campaign_id).filter(Boolean) as string[]
       if (memberIds.length > 0) {
         const { data: mData, error: mErr } = await supabase
           .from('campagnes')
