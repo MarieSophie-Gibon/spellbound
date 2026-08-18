@@ -28,6 +28,11 @@ interface CreateCategoryParams {
   system: RpgSystem;
 }
 
+interface FetchPopupIndexParams {
+  system?: RpgSystem;
+  campaignId?: string;
+}
+
 export function useGrimoireData() {
   const matchesSystem = useCallback((value: unknown, system: RpgSystem): boolean => {
     if (value === null || value === undefined || value === "") return true
@@ -55,11 +60,7 @@ export function useGrimoireData() {
     if (error) throw error;
     const rows = (data ?? []) as Category[];
 
-    if (!campaignId) {
-      return rows.filter((c) => matchesSystem(c.system, system));
-    }
-
-    return rows.filter((c) => c.campaign_id === campaignId || matchesSystem(c.system, system));
+    return rows.filter((c) => matchesSystem(c.system, system));
   }, [matchesSystem]);
 
   const fetchWikiPages = useCallback(async ({ isGlobal, campaignId, system }: FetchWikiPagesParams): Promise<WikiPage[]> => {
@@ -74,31 +75,48 @@ export function useGrimoireData() {
     if (error) throw error;
     const rows = (data ?? []) as WikiPage[];
 
-    if (isGlobal) {
-      return rows.filter((p) => matchesSystem(p.system, system));
-    }
-
-    if (campaignId) {
-      return rows.filter((p) => p.campaign_id === campaignId || matchesSystem(p.system, system));
-    }
-
-    return rows;
+    return rows.filter((p) => matchesSystem(p.system, system));
   }, [matchesSystem]);
 
-  const fetchPopupIndex = useCallback(async (): Promise<{ pages: PopupPageListEntry[]; categories: Category[] }> => {
+  const fetchPopupIndex = useCallback(async ({ system, campaignId }: FetchPopupIndexParams = {}): Promise<{ pages: PopupPageListEntry[]; categories: Category[] }> => {
+    let pagesQuery = supabase
+      .from("wiki_pages")
+      .select("id, title, category_id, campaign_id, system")
+      .order("title");
+    let categoriesQuery = supabase.from("categories").select("*");
+
+    if (campaignId) {
+      pagesQuery = pagesQuery.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+      categoriesQuery = categoriesQuery.or(`campaign_id.eq.${campaignId},campaign_id.is.null`);
+    } else {
+      pagesQuery = pagesQuery.is("campaign_id", null);
+      categoriesQuery = categoriesQuery.is("campaign_id", null);
+    }
+
     const [{ data: pagesData, error: pagesError }, { data: categoriesData, error: categoriesError }] = await Promise.all([
-      supabase.from("wiki_pages").select("id, title, category_id").order("title"),
-      supabase.from("categories").select("*"),
+      pagesQuery,
+      categoriesQuery,
     ]);
 
     if (pagesError) throw pagesError;
     if (categoriesError) throw categoriesError;
 
+    const filteredPages = (pagesData ?? [])
+      .filter((page) => !system || matchesSystem(page.system, system))
+      .map((page) => ({
+        id: page.id,
+        title: page.title,
+        category_id: page.category_id,
+      })) as PopupPageListEntry[];
+
+    const filteredCategories = ((categoriesData ?? []) as Category[])
+      .filter((category) => !system || matchesSystem(category.system, system));
+
     return {
-      pages: (pagesData ?? []) as PopupPageListEntry[],
-      categories: (categoriesData ?? []) as Category[],
+      pages: filteredPages,
+      categories: filteredCategories,
     };
-  }, []);
+  }, [matchesSystem]);
 
   const fetchWikiPageById = useCallback(async (id: string): Promise<WikiPage | null> => {
     const { data, error } = await supabase.from("wiki_pages").select("*").eq("id", id).single();

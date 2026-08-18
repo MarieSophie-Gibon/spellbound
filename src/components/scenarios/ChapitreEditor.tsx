@@ -8,6 +8,7 @@ import {
   Bookmark, BookmarkCheck, Navigation, Bold, Copy, ClipboardPaste
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 import type { PersistedCombatState } from "./combat/types";
 import { LocationBlock } from "./blocks/LocationBlock";
 import { LootBlock } from "./blocks/LootBlock";
@@ -22,6 +23,7 @@ interface ChapitreEditorProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   campaignId: string;
+  campaignSystem: RpgSystem;
   completed?: boolean;
   onToggleCompleted?: () => void;
   onOpenCombatDashboard?: (chapitreId: string) => void;
@@ -35,7 +37,7 @@ interface Block {
   data: any;
 }
 
-export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
+export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, campaignSystem, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
   const chapitreEditorData = useChapitreEditorData();
   const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
@@ -792,7 +794,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
 
           {/* Bouton Grimoire */}
           <button
-            onClick={() => openPopup()}
+            onClick={() => openPopup({ system: campaignSystem, campaignId })}
             className="p-1.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-lg transition-colors border border-white/5"
             title="Ouvrir le grimoire"
           >

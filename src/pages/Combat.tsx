@@ -2,12 +2,14 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Swords } from "lucide-react";
 import { CombatDashboard } from "@/components/scenarios/CombatDashboard";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface CombatPageProps {
   campaignId: string;
+  campaignSystem: RpgSystem;
 }
 
-export function Combat({ campaignId }: CombatPageProps) {
+export function Combat({ campaignId, campaignSystem }: CombatPageProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -40,6 +42,7 @@ export function Combat({ campaignId }: CombatPageProps) {
         <CombatDashboard
           chapitreId={chapitreId}
           campaignId={campaignId}
+          campaignSystem={campaignSystem}
           onBackToScenario={() => navigate(`/campaign/scenarios?chapitreId=${chapitreId}`)}
         />
       </div>
