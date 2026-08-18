@@ -1,13 +1,16 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface GrimoirePopupState {
   open: boolean;
   pageId: string | null;
   searchQuery: string;
+  system: RpgSystem | null;
+  campaignId: string | null;
 }
 
 interface GrimoirePopupContextValue {
-  openPopup: (options?: { pageId?: string; searchQuery?: string }) => void;
+  openPopup: (options?: { pageId?: string; searchQuery?: string; system?: RpgSystem; campaignId?: string }) => void;
   closePopup: () => void;
   state: GrimoirePopupState;
 }
@@ -15,14 +18,26 @@ interface GrimoirePopupContextValue {
 const GrimoirePopupContext = createContext<GrimoirePopupContextValue | null>(null);
 
 export function GrimoirePopupProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GrimoirePopupState>({ open: false, pageId: null, searchQuery: "" });
+  const [state, setState] = useState<GrimoirePopupState>({
+    open: false,
+    pageId: null,
+    searchQuery: "",
+    system: null,
+    campaignId: null,
+  });
 
-  const openPopup = useCallback((options?: { pageId?: string; searchQuery?: string }) => {
-    setState({ open: true, pageId: options?.pageId ?? null, searchQuery: options?.searchQuery ?? "" });
+  const openPopup = useCallback((options?: { pageId?: string; searchQuery?: string; system?: RpgSystem; campaignId?: string }) => {
+    setState({
+      open: true,
+      pageId: options?.pageId ?? null,
+      searchQuery: options?.searchQuery ?? "",
+      system: options?.system ?? null,
+      campaignId: options?.campaignId ?? null,
+    });
   }, []);
 
   const closePopup = useCallback(() => {
-    setState({ open: false, pageId: null, searchQuery: "" });
+    setState({ open: false, pageId: null, searchQuery: "", system: null, campaignId: null });
   }, []);
 
   return (

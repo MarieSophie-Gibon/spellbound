@@ -291,6 +291,7 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(v => !v)}
             campaignId={campaignId}
+            campaignSystem={campaignSystem ?? 'COF'}
             completed={!!chapitres.find(c => c.id === selectedChapitreId)?.completed}
             onToggleCompleted={() => {
               const ch = chapitres.find(c => c.id === selectedChapitreId);

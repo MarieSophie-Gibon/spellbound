@@ -13,7 +13,7 @@ interface PageListEntry {
 export function GrimoirePopupModal() {
   const { state, closePopup } = useGrimoirePopup();
   const grimoireData = useGrimoireData();
-  const { open, pageId, searchQuery: initialQuery } = state;
+  const { open, pageId, searchQuery: initialQuery, system, campaignId } = state;
 
   const [query, setQuery] = useState(initialQuery);
   const [pages, setPages] = useState<PageListEntry[]>([]);
@@ -35,11 +35,11 @@ export function GrimoirePopupModal() {
   // Fetch index on open
   useEffect(() => {
     if (!open) return;
-    void grimoireData.fetchPopupIndex().then(({ pages: pagesData, categories: catsData }) => {
+    void grimoireData.fetchPopupIndex({ system: system ?? undefined, campaignId: campaignId ?? undefined }).then(({ pages: pagesData, categories: catsData }) => {
       setPages(pagesData ?? []);
       setCategories(catsData ?? []);
     });
-  }, [open, grimoireData]);
+  }, [open, grimoireData, system, campaignId]);
 
   // Auto-open pageId if provided
   useEffect(() => {

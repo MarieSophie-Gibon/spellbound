@@ -12,49 +12,71 @@ function SectionPanel({ open, children }: { open: boolean; children: ReactNode }
 interface DndCompendiumSidebarProps {
   onBack: () => void;
   readOnly?: boolean;
+  mode?: "compendium" | "bestiaire";
 }
 
 export function DndCompendiumSidebar({
   onBack,
   readOnly = false,
+  mode = "compendium",
 }: DndCompendiumSidebarProps) {
   const [showMenu, setShowMenu] = useState(false);
-  const [activeSection, setActiveSection] = useState<"classes" | "races" | null>("classes");
+  const [activeSection, setActiveSection] = useState<"classes" | "races" | "bestiaire" | null>(mode === "bestiaire" ? "bestiaire" : "classes");
+  const isBestiaireMode = mode === "bestiaire";
 
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex-1 min-h-0 overflow-y-auto py-2 px-3 scrollbar-thin scrollbar-thumb-white/5">
         <div className="w-full">
-          {/* SECTION CLASSES */}
-          <button
-            onClick={() => setActiveSection((value) => (value === "classes" ? null : "classes"))}
-            className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === "classes" ? "text-[#E3CCCD] bg-[#29206A]/40" : "text-white/50 hover:text-white/80 hover:bg-white/5"}`}
-          >
-            <span>Classes</span>
-            <span className="flex items-center gap-2">
-              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === "classes" ? "rotate-180" : ""}`} />
-            </span>
-          </button>
+          {isBestiaireMode ? (
+            <>
+              <button
+                onClick={() => setActiveSection((value) => (value === "bestiaire" ? null : "bestiaire"))}
+                className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === "bestiaire" ? "text-[#E3CCCD] bg-[#29206A]/40" : "text-white/50 hover:text-white/80 hover:bg-white/5"}`}
+              >
+                <span>Créatures</span>
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === "bestiaire" ? "rotate-180" : ""}`} />
+              </button>
+              <SectionPanel open={activeSection === "bestiaire"}>
+                <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+                  <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune créature.</div>
+                </div>
+              </SectionPanel>
+            </>
+          ) : (
+            <>
+              {/* SECTION CLASSES */}
+              <button
+                onClick={() => setActiveSection((value) => (value === "classes" ? null : "classes"))}
+                className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === "classes" ? "text-[#E3CCCD] bg-[#29206A]/40" : "text-white/50 hover:text-white/80 hover:bg-white/5"}`}
+              >
+                <span>Classes</span>
+                <span className="flex items-center gap-2">
+                  <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === "classes" ? "rotate-180" : ""}`} />
+                </span>
+              </button>
 
-          <SectionPanel open={activeSection === "classes"}>
-            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
-                <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune classe.</div>
-            </div>
-          </SectionPanel>
+              <SectionPanel open={activeSection === "classes"}>
+                <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+                    <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune classe.</div>
+                </div>
+              </SectionPanel>
 
-          {/* SECTION RACES */}
-          <button
-            onClick={() => setActiveSection((value) => (value === "races" ? null : "races"))}
-            className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === "races" ? "text-[#E3CCCD] bg-[#29206A]/40" : "text-white/50 hover:text-white/80 hover:bg-white/5"}`}
-          >
-            <span>Races</span>
-            <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === "races" ? "rotate-180" : ""}`} />
-          </button>
-          <SectionPanel open={activeSection === "races"}>
-            <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
-              <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune race.</div>
-            </div>
-          </SectionPanel>
+              {/* SECTION RACES */}
+              <button
+                onClick={() => setActiveSection((value) => (value === "races" ? null : "races"))}
+                className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg transition-all text-[12px] font-medium ${activeSection === "races" ? "text-[#E3CCCD] bg-[#29206A]/40" : "text-white/50 hover:text-white/80 hover:bg-white/5"}`}
+              >
+                <span>Races</span>
+                <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${activeSection === "races" ? "rotate-180" : ""}`} />
+              </button>
+              <SectionPanel open={activeSection === "races"}>
+                <div className="mt-1 space-y-0.5 ml-2 border-l border-[#E3CCCD]/20 pl-2 mb-1">
+                  <div className="text-[11px] text-white/30 italic py-1.5 px-2">Aucune race.</div>
+                </div>
+              </SectionPanel>
+            </>
+          )}
         </div>
       </div>
 
@@ -67,7 +89,7 @@ export function DndCompendiumSidebar({
               }}
               className="w-full flex items-center gap-3 px-4 py-3 text-[13px] text-white hover:bg-white/10 transition-colors"
             >
-              <BookOpen className="w-4 h-4 text-[#E3CCCD]" /> Ajouter une Classe
+              <BookOpen className="w-4 h-4 text-[#E3CCCD]" /> {isBestiaireMode ? "Ajouter une Créature" : "Ajouter une Classe"}
             </button>
           </div>
         )}

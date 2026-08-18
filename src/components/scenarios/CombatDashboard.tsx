@@ -28,10 +28,12 @@ import { RoundTriggerPanel } from "./combat/RoundTriggerPanel";
 import { CombatTriggerNotification } from "./combat/CombatTriggerNotification";
 import { CombatStickyNote } from "./combat/CombatStickyNote";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
+import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface CombatDashboardProps {
   chapitreId: string;
   campaignId: string;
+  campaignSystem: RpgSystem;
   onBackToScenario?: () => void;
 }
 
@@ -69,7 +71,7 @@ function normalizeCombatState(
   };
 }
 
-export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: CombatDashboardProps) {
+export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBackToScenario }: CombatDashboardProps) {
   const combatData = useCombatDashboardData();
   const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
@@ -1030,7 +1032,7 @@ export function CombatDashboard({ chapitreId, campaignId, onBackToScenario }: Co
 
       {/* Boutons droite */}
       <CombatTopActions
-        onOpenGrimoire={openPopup}
+        onOpenGrimoire={() => openPopup({ system: campaignSystem, campaignId })}
         onToggleNote={() => setIsNoteVisible((prev) => !prev)}
         onToggleEvents={() => setIsTriggerPanelOpen((prev) => !prev)}
         onBackToScenario={onBackToScenario}

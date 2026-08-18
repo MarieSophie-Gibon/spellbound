@@ -390,6 +390,7 @@ export function Compendium({ onBack, campaignId, readOnly = false, isOwner = fal
           <DndCompendiumSidebar
             onBack={onBack}
             readOnly={readOnly}
+            mode={isBestiaireOnly ? "bestiaire" : "compendium"}
           />
         </div>
       )}
