@@ -16,12 +16,18 @@ interface MagicCardProps {
 
 export function MagicCard({ title, imageUrl, size = 'default', onClick, children, badge, onEdit, onDelete, onLeave, className }: MagicCardProps) {
   const bgImage = imageUrl || '/default-bg.jpg'
+  const isClickable = !!onClick
   const isCompact = size === 'compact'
   const isFluid = size === 'fluid'
   const isMedium = size === 'medium'
   const cardSizeClass = isFluid ? 'w-35 h-full' : isCompact ? 'w-48 h-72' : isMedium ? 'w-56 h-80' : 'w-60 h-95'
   const titleClass = (isCompact || isFluid) ? 'text-md' : isMedium ? 'text-lg' : 'text-lg'
   const contentPositionClass = (isCompact || isFluid) ? 'bottom-8 left-3 right-3' : isMedium ? 'bottom-8 left-6 right-6' : 'bottom-10 left-8 right-8'
+  const cardInteractionClass = isClickable
+    ? 'cursor-pointer hover:-translate-y-3 hover:shadow-[0_10px_30px_rgba(55,42,132,0.6)]'
+    : 'cursor-default'
+  const imageHoverClass = isClickable ? 'group-hover:scale-105' : ''
+  const overlayHoverClass = isClickable ? 'group-hover:opacity-100' : ''
   const softerGradientCard = {
     background: 'linear-gradient(to bottom, rgba(255,255,255,0) 20%, rgba(62,50,126,0.18) 48%, rgba(34,26,84,0.34) 68%, rgba(18,13,49,0.58) 100%)'
   }
@@ -29,13 +35,13 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
   return (
     <div 
       onClick={onClick}
-      className={`relative ${cardSizeClass} rounded-lg cursor-pointer group transition-all duration-500 hover:-translate-y-3 hover:shadow-[0_10px_30px_rgba(55,42,132,0.6)] ${className ?? ''}`}
+      className={`relative ${cardSizeClass} rounded-lg group transition-all duration-500 ${cardInteractionClass} ${className ?? ''}`}
     >
       {/* Inner clipped layers */}
       <div className="absolute inset-0 rounded-lg overflow-hidden">
         {/* Layer 1: Background Image */}
         <div 
-          className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+          className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 ${imageHoverClass}`}
           style={{ backgroundImage: `url('${bgImage}')` }} 
         />
         
@@ -44,7 +50,7 @@ export function MagicCard({ title, imageUrl, size = 'default', onClick, children
 
         {/* Layer 3: Overlay SVG (Le cadre) */}
         <div 
-          className="absolute inset-0 bg-contain bg-center bg-no-repeat pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity" 
+          className={`absolute inset-0 bg-contain bg-center bg-no-repeat pointer-events-none opacity-80 transition-opacity ${overlayHoverClass}`}
           style={{ backgroundImage: "url('/card-overlay.svg')" }} 
         />
 
