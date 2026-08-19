@@ -69,6 +69,10 @@ describe("useCampaignHomeData", () => {
       data: [{ user_id: "u1" }, { user_id: "u2" }],
       error: null,
     });
+    queueTableResponse("pj", {
+      data: [],
+      error: null,
+    });
     queueTableResponse("utilisateurs", {
       data: [
         { id: "u1", pseudo: "Alice" },
@@ -98,12 +102,62 @@ describe("useCampaignHomeData", () => {
 
   it("retourne [] si campaign_members est vide", async () => {
     queueTableResponse("campaign_members", { data: [], error: null });
+    queueTableResponse("pj", { data: [], error: null });
 
     const { result } = renderHook(() => useCampaignHomeData());
     const members = await result.current.fetchCampaignMembers("camp-empty");
 
     expect(members).toEqual([]);
-    expect(mockState.calls.from).toEqual(["campaign_members"]);
+    expect(mockState.calls.from).toEqual(["campaign_members", "pj"]);
+  });
+
+  it("inclut les joueurs lies uniquement via pj", async () => {
+    queueTableResponse("campaign_members", {
+      data: [{ user_id: "u1" }],
+      error: null,
+    });
+    queueTableResponse("pj", {
+      data: [
+        { user_id: "u1", player_id: null },
+        { user_id: null, player_id: "u5" },
+      ],
+      error: null,
+    });
+    queueTableResponse("utilisateurs", {
+      data: [
+        { id: "u1", pseudo: "Alice" },
+        { id: "u5", pseudo: "Eve" },
+      ],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useCampaignHomeData());
+    const members = await result.current.fetchCampaignMembers("camp-legacy");
+
+    expect(members).toEqual([
+      { id: "u1", pseudo: "Alice" },
+      { id: "u5", pseudo: "Eve" },
+    ]);
+  });
+
+  it("conserve tous les ids meme si utilisateurs renvoie un sous-ensemble", async () => {
+    queueTableResponse("campaign_members", {
+      data: [{ user_id: "u1" }, { user_id: "u5" }],
+      error: null,
+    });
+    queueTableResponse("pj", { data: [], error: null });
+    queueTableResponse("utilisateurs", {
+      data: [{ id: "u1", pseudo: "Alice" }],
+      error: null,
+    });
+
+    const { result } = renderHook(() => useCampaignHomeData());
+    const members = await result.current.fetchCampaignMembers("camp-partial-users");
+
+    expect(members).toEqual([
+      { id: "u1", pseudo: "Alice" },
+      { id: "u5", pseudo: "u5" },
+    ]);
   });
 
   it("retourne les voies associees par ids", async () => {

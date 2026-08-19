@@ -14,7 +14,7 @@ interface CampaignHomeMobileProps {
 export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
   const role = useAuthStore((s) => s.role);
   const isMJ = role === "mj";
-  const campaignHomeData = useCampaignHomeData();
+  const { fetchCampaignMembers, fetchVoiesByIds } = useCampaignHomeData();
   const bgImage = campaign.image_url || "/default-bg.jpg";
   const { data: progress } = useCampaignProgress(campaign.id);
   const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
@@ -29,8 +29,8 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
   const selectedPnj = (revealedPnjs ?? []).find((pnj) => pnj.id === selectedPnjId) ?? null;
 
   useEffect(() => {
-    campaignHomeData.fetchCampaignMembers(campaign.id).then(setMembres);
-  }, [campaign.id, campaignHomeData]);
+    fetchCampaignMembers(campaign.id).then(setMembres);
+  }, [campaign.id, fetchCampaignMembers]);
 
   useEffect(() => {
     const loadVoies = async () => {
@@ -43,7 +43,7 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
         setSelectedPnjVoies([]);
         return;
       }
-      const data = await campaignHomeData.fetchVoiesByIds(voieIds);
+      const data = await fetchVoiesByIds(voieIds);
 
       const voieName = new Map((data ?? []).map((v) => [v.id, v.nom]));
       setSelectedPnjVoies(
@@ -57,7 +57,7 @@ export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
       );
     };
     void loadVoies();
-  }, [selectedPnjId, selectedPnj, campaignHomeData]);
+  }, [selectedPnjId, selectedPnj, fetchVoiesByIds]);
 
   const createdAt = campaign.created_at
     ? new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" }).format(new Date(campaign.created_at))

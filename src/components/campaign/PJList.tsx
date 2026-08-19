@@ -14,7 +14,7 @@ interface PJListProps {
 
 export function PJList({ campaignId, isMJ = false }: PJListProps) {
   const isMobile = useIsMobile();
-  const campaignPjListData = useCampaignPjListData();
+  const { fetchPeuples, fetchProfils, fetchPlayers } = useCampaignPjListData();
   const { data: pjs, isLoading } = usePJs(campaignId);
   const currentUserId = useAuthStore((s) => s.session?.user?.id);
   const [peuples, setPeuples] = useState<Peuple[]>([]);
@@ -26,15 +26,15 @@ export function PJList({ campaignId, isMJ = false }: PJListProps) {
   useEffect(() => {
     (async () => {
       const [peuplesData, profilsData, playersData] = await Promise.all([
-        campaignPjListData.fetchPeuples(),
-        campaignPjListData.fetchProfils(),
-        campaignPjListData.fetchPlayers(),
+        fetchPeuples(),
+        fetchProfils(),
+        fetchPlayers(),
       ]);
       setPeuples(peuplesData);
       setProfils(profilsData);
       setPlayers(playersData);
     })();
-  }, [campaignPjListData]);
+  }, [fetchPeuples, fetchProfils, fetchPlayers]);
 
   if (isLoading) return <div className={`${isMobile ? 'text-white/60 text-xs italic px-1 py-2' : 'text-white/60 mt-10 ml-16 text-sm italic'}`}>Chargement des personnages...</div>;
   if (!pjs?.length) return <div className={`${isMobile ? 'text-white/40 text-xs italic px-1 py-2' : "text-white/40 text-sm italic mt-10 ml-16"}`}>Aucun personnage n'a rejoint la compagne.</div>;

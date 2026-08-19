@@ -1,6 +1,10 @@
 import { useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
+function isMissingTableError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: string }).code === "42P01";
+}
+
 export interface CampaignMember {
   id: string;
   pseudo: string;
@@ -18,11 +22,38 @@ export function useCampaignHomeData() {
       .select("user_id")
       .eq("campaign_id", campaignId);
 
-    if (rowsError || !rows?.length) {
+    const memberIds = new Set<string>();
+
+    if (rowsError) {
+      if (!isMissingTableError(rowsError)) {
+        return [];
+      }
+    } else {
+      for (const row of rows ?? []) {
+        if (row?.user_id) {
+          memberIds.add(row.user_id);
+        }
+      }
+    }
+
+    // Compat legacy: some campaign players are only linked through pj rows.
+    const { data: pjRows, error: pjError } = await supabase
+      .from("pj")
+      .select("user_id, player_id")
+      .eq("campaign_id", campaignId);
+
+    if (pjError && !isMissingTableError(pjError)) {
       return [];
     }
 
-    const ids = rows.map((r) => r.user_id).filter(Boolean);
+    for (const row of pjRows ?? []) {
+      const linkedId = row?.user_id ?? row?.player_id;
+      if (linkedId) {
+        memberIds.add(linkedId);
+      }
+    }
+
+    const ids = Array.from(memberIds);
     if (!ids.length) {
       return [];
     }
@@ -33,12 +64,13 @@ export function useCampaignHomeData() {
       .in("id", ids);
 
     if (usersError || !users) {
-      return [];
+      return ids.map((id) => ({ id, pseudo: id.slice(0, 8) }));
     }
 
-    return users.map((u: { id: string; pseudo: string }) => ({
-      id: u.id,
-      pseudo: u.pseudo,
+    const byId = new Map((users as Array<{ id: string; pseudo: string | null }>).map((u) => [u.id, u.pseudo]));
+    return ids.map((id) => ({
+      id,
+      pseudo: byId.get(id) ?? id.slice(0, 8),
     }));
   }, []);
 

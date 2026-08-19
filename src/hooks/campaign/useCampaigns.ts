@@ -21,6 +21,12 @@ function isMissingColumnError(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && (err as { code?: string }).code === '42703'
 }
 
+function isMissingRelationError(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null || !('code' in err)) return false
+  const code = (err as { code?: string }).code
+  return code === 'PGRST200' || code === 'PGRST201' || code === 'PGRST204'
+}
+
 function createInviteCode(length = 8): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   const bytes = new Uint8Array(length)
@@ -483,7 +489,78 @@ export function useRevealedPnjs(campaignId: string) {
         .eq('campaign_id', campaignId)
         .order('revealed_at', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        if (isMissingTableError(error)) {
+          return []
+        }
+
+        if (!isMissingColumnError(error) && !isMissingRelationError(error)) {
+          throw error
+        }
+
+        // Compat local schema: fallback without FK embed and without optional columns.
+        const { data: revealRows, error: revealErr } = await supabase
+          .from('campaign_revealed_pnjs')
+          .select('revealed_at, pnj_id')
+          .eq('campaign_id', campaignId)
+          .order('revealed_at', { ascending: true })
+
+        if (revealErr) {
+          if (isMissingTableError(revealErr)) return []
+          throw revealErr
+        }
+
+        const pnjIds = (revealRows ?? [])
+          .map((row: { pnj_id?: string | null }) => row.pnj_id)
+          .filter(Boolean) as string[]
+
+        if (pnjIds.length === 0) return []
+
+        let pnjRows: Array<{
+          id: string
+          name: string | null
+          image_url: string | null
+          description: string | null
+          stats?: Record<string, unknown> | null
+          pathways?: Array<{ voie_id: string; rangs_acquis?: number[] }> | null
+        }> = []
+
+        const { data: fullPnjRows, error: fullPnjErr } = await supabase
+          .from('pnj')
+          .select('id, name, image_url, description, stats, pathways')
+          .in('id', pnjIds)
+
+        if (fullPnjErr) {
+          if (!isMissingColumnError(fullPnjErr)) throw fullPnjErr
+
+          const { data: basePnjRows, error: basePnjErr } = await supabase
+            .from('pnj')
+            .select('id, name, image_url, description')
+            .in('id', pnjIds)
+
+          if (basePnjErr) throw basePnjErr
+          pnjRows = (basePnjRows ?? []) as typeof pnjRows
+        } else {
+          pnjRows = (fullPnjRows ?? []) as typeof pnjRows
+        }
+
+        const byId = new Map(pnjRows.map((pnj) => [pnj.id, pnj]))
+        return (revealRows ?? [])
+          .map((row: { revealed_at: string; pnj_id: string }) => {
+            const pnj = byId.get(row.pnj_id)
+            if (!pnj) return null
+            return {
+              id: pnj.id,
+              name: pnj.name ?? 'PNJ',
+              image_url: pnj.image_url ?? null,
+              description: pnj.description ?? null,
+              stats: pnj.stats ?? null,
+              pathways: pnj.pathways ?? null,
+              revealed_at: row.revealed_at,
+            }
+          })
+          .filter(Boolean) as RevealedPnj[]
+      }
 
       return (data ?? [])
         .filter((row: any) => {
@@ -506,6 +583,7 @@ export function useRevealedPnjs(campaignId: string) {
         })
     },
     enabled: !!campaignId,
+    retry: false,
   })
 }
 
@@ -650,6 +728,8 @@ export function useCampaignMembers(campaignId: string) {
             .eq('campaign_id', campaignId)
           if (legacyErr) throw legacyErr
           memberRows = (legacyRows ?? []) as MemberRow[]
+        } else if (isMissingTableError(memberErr)) {
+          memberRows = []
         } else {
           throw memberErr
         }
@@ -700,6 +780,7 @@ export function useCampaignMembers(campaignId: string) {
       }))
     },
     enabled: !!campaignId,
+    retry: false,
   })
 }
 
