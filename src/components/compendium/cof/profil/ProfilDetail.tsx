@@ -6,6 +6,7 @@ import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { ProfilDetailMobile } from "@/components/compendium/cof/profil/ProfilDetailMobile";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";
+import { MagicCard } from "@/components/ui/MagicCard";
 
 interface ProfilDetailProps {
     profil: Famille;
@@ -214,21 +215,19 @@ function VoieBlock({ voie, defaultOpen }: { voie: FamilleVoie; defaultOpen?: boo
 
 function ProfilCard({ profil }: { profil: Famille }) {
     return (
-        <div className="w-44 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
+        <div className="w-44 h-66 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
             {profil.image_url ? (
-                <img src={profil.image_url} alt={profil.nom} className="absolute inset-0 w-full h-full object-cover opacity-90" />
+                <MagicCard
+                    imageUrl={profil.image_url}
+                    title={profil.nom}
+                    size="fluid"
+                    className="w-full! h-full!"
+                />
             ) : (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                     <ImageIcon className="w-10 h-10 text-white/10" />
                 </div>
             )}
-            <div className="absolute inset-0 z-10 pointer-events-none"
-                style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
-            />
-            <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
-            <div className="absolute bottom-5 inset-x-0 z-30 pb-4 text-center">
-                <h3 className="font-serif text-base text-white tracking-widest">{profil.nom}</h3>
-            </div>
         </div>
     );
 }
