@@ -84,6 +84,7 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
   const [isDeleting, setIsDeleting] = useState(false);
   const [draggedChapitreId, setDraggedChapitreId] = useState<string | null>(null);
   const [dragOverChapitreId, setDragOverChapitreId] = useState<string | null>(null);
+  const [pendingFocusBlockId, setPendingFocusBlockId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     const scData = await scenariosData.fetchScenarios(campaignId);
@@ -108,8 +109,10 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
 
   useEffect(() => {
     const chapitreFromQuery = searchParams.get("chapitreId");
+    const blockFromQuery = searchParams.get("blockId");
     if (chapitreFromQuery) {
       setSelectedChapitreId(chapitreFromQuery);
+      setPendingFocusBlockId(blockFromQuery || null);
     }
   }, [searchParams]);
 
@@ -264,7 +267,7 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
       selectedChapitreId={selectedChapitreId}
       selectedScenarioId={selectedScenarioId}
       expandedScenarios={expandedScenarios}
-      onSelectChapitre={(id) => { setSelectedChapitreId(id); setSelectedScenarioId(null); }}
+      onSelectChapitre={(id) => { setSelectedChapitreId(id); setSelectedScenarioId(null); setPendingFocusBlockId(null); }}
       onSelectScenario={(id) => { setSelectedScenarioId(id); setSelectedChapitreId(null); }}
       onToggleScenario={handleToggleScenario}
       onCreateScenario={() => { setEditingScenario(null); setShowScenarioModal(true); }}
@@ -292,6 +295,13 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
             onToggleFullscreen={() => setIsFullscreen(v => !v)}
             campaignId={campaignId}
             campaignSystem={campaignSystem ?? 'COF'}
+            initialFocusBlockId={pendingFocusBlockId}
+            onInitialFocusHandled={() => setPendingFocusBlockId(null)}
+            onNavigateToChapitre={(targetChapitreId, targetBlockId) => {
+              setSelectedScenarioId(null);
+              setSelectedChapitreId(targetChapitreId);
+              setPendingFocusBlockId(targetBlockId || null);
+            }}
             completed={!!chapitres.find(c => c.id === selectedChapitreId)?.completed}
             onToggleCompleted={() => {
               const ch = chapitres.find(c => c.id === selectedChapitreId);
@@ -340,7 +350,7 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
                       {relatedChapitres.map((ch, idx) => (
                         <button
                           key={ch.id}
-                          onClick={() => { setSelectedChapitreId(ch.id); setSelectedScenarioId(null); }}
+                          onClick={() => { setSelectedChapitreId(ch.id); setSelectedScenarioId(null); setPendingFocusBlockId(null); }}
                           className="w-full flex items-center gap-4 px-4 py-3 rounded-xl border border-white/8 bg-white/3 hover:bg-[#E3CCCD]/8 hover:border-[#E3CCCD]/20 transition-all text-left group"
                         >
                           <span className="text-[11px] text-white/30 font-mono shrink-0 w-6 text-right">{idx + 1}</span>
