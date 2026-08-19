@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { EquipementType } from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import type { Equipement } from "@/types/compendium";
+import { MagicCard } from "@/components/ui/MagicCard";
 
 type EquipementDetailMobileProps = {
   equipements: Equipement[];
@@ -107,10 +108,10 @@ function EquipementMobileCard({
       <div className="flex items-start gap-3">
         <div className="w-14 h-14 rounded-lg shrink-0 overflow-hidden border border-white/10 bg-black/20 flex items-center justify-center">
           {equipement.image_url ? (
-            <img
-              src={equipement.image_url}
-              alt={equipement.nom}
-              className="w-full h-full object-cover"
+            <MagicCard
+              imageUrl={equipement.image_url}
+              size="fluid"
+              className="w-full! h-full!"
             />
           ) : (
             <Swords className="w-5 h-5 text-white/10" />

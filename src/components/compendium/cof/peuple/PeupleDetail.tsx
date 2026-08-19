@@ -4,6 +4,7 @@ import { useIsMobile } from "@/hooks/shared/useIsMobile";
 import { PeupleDetailMobile } from "@/components/compendium/cof/peuple/PeupleDetailMobile";
 import { hasRangContent, normalizeVoieRang } from "@/lib/voieRanks";
 import { RangCard } from "@/components/ui/RangCard";
+import { MagicCard } from "@/components/ui/MagicCard";
 
 interface PeupleDetailProps {
   peuple: Peuple;
@@ -107,21 +108,19 @@ export function PeupleDetail({ peuple, voie, isFullscreen, readOnly, onToggleFul
 
 function PeupleCard({ peuple }: { peuple: Peuple }) {
   return (
-    <div className="w-44 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
+    <div className="w-44 h-66 shrink-0 self-start aspect-290/437 rounded-2xl relative border border-white/10 overflow-hidden">
       {peuple.image_url ? (
-        <img src={peuple.image_url} alt={peuple.nom} className="absolute inset-0 w-full h-full object-cover opacity-90" />
+        <MagicCard
+          imageUrl={peuple.image_url}
+          title={peuple.nom}
+          size="fluid"
+          className="w-full! h-full!"
+        />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
           <ImageIcon className="w-10 h-10 text-white/10" />
         </div>
       )}
-      <div className="absolute inset-0 z-10 pointer-events-none"
-        style={{ background: "linear-gradient(to bottom, rgba(102,102,102,0) 0%, rgba(55,42,132,0.72) 47%, rgba(36,27,89,0.79) 63%, rgba(18,13,47,1) 100%)" }}
-      />
-      <img src="/card-overlay.svg" alt="" className="absolute inset-0 w-full h-full z-20 pointer-events-none opacity-80" />
-      <div className="absolute bottom-5 inset-x-0 z-30 pb-4 text-center">
-        <h3 className="font-serif text-base text-white tracking-widest">{peuple.nom}</h3>
-      </div>
     </div>
   );
 }
