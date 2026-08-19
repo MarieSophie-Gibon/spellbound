@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from "react";
 import { useChapitreEditorData } from "@/hooks/core/scenarios/useChapitreEditorData";
+import { useChapitreRetroLinks } from "@/hooks/core/scenarios/useChapitreRetroLinks";
 import {
   Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
   Trash2, GripVertical, Image as ImageIcon, UploadCloud,
   Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote,
-  Bookmark, BookmarkCheck, Navigation, Bold, Copy, ClipboardPaste
+  Bookmark, BookmarkCheck, Navigation, Bold, Copy, ClipboardPaste, Link2
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
@@ -17,6 +18,7 @@ import { NpcBlock } from "./blocks/NpcBlock";
 import { EnemyBlock } from "./blocks/EnemyBlock";
 import { MJBlock } from "./blocks/MJBlock";
 import { ClueBlock } from "./blocks/ClueBlock";
+import { LinkBlock } from "./blocks/LinkBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -27,9 +29,12 @@ interface ChapitreEditorProps {
   completed?: boolean;
   onToggleCompleted?: () => void;
   onOpenCombatDashboard?: (chapitreId: string) => void;
+  onNavigateToChapitre?: (chapitreId: string, targetBlockId?: string) => void;
+  initialFocusBlockId?: string | null;
+  onInitialFocusHandled?: () => void;
 }
 
-type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note' | 'clue';
+type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note' | 'clue' | 'link';
 
 interface Block {
   id: string;
@@ -37,11 +42,24 @@ interface Block {
   data: any;
 }
 
-export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, campaignId, campaignSystem, completed, onToggleCompleted, onOpenCombatDashboard }: ChapitreEditorProps) {
+export function ChapitreEditor({
+  chapitreId,
+  isFullscreen,
+  onToggleFullscreen,
+  campaignId,
+  campaignSystem,
+  completed,
+  onToggleCompleted,
+  onOpenCombatDashboard,
+  onNavigateToChapitre,
+  initialFocusBlockId,
+  onInitialFocusHandled,
+}: ChapitreEditorProps) {
   const chapitreEditorData = useChapitreEditorData();
   const { openPopup } = useGrimoirePopup();
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const retroLinks = useChapitreRetroLinks({ campaignId, chapitreId, blocks });
   const [isLoading, setIsLoading] = useState(true);
   
   // États d'édition et sauvegarde
@@ -76,6 +94,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   // Repères (bookmarks)
   const [isReperesOpen, setIsReperesOpen] = useState(false);
   const blockRefsMap = useRef<Record<string, HTMLDivElement | null>>({});
+  const lastInitialFocusKeyRef = useRef<string>("");
 
   const getRepereLabel = (block: Block): string => {
     switch (block.type) {
@@ -90,7 +109,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     }
   };
 
-  const scrollToBlock = (blockId: string) => {
+  const scrollToBlock = useCallback((blockId: string) => {
     const el = blockRefsMap.current[blockId];
     if (el && scrollContainerRef.current) {
       const containerTop = scrollContainerRef.current.getBoundingClientRect().top;
@@ -98,7 +117,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       scrollContainerRef.current.scrollBy({ top: elTop - containerTop - 80, behavior: 'smooth' });
     }
     setIsReperesOpen(false);
-  };
+  }, []);
 
   const toggleRepere = (blockId: string) => {
     updateBlock(blockId, { isRepere: !blocks.find(b => b.id === blockId)?.data?.isRepere });
@@ -154,6 +173,23 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
   useEffect(() => {
     fetchChapitre();
   }, [fetchChapitre]);
+
+  useEffect(() => {
+    if (!initialFocusBlockId) {
+      lastInitialFocusKeyRef.current = "";
+      return;
+    }
+
+    const key = `${chapitreId}:${initialFocusBlockId}`;
+    if (lastInitialFocusKeyRef.current === key) return;
+
+    const existsInCurrentChapter = blocks.some((block) => block.id === initialFocusBlockId);
+    if (!existsInCurrentChapter) return;
+
+    scrollToBlock(initialFocusBlockId);
+    lastInitialFocusKeyRef.current = key;
+    onInitialFocusHandled?.();
+  }, [blocks, chapitreId, initialFocusBlockId, onInitialFocusHandled, scrollToBlock]);
 
   // --- Sauvegarde Automatique (Auto-save) ---
   const handleSave = useCallback(async (currentBlocks: Block[], combatStateOverride?: PersistedCombatState) => {
@@ -251,6 +287,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
         : type === 'enemy' ? { enemyId: undefined, nom: undefined, imageUrl: undefined }
         : type === 'mj_note' ? { session: "", note: "", anchorBlockId: "", position: "below" }
         : type === 'clue' ? { title: "", text: "", npcs: [], items: [], testEnabled: false, testStat: "PER", testDd: 10, testDescription: "" }
+        : type === 'link' ? retroLinks.defaultLinkData()
         : {},
     };
     setBlocks([...blocks, newBlock]);
@@ -260,6 +297,20 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  const openLinkBlock = (block: Block) => {
+    const linkData = retroLinks.normalizeLinkData(block.data);
+
+    if (linkData.mode === 'internal_block') {
+      if (linkData.targetBlockId) {
+        scrollToBlock(linkData.targetBlockId);
+      }
+      return;
+    }
+
+    if (!linkData.targetChapitreId) return;
+    onNavigateToChapitre?.(linkData.targetChapitreId, linkData.targetBlockId || undefined);
   };
 
   const updateBlock = (id: string, newData: any) => {
@@ -654,6 +705,25 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
           />
         );
 
+      case 'link': {
+        const linkData = retroLinks.normalizeLinkData(block.data);
+        const internalTargets = retroLinks.currentChapitreBlockTargets.filter((target) => target.id !== block.id);
+        const chapterBlockTargets = linkData.targetChapitreId
+          ? retroLinks.getChapitreBlockTargets(linkData.targetChapitreId)
+          : [];
+        return (
+          <LinkBlock
+            data={linkData}
+            isEditing={isEditing}
+            internalTargets={internalTargets}
+            chapterTargets={retroLinks.chapterTargets}
+            targetChapterBlockTargets={chapterBlockTargets}
+            onChange={(newData) => updateBlock(block.id, newData)}
+            onOpen={() => openLinkBlock(block)}
+          />
+        );
+      }
+
         default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
@@ -843,6 +913,29 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
       >
         <div ref={editorContentRef} className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4">
 
+          {retroLinks.backlinks.length > 0 && (
+            <section className="rounded-2xl border border-amber-300/20 bg-amber-400/7 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Navigation className="w-4 h-4 text-amber-300/80" />
+                <h2 className="text-[12px] uppercase tracking-wider text-amber-200/90 font-semibold">Retrolinks to this chapitre</h2>
+                {retroLinks.isLoadingIndex && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-200/65" />}
+              </div>
+              <div className="space-y-1.5">
+                {retroLinks.backlinks.map((item) => (
+                  <button
+                    key={`${item.sourceChapitreId}:${item.sourceBlockId}`}
+                    type="button"
+                    onClick={() => onNavigateToChapitre?.(item.sourceChapitreId, item.sourceBlockId)}
+                    className="w-full text-left rounded-lg border border-white/8 bg-black/20 px-3 py-2 hover:bg-black/30 transition-colors"
+                  >
+                    <p className="text-[12px] text-white/80 truncate">{item.label}</p>
+                    <p className="text-[11px] text-white/45 truncate">{item.sourceScenarioTitle} / {item.sourceChapitreTitle}</p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* BOUCLE SUR LES BLOCS */}
           {blocks.length === 0 ? (
             <p className="text-white/30 italic font-light text-center py-20">
@@ -988,7 +1081,7 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               {clipboardBlock && (
                 <button onClick={pasteBlock} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/15 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left border border-sky-500/20 mb-1">
                   <ClipboardPaste className="w-4 h-4 text-sky-400/70" />
-                  Coller — {clipboardBlock.type === 'text' ? 'Texte' : clipboardBlock.type === 'quote' ? 'Citation' : clipboardBlock.type === 'image' ? 'Image' : clipboardBlock.type === 'location' ? 'Lieu' : clipboardBlock.type === 'loot' ? 'Trésor' : clipboardBlock.type === 'investigation' ? 'Enquête' : clipboardBlock.type === 'npc' ? 'PNJ' : clipboardBlock.type === 'enemy' ? 'Ennemi' : clipboardBlock.type === 'clue' ? 'Indice' : 'Bloc'}
+                  Coller — {clipboardBlock.type === 'text' ? 'Texte' : clipboardBlock.type === 'quote' ? 'Citation' : clipboardBlock.type === 'image' ? 'Image' : clipboardBlock.type === 'location' ? 'Lieu' : clipboardBlock.type === 'loot' ? 'Trésor' : clipboardBlock.type === 'investigation' ? 'Enquête' : clipboardBlock.type === 'npc' ? 'PNJ' : clipboardBlock.type === 'enemy' ? 'Ennemi' : clipboardBlock.type === 'clue' ? 'Indice' : clipboardBlock.type === 'link' ? 'Lien' : 'Bloc'}
                 </button>
               )}
               <button onClick={() => addBlock('text')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-xl text-[12px] text-white/80 transition-colors w-full text-left">
@@ -1021,6 +1114,9 @@ export function ChapitreEditor({ chapitreId, isFullscreen, onToggleFullscreen, c
               </button>
               <button onClick={() => addBlock('clue')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left">
                 <Search className="w-4 h-4 text-sky-400/70" /> Indice / Clue
+              </button>
+              <button onClick={() => addBlock('link')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left">
+                <Link2 className="w-4 h-4 text-sky-300/70" /> Lien / Retrolien
               </button>
             </div>
           </div>
