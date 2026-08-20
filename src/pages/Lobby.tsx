@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCampaigns, useDeleteCampaign, useJoinCampaignByCode, useLeaveCampaign } from "@/hooks/campaign/useCampaigns";
 import type { Campaign } from "@/hooks/campaign/useCampaigns";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -27,6 +27,33 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const session = useAuthStore((s) => s.session);
   const currentUserId = session?.user?.id;
   const { data: campaigns, isLoading } = useCampaigns();
+  const sortedCampaigns = [...(campaigns ?? [])].sort(
+    (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
+  );
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const railContentRef = useRef<HTMLDivElement | null>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [hasHiddenLeft, setHasHiddenLeft] = useState(false);
+  const [hasHiddenRight, setHasHiddenRight] = useState(false);
+
+  const edgeFadeMaskStyle = (() => {
+    if (!hasOverflow || (!hasHiddenLeft && !hasHiddenRight)) return undefined;
+
+    const maskImage = hasHiddenLeft && hasHiddenRight
+      ? "linear-gradient(to right, transparent 0, black 44px, black calc(100% - 44px), transparent 100%)"
+      : hasHiddenRight
+        ? "linear-gradient(to right, black 0, black calc(100% - 44px), transparent 100%)"
+        : "linear-gradient(to right, transparent 0, black 44px, black 100%)";
+
+    return {
+      WebkitMaskImage: maskImage,
+      maskImage,
+      WebkitMaskRepeat: "no-repeat",
+      maskRepeat: "no-repeat",
+      WebkitMaskSize: "100% 100%",
+      maskSize: "100% 100%",
+    };
+  })();
   const joinByCode = useJoinCampaignByCode();
   const deleteCampaign = useDeleteCampaign();
   const leaveCampaign = useLeaveCampaign();
@@ -36,6 +63,41 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
   const [inviteCode, setInviteCode] = useState("");
   const [joinError, setJoinError] = useState<string | null>(null);
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (isMobile) return;
+
+    const el = railRef.current;
+    const content = railContentRef.current;
+    if (!el || !content) return;
+
+    const updateRailState = () => {
+      const maxScrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+      const overflow = maxScrollLeft > 1;
+      const leftHidden = overflow && el.scrollLeft > 1;
+      const rightHidden = overflow && el.scrollLeft < maxScrollLeft - 1;
+
+      setHasOverflow(overflow);
+      setHasHiddenLeft(leftHidden);
+      setHasHiddenRight(rightHidden);
+    };
+
+    updateRailState();
+    const rafId = window.requestAnimationFrame(updateRailState);
+    const resizeObserver = new ResizeObserver(() => updateRailState());
+    resizeObserver.observe(el);
+    resizeObserver.observe(content);
+
+    el.addEventListener("scroll", updateRailState, { passive: true });
+    window.addEventListener("resize", updateRailState);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+      el.removeEventListener("scroll", updateRailState);
+      window.removeEventListener("resize", updateRailState);
+    };
+  }, [isMobile, sortedCampaigns.length]);
 
   const handleJoinByCode = () => {
     setJoinError(null);
@@ -79,7 +141,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
       </style>
       {isMobile ? (
         <LobbyMobile
-          campaigns={[...(campaigns ?? [])].sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())}
+          campaigns={sortedCampaigns}
           currentUserId={currentUserId}
           readOnly={isMobileReadOnly}
           inviteCode={inviteCode}
@@ -145,10 +207,22 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
 
           <div className="flex-1 flex items-center justify-center w-full h-full p-4 sm:p-6 md:p-8 md:pr-24">
             <div className="w-full max-w-6xl relative h-full flex items-center justify-center">
-              <div className="w-full overflow-x-auto
-                scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-                <div className="flex items-stretch gap-5 py-6 px-4 w-max mx-auto">
-                  <div className="shrink-0">
+              <div
+                ref={railRef}
+                className={`w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-track-transparent ${
+                  hasOverflow ? "scrollbar-thumb-white/20" : "scrollbar-thumb-transparent"
+                }`}
+                style={edgeFadeMaskStyle}
+              >
+                <div
+                  ref={railContentRef}
+                  className={`flex items-stretch py-6 w-max min-w-full ${
+                    hasOverflow
+                      ? "gap-3 justify-start snap-x snap-mandatory pl-1 pr-0"
+                      : "gap-5 justify-center px-4"
+                  }`}
+                >
+                  <div className={`shrink-0 ${hasOverflow ? "snap-start" : ""}`}>
                     <MagicCard
                       size="compact"
                       onClick={onCreateCampaign}
@@ -164,10 +238,8 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
                     />
                   </div>
 
-                  {[...(campaigns ?? [])]
-                    .sort((a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime())
-                    .map((campaign) => (
-                      <div key={campaign.id} className="shrink-0">
+                  {sortedCampaigns.map((campaign) => (
+                      <div key={campaign.id} className={`shrink-0 ${hasOverflow ? "snap-start" : ""}`}>
                         {(() => {
                           const isOwner = !!currentUserId && campaign.owner_id === currentUserId;
                           const canLeave = !isOwner && campaign.access_type === "member";
@@ -187,6 +259,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
                     ))}
                 </div>
               </div>
+
             </div>
           </div>
         </>
