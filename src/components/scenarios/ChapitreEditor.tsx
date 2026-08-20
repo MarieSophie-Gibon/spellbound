@@ -1,12 +1,47 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useLayoutEffect,
+  useMemo,
+} from "react";
+import { createPortal } from "react-dom";
 import { useChapitreEditorData } from "@/hooks/core/scenarios/useChapitreEditorData";
 import { useChapitreRetroLinks } from "@/hooks/core/scenarios/useChapitreRetroLinks";
 import {
-  Loader2, Type, Quote, MapPin, Package, Search, Users, Swords,
-  Trash2, GripVertical, Image as ImageIcon, UploadCloud,
-  Maximize2, Minimize2, CheckCircle2, Plus, CloudUpload, PenTool, Eye, Edit3, BookOpen, StickyNote,
-  Bookmark, BookmarkCheck, Navigation, Bold, Copy, ClipboardPaste, Link2
+  Loader2,
+  Type,
+  Quote,
+  MapPin,
+  Package,
+  Search,
+  Users,
+  Swords,
+  Trash2,
+  GripVertical,
+  Image as ImageIcon,
+  UploadCloud,
+  Maximize2,
+  Minimize2,
+  CheckCircle2,
+  Plus,
+  CloudUpload,
+  PenTool,
+  Eye,
+  Edit3,
+  BookOpen,
+  StickyNote,
+  Bookmark,
+  BookmarkCheck,
+  Navigation,
+  Bold,
+  Underline,
+  Copy,
+  ClipboardPaste,
+  Link2,
+  Dices,
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
@@ -34,7 +69,18 @@ interface ChapitreEditorProps {
   onInitialFocusHandled?: () => void;
 }
 
-type BlockType = 'text' | 'quote' | 'image' | 'location' | 'loot' | 'investigation' | 'npc' | 'enemy' | 'mj_note' | 'clue' | 'link';
+type BlockType =
+  | "text"
+  | "quote"
+  | "image"
+  | "location"
+  | "loot"
+  | "investigation"
+  | "npc"
+  | "enemy"
+  | "mj_note"
+  | "clue"
+  | "link";
 
 interface Block {
   id: string;
@@ -61,7 +107,7 @@ export function ChapitreEditor({
   const [blocks, setBlocks] = useState<Block[]>([]);
   const retroLinks = useChapitreRetroLinks({ campaignId, chapitreId, blocks });
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // États d'édition et sauvegarde
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -71,11 +117,18 @@ export function ChapitreEditor({
 
   // Menu d'ajout volant (Side Tab)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const addMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [addMenuPosition, setAddMenuPosition] = useState({ top: 0, right: 0 });
 
   // Presse-papiers (localStorage pour persister entre chapitres)
   const CLIPBOARD_KEY = "spellbound_block_clipboard";
   const [clipboardBlock, setClipboardBlock] = useState<Block | null>(() => {
-    try { const s = localStorage.getItem(CLIPBOARD_KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+    try {
+      const s = localStorage.getItem(CLIPBOARD_KEY);
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
   });
   const copyBlock = (block: Block) => {
     const copy = { ...block, id: "" };
@@ -84,11 +137,18 @@ export function ChapitreEditor({
   };
   const pasteBlock = () => {
     if (!clipboardBlock) return;
-    const newBlock: Block = { ...clipboardBlock, id: crypto.randomUUID(), data: { ...clipboardBlock.data, isRepere: false } };
-    setBlocks(prev => [...prev, newBlock]);
+    const newBlock: Block = {
+      ...clipboardBlock,
+      id: crypto.randomUUID(),
+      data: { ...clipboardBlock.data, isRepere: false },
+    };
+    setBlocks((prev) => [...prev, newBlock]);
     setHasChanges(true);
     setIsAddMenuOpen(false);
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    setTimeout(
+      () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
+      100,
+    );
   };
 
   // Repères (bookmarks)
@@ -98,40 +158,63 @@ export function ChapitreEditor({
 
   const getRepereLabel = (block: Block): string => {
     switch (block.type) {
-      case 'location': return block.data?.title?.trim() || 'Lieu sans titre';
-      case 'npc': return block.data?.nom?.trim() || 'PNJ sans nom';
-      case 'enemy': return block.data?.nom?.trim() || 'Ennemi sans nom';
-      case 'investigation': return block.data?.title?.trim() || 'Enquête sans titre';
-      case 'loot': return block.data?.text?.trim()?.slice(0, 40) || 'Trésor';
-      case 'text': return (block.data?.text?.trim() || '').slice(0, 40) || 'Texte';
-      case 'quote': return (block.data?.text?.trim() || '').slice(0, 40) || 'Citation';
-      default: return block.type;
+      case "location":
+        return block.data?.title?.trim() || "Lieu sans titre";
+      case "npc":
+        return block.data?.nom?.trim() || "PNJ sans nom";
+      case "enemy":
+        return block.data?.nom?.trim() || "Ennemi sans nom";
+      case "investigation":
+        return block.data?.title?.trim() || "Enquête sans titre";
+      case "loot":
+        return block.data?.text?.trim()?.slice(0, 40) || "Trésor";
+      case "text":
+        return (block.data?.text?.trim() || "").slice(0, 40) || "Texte";
+      case "quote":
+        return (block.data?.text?.trim() || "").slice(0, 40) || "Citation";
+      default:
+        return block.type;
     }
   };
 
   const scrollToBlock = useCallback((blockId: string) => {
     const el = blockRefsMap.current[blockId];
     if (el && scrollContainerRef.current) {
-      const containerTop = scrollContainerRef.current.getBoundingClientRect().top;
+      const containerTop =
+        scrollContainerRef.current.getBoundingClientRect().top;
       const elTop = el.getBoundingClientRect().top;
-      scrollContainerRef.current.scrollBy({ top: elTop - containerTop - 80, behavior: 'smooth' });
+      scrollContainerRef.current.scrollBy({
+        top: elTop - containerTop - 80,
+        behavior: "smooth",
+      });
     }
     setIsReperesOpen(false);
   }, []);
 
   const toggleRepere = (blockId: string) => {
-    updateBlock(blockId, { isRepere: !blocks.find(b => b.id === blockId)?.data?.isRepere });
+    updateBlock(blockId, {
+      isRepere: !blocks.find((b) => b.id === blockId)?.data?.isRepere,
+    });
   };
 
-  const reperes = blocks.filter(b => b.data?.isRepere && b.type !== 'mj_note');
+  const reperes = blocks.filter(
+    (b) => b.data?.isRepere && b.type !== "mj_note",
+  );
 
-  const rightAnchoredNotesSignature = useMemo(() => (
-    blocks
-      .filter((b) => b.type === 'mj_note' && b.data?.anchorBlockId && b.data?.position === 'right')
-      .map((b) => `${b.id}:${b.data.anchorBlockId}`)
-      .sort()
-      .join('|')
-  ), [blocks]);
+  const rightAnchoredNotesSignature = useMemo(
+    () =>
+      blocks
+        .filter(
+          (b) =>
+            b.type === "mj_note" &&
+            b.data?.anchorBlockId &&
+            b.data?.position === "right",
+        )
+        .map((b) => `${b.id}:${b.data.anchorBlockId}`)
+        .sort()
+        .join("|"),
+    [blocks],
+  );
 
   // États pour le Drag & Drop
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -174,6 +257,31 @@ export function ChapitreEditor({
     fetchChapitre();
   }, [fetchChapitre]);
 
+  const updateAddMenuPosition = useCallback(() => {
+    const button = addMenuButtonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    setAddMenuPosition({
+      top: rect.top,
+      right: Math.max(8, window.innerWidth - rect.left + 8),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isAddMenuOpen) return;
+
+    updateAddMenuPosition();
+    const handleRelayout = () => updateAddMenuPosition();
+    window.addEventListener("resize", handleRelayout);
+    window.addEventListener("scroll", handleRelayout, true);
+
+    return () => {
+      window.removeEventListener("resize", handleRelayout);
+      window.removeEventListener("scroll", handleRelayout, true);
+    };
+  }, [isAddMenuOpen, updateAddMenuPosition]);
+
   useEffect(() => {
     if (!initialFocusBlockId) {
       lastInitialFocusKeyRef.current = "";
@@ -183,34 +291,48 @@ export function ChapitreEditor({
     const key = `${chapitreId}:${initialFocusBlockId}`;
     if (lastInitialFocusKeyRef.current === key) return;
 
-    const existsInCurrentChapter = blocks.some((block) => block.id === initialFocusBlockId);
+    const existsInCurrentChapter = blocks.some(
+      (block) => block.id === initialFocusBlockId,
+    );
     if (!existsInCurrentChapter) return;
 
     scrollToBlock(initialFocusBlockId);
     lastInitialFocusKeyRef.current = key;
     onInitialFocusHandled?.();
-  }, [blocks, chapitreId, initialFocusBlockId, onInitialFocusHandled, scrollToBlock]);
+  }, [
+    blocks,
+    chapitreId,
+    initialFocusBlockId,
+    onInitialFocusHandled,
+    scrollToBlock,
+  ]);
 
   // --- Sauvegarde Automatique (Auto-save) ---
-  const handleSave = useCallback(async (currentBlocks: Block[], combatStateOverride?: PersistedCombatState) => {
-    if (!chapitreId) return;
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const payload = combatStateOverride
-        ? { content: currentBlocks, combat_state: combatStateOverride }
-        : { content: currentBlocks };
-      await chapitreEditorData.saveChapitrePayload(chapitreId, payload);
-      setHasChanges(false);
-      setLastSaved(new Date());
-    } catch (err: any) {
-      const message = err?.message ?? "Erreur inconnue";
-      console.error("Erreur auto-save :", message, err);
-      setSaveError(message);
-    } finally {
-      setIsSaving(false);
-    }
-  }, [chapitreEditorData, chapitreId]);
+  const handleSave = useCallback(
+    async (
+      currentBlocks: Block[],
+      combatStateOverride?: PersistedCombatState,
+    ) => {
+      if (!chapitreId) return;
+      setIsSaving(true);
+      setSaveError(null);
+      try {
+        const payload = combatStateOverride
+          ? { content: currentBlocks, combat_state: combatStateOverride }
+          : { content: currentBlocks };
+        await chapitreEditorData.saveChapitrePayload(chapitreId, payload);
+        setHasChanges(false);
+        setLastSaved(new Date());
+      } catch (err: any) {
+        const message = err?.message ?? "Erreur inconnue";
+        console.error("Erreur auto-save :", message, err);
+        setSaveError(message);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [chapitreEditorData, chapitreId],
+  );
 
   // Déclencheur Auto-save avec Debounce (2 secondes après dernière modif)
   useEffect(() => {
@@ -225,7 +347,8 @@ export function ChapitreEditor({
   useEffect(() => {
     if (isEditing) return;
     const frame = requestAnimationFrame(() => {
-      const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
+      const textareas =
+        editorContentRef.current?.querySelectorAll("textarea") || [];
       textareas.forEach((textarea) => {
         const target = textarea as HTMLTextAreaElement;
         target.style.height = "auto";
@@ -239,7 +362,8 @@ export function ChapitreEditor({
   useEffect(() => {
     if (!isEditing) return;
     const frame = requestAnimationFrame(() => {
-      const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
+      const textareas =
+        editorContentRef.current?.querySelectorAll("textarea") || [];
       textareas.forEach((textarea) => {
         const target = textarea as HTMLTextAreaElement;
         target.style.height = "auto";
@@ -253,7 +377,8 @@ export function ChapitreEditor({
   useEffect(() => {
     if (!isEditing) return;
     const frame = requestAnimationFrame(() => {
-      const textareas = editorContentRef.current?.querySelectorAll("textarea") || [];
+      const textareas =
+        editorContentRef.current?.querySelectorAll("textarea") || [];
       textareas.forEach((textarea) => {
         const target = textarea as HTMLTextAreaElement;
         resizeTextareaPreserveScroll(target);
@@ -277,50 +402,103 @@ export function ChapitreEditor({
     const newBlock: Block = {
       id: crypto.randomUUID(),
       type,
-      data: type === 'text' ? { title: "", text: "" }
-        : type === 'quote' ? { text: "", author: "" }
-        : type === 'image' ? { url: "", caption: "" }
-        : type === 'location' ? { title: "", description: "", imageUrl: "" }
-        : type === 'loot' ? { text: "", items: [] }
-        : type === 'investigation' ? { title: "", description: "", stat: "PER", dd: 10, success: "", failure: "" }
-        : type === 'npc' ? { npcId: undefined, nom: undefined, imageUrl: undefined }
-        : type === 'enemy' ? { enemyId: undefined, nom: undefined, imageUrl: undefined }
-        : type === 'mj_note' ? { session: "", note: "", anchorBlockId: "", position: "below" }
-        : type === 'clue' ? { title: "", text: "", npcs: [], items: [], testEnabled: false, testStat: "PER", testDd: 10, testDescription: "" }
-        : type === 'link' ? retroLinks.defaultLinkData()
-        : {},
+      data:
+        type === "text"
+          ? { title: "", text: "" }
+          : type === "quote"
+            ? { text: "", author: "" }
+            : type === "image"
+              ? { url: "", caption: "" }
+              : type === "location"
+                ? { title: "", description: "", imageUrl: "" }
+                : type === "loot"
+                  ? { text: "", items: [] }
+                  : type === "investigation"
+                    ? {
+                        title: "",
+                        description: "",
+                        stat: "PER",
+                        dd: 10,
+                        success: "",
+                        failure: "",
+                      }
+                    : type === "npc"
+                      ? {
+                          npcId: undefined,
+                          nom: undefined,
+                          imageUrl: undefined,
+                        }
+                      : type === "enemy"
+                        ? {
+                            enemyId: undefined,
+                            nom: undefined,
+                            imageUrl: undefined,
+                          }
+                        : type === "mj_note"
+                          ? {
+                              session: "",
+                              note: "",
+                              anchorBlockId: "",
+                              position: "below",
+                            }
+                          : type === "clue"
+                            ? {
+                                title: "",
+                                text: "",
+                                npcs: [],
+                                items: [],
+                                testEnabled: false,
+                                testStat: "PER",
+                                testDd: 10,
+                                testDescription: "",
+                              }
+                            : type === "link"
+                              ? retroLinks.defaultLinkData()
+                              : {},
     };
     setBlocks([...blocks, newBlock]);
     setHasChanges(true);
     setIsAddMenuOpen(false);
 
     setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }, 100);
   };
 
-  const openLinkBlock = (block: Block) => {
+  const openLinkBlock = (block: Block, selectedTargetBlockId?: string) => {
     const linkData = retroLinks.normalizeLinkData(block.data);
 
-    if (linkData.mode === 'internal_block') {
-      if (linkData.targetBlockId) {
-        scrollToBlock(linkData.targetBlockId);
+    if (linkData.mode === "internal_block") {
+      const fallbackTarget = linkData.internalLinks?.find(
+        (choice) => !!choice.targetBlockId,
+      )?.targetBlockId;
+      const targetBlockId =
+        selectedTargetBlockId || fallbackTarget || linkData.targetBlockId;
+      if (targetBlockId) {
+        scrollToBlock(targetBlockId);
       }
       return;
     }
 
     if (!linkData.targetChapitreId) return;
-    onNavigateToChapitre?.(linkData.targetChapitreId, linkData.targetBlockId || undefined);
+    onNavigateToChapitre?.(
+      linkData.targetChapitreId,
+      linkData.targetBlockId || undefined,
+    );
   };
 
   const updateBlock = (id: string, newData: any) => {
     scrollRestoreRef.current = scrollContainerRef.current?.scrollTop ?? null;
-    setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, data: { ...b.data, ...newData } } : b)));
+    setBlocks((prev) =>
+      prev.map((b) =>
+        b.id === id ? { ...b, data: { ...b.data, ...newData } } : b,
+      ),
+    );
     setHasChanges(true);
   };
 
   const removeBlock = (id: string) => {
-    setBlocks(blocks.filter(b => b.id !== id));
+    setBlocks(blocks.filter((b) => b.id !== id));
     setHasChanges(true);
   };
 
@@ -362,7 +540,10 @@ export function ChapitreEditor({
     resizeTextareaPreserveScroll(el);
   };
 
-  const bindTextBlockRef = (blockId: string, el: HTMLTextAreaElement | null) => {
+  const bindTextBlockRef = (
+    blockId: string,
+    el: HTMLTextAreaElement | null,
+  ) => {
     textAreaRefs.current[blockId] = el;
     bindAutosizeRef(el);
   };
@@ -399,11 +580,54 @@ export function ChapitreEditor({
     });
   };
 
-  const renderTextWithBold = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const applyUnderlineToTextBlock = (blockId: string) => {
+    const textarea = textAreaRefs.current[blockId];
+    if (!textarea) return;
+    const text = textarea.value || "";
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    const selected = text.slice(start, end);
+
+    if (start === end) {
+      const insert = "____";
+      const nextText = `${text.slice(0, start)}${insert}${text.slice(end)}`;
+      preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
+      requestAnimationFrame(() => {
+        const next = textAreaRefs.current[blockId];
+        if (!next) return;
+        next.focus();
+        const caret = start + 2;
+        next.setSelectionRange(caret, caret);
+      });
+      return;
+    }
+
+    const nextText = `${text.slice(0, start)}__${selected}__${text.slice(end)}`;
+    preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
+    requestAnimationFrame(() => {
+      const next = textAreaRefs.current[blockId];
+      if (!next) return;
+      next.focus();
+      next.setSelectionRange(start + 2, end + 2);
+    });
+  };
+
+  const renderTextWithFormatting = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
     return parts.map((part, idx) => {
       if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-        return <strong key={`t-${idx}`} className="font-semibold text-white">{part.slice(2, -2)}</strong>;
+        return (
+          <strong key={`t-${idx}`} className="font-semibold text-white">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith("__") && part.endsWith("__") && part.length > 4) {
+        return (
+          <span key={`t-${idx}`} className="underline decoration-white/80 underline-offset-2">
+            {part.slice(2, -2)}
+          </span>
+        );
       }
       return <span key={`t-${idx}`}>{part}</span>;
     });
@@ -415,7 +639,7 @@ export function ChapitreEditor({
     setDraggedIndex(index);
     setDraggedBlockId(blocks[index]?.id ?? null);
     setTimeout(() => {
-      if (e.target instanceof HTMLElement) e.target.style.opacity = '0.4';
+      if (e.target instanceof HTMLElement) e.target.style.opacity = "0.4";
     }, 0);
   };
 
@@ -434,11 +658,18 @@ export function ChapitreEditor({
     const targetBlock = blocks[targetIndex];
 
     // Drag & drop de post-it sur un bloc pour l'attacher
-    if (sourceBlock?.type === 'mj_note' && targetBlock?.type !== 'mj_note') {
+    if (sourceBlock?.type === "mj_note" && targetBlock?.type !== "mj_note") {
       const nextBlocks = blocks.map((b) =>
         b.id === sourceBlock.id
-          ? { ...b, data: { ...b.data, anchorBlockId: targetBlock.id, position: b.data?.position || 'below' } }
-          : b
+          ? {
+              ...b,
+              data: {
+                ...b.data,
+                anchorBlockId: targetBlock.id,
+                position: b.data?.position || "below",
+              },
+            }
+          : b,
       );
       setBlocks(nextBlocks);
       setHasChanges(true);
@@ -460,7 +691,7 @@ export function ChapitreEditor({
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
-    if (e.target instanceof HTMLElement) e.target.style.opacity = '1';
+    if (e.target instanceof HTMLElement) e.target.style.opacity = "1";
     setDraggedIndex(null);
     setDraggedBlockId(null);
     setDragOverIndex(null);
@@ -469,36 +700,38 @@ export function ChapitreEditor({
   // --- Rendu des Blocs Spécifiques ---
   const renderBlock = (block: Block) => {
     switch (block.type) {
-      case 'text':
+      case "text":
         return isEditing ? (
           <div className="w-full space-y-2">
             <input
               type="text"
               value={block.data.title ?? ""}
-              onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { title: e.target.value }))}
+              onChange={(e) =>
+                preserveScrollOnChange(() =>
+                  updateBlock(block.id, { title: e.target.value }),
+                )
+              }
               placeholder="Titre (optionnel)"
               className="w-full bg-transparent text-white/75 text-[18px] font-semibold font-serif tracking-wide outline-none border-b border-white/10 focus:border-[#E3CCCD]/35 pb-1 placeholder:text-white/15 transition-colors"
             />
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => applyBoldToTextBlock(block.id)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-sky-400/35 bg-sky-500/12 text-sky-100 hover:bg-sky-500/20 transition-colors"
-                title="Mettre en gras (Ctrl/Cmd+B)"
-              >
-                <Bold className="w-3.5 h-3.5" />
-                <span className="text-[11px] font-semibold uppercase tracking-wide">Gras</span>
-              </button>
-              <span className="text-[10px] text-white/35">Gras: sélectionnez du texte puis Ctrl/Cmd+B</span>
-            </div>
             <textarea
               ref={(el) => bindTextBlockRef(block.id, el)}
               value={block.data.text || ""}
-              onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
+              onChange={(e) =>
+                preserveScrollOnChange(() =>
+                  updateBlock(block.id, { text: e.target.value }),
+                )
+              }
               onKeyDown={(e) => {
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
                   e.preventDefault();
                   applyBoldToTextBlock(block.id);
+                } else if (
+                  (e.ctrlKey || e.metaKey) &&
+                  e.key.toLowerCase() === "u"
+                ) {
+                  e.preventDefault();
+                  applyUnderlineToTextBlock(block.id);
                 }
               }}
               placeholder="Commencez à écrire votre récit ici..."
@@ -517,35 +750,37 @@ export function ChapitreEditor({
               </h3>
             )}
             <div className="text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap wrap-break-word">
-              {block.data.text ? renderTextWithBold(block.data.text) : <span className="italic text-white/30">Texte vide...</span>}
+              {block.data.text ? (
+                renderTextWithFormatting(block.data.text)
+              ) : (
+                <span className="italic text-white/30">Texte vide...</span>
+              )}
             </div>
           </div>
         );
 
-      case 'quote':
+      case "quote":
         return isEditing ? (
           <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
-            <div className="flex items-center gap-1.5 mb-2">
-              <button
-                type="button"
-                onClick={() => applyBoldToTextBlock(block.id)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-[#E3CCCD]/35 bg-[#E3CCCD]/15 text-[#F2E8E9] hover:bg-[#E3CCCD]/25 transition-colors"
-                title="Mettre en gras (Ctrl/Cmd+B)"
-              >
-                <Bold className="w-3.5 h-3.5" />
-                <span className="text-[11px] font-semibold uppercase tracking-wide">Gras</span>
-              </button>
-              <span className="text-[10px] text-white/35">Gras: sélectionnez du texte puis Ctrl/Cmd+B</span>
-            </div>
             <textarea
               ref={(el) => bindTextBlockRef(block.id, el)}
               value={block.data.text || ""}
-              onChange={(e) => preserveScrollOnChange(() => updateBlock(block.id, { text: e.target.value }))}
+              onChange={(e) =>
+                preserveScrollOnChange(() =>
+                  updateBlock(block.id, { text: e.target.value }),
+                )
+              }
               onKeyDown={(e) => {
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
                   e.preventDefault();
                   applyBoldToTextBlock(block.id);
+                } else if (
+                  (e.ctrlKey || e.metaKey) &&
+                  e.key.toLowerCase() === "u"
+                ) {
+                  e.preventDefault();
+                  applyUnderlineToTextBlock(block.id);
                 }
               }}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
@@ -558,7 +793,9 @@ export function ChapitreEditor({
             <input
               type="text"
               value={block.data.author || ""}
-              onChange={(e) => updateBlock(block.id, { author: e.target.value })}
+              onChange={(e) =>
+                updateBlock(block.id, { author: e.target.value })
+              }
               placeholder="— Source ou Orateur (optionnel)"
               className="w-full mt-2 bg-transparent text-white/40 text-sm italic outline-none placeholder:text-white/20"
             />
@@ -567,7 +804,9 @@ export function ChapitreEditor({
           <div className="relative pl-6 py-3 border-l-4 border-[#E3CCCD]/60 bg-linear-to-r from-[#E3CCCD]/10 to-transparent rounded-r-xl mb-2">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/20 -z-10" />
             <div className="text-[#E3CCCD] font-serif text-lg leading-relaxed whitespace-pre-wrap wrap-break-word">
-              <span>"</span>{renderTextWithBold(block.data.text || "")}<span>"</span>
+              <span>"</span>
+              {renderTextWithFormatting(block.data.text || "")}
+              <span>"</span>
             </div>
             {block.data.author && (
               <div className="mt-2 text-[#E3CCCD]/50 text-sm italic">
@@ -577,12 +816,16 @@ export function ChapitreEditor({
           </div>
         );
 
-      case 'image':
+      case "image":
         return isEditing ? (
           <div className="space-y-3">
             {block.data.url ? (
               <div className="relative group/image flex justify-center">
-                <img src={block.data.url} alt="Illustration du scénario" className="max-h-125 rounded-xl object-contain border border-white/10" />
+                <img
+                  src={block.data.url}
+                  alt="Illustration du scénario"
+                  className="max-h-125 rounded-xl object-contain border border-white/10"
+                />
                 <button
                   onClick={() => updateBlock(block.id, { url: "" })}
                   className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-red-500/80 text-white rounded-lg opacity-0 group-hover/image:opacity-100 transition-all backdrop-blur-sm"
@@ -594,14 +837,19 @@ export function ChapitreEditor({
             ) : (
               <label className="flex flex-col items-center justify-center p-10 border-2 border-dashed border-white/20 rounded-xl hover:bg-white/5 cursor-pointer transition-colors bg-black/10">
                 <UploadCloud className="w-8 h-8 text-white/40 mb-3" />
-                <span className="text-sm text-white/60 font-medium">Ajouter une illustration</span>
-                <span className="text-xs text-white/30 mt-1">Cliquez ou glissez une image ici</span>
+                <span className="text-sm text-white/60 font-medium">
+                  Ajouter une illustration
+                </span>
+                <span className="text-xs text-white/30 mt-1">
+                  Cliquez ou glissez une image ici
+                </span>
                 <input
                   type="file"
                   className="hidden"
                   accept="image/*"
                   onChange={(e) => {
-                    if (e.target.files?.[0]) handleImageUpload(e.target.files[0], block.id);
+                    if (e.target.files?.[0])
+                      handleImageUpload(e.target.files[0], block.id);
                   }}
                 />
               </label>
@@ -609,7 +857,9 @@ export function ChapitreEditor({
             {block.data.url && (
               <textarea
                 value={block.data.caption || ""}
-                onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
+                onChange={(e) =>
+                  updateBlock(block.id, { caption: e.target.value })
+                }
                 placeholder="Légende de l'image (optionnelle)..."
                 rows={3}
                 className="w-full bg-transparent text-center text-sm text-white/50 italic leading-relaxed outline-none placeholder:text-white/20 resize-none min-h-20"
@@ -619,7 +869,11 @@ export function ChapitreEditor({
         ) : (
           block.data.url && (
             <div className="flex flex-col items-center py-4">
-              <img src={block.data.url} alt="Illustration" className="max-h-125 rounded-xl object-contain border border-white/10 shadow-xl" />
+              <img
+                src={block.data.url}
+                alt="Illustration"
+                className="max-h-125 rounded-xl object-contain border border-white/10 shadow-xl"
+              />
               {block.data.caption && (
                 <p className="mt-3 text-sm text-white/60 italic leading-relaxed whitespace-pre-wrap wrap-break-word text-center max-w-3xl">
                   {block.data.caption}
@@ -629,33 +883,48 @@ export function ChapitreEditor({
           )
         );
 
-      case 'location':
+      case "location":
         return (
           <div className={!isEditing ? "pointer-events-none" : ""}>
-            <LocationBlock data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+            <LocationBlock
+              data={block.data}
+              onChange={(newData) => updateBlock(block.id, newData)}
+            />
           </div>
         );
-      
-      case 'loot': 
+
+      case "loot":
         return (
           <div className={!isEditing ? "pointer-events-none opacity-90" : ""}>
-            <LootBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+            <LootBlock
+              campaignId={campaignId}
+              data={block.data}
+              onChange={(newData) => updateBlock(block.id, newData)}
+            />
           </div>
         );
 
-      case 'investigation':
+      case "investigation":
         return (
-          <InvestigationBlock data={block.data} onChange={(newData) => updateBlock(block.id, newData)} isEditing={isEditing} />
+          <InvestigationBlock
+            data={block.data}
+            onChange={(newData) => updateBlock(block.id, newData)}
+            isEditing={isEditing}
+          />
         );
 
-      case 'npc':
+      case "npc":
         return (
           <div className={!isEditing ? "pointer-events-none" : ""}>
-            <NpcBlock campaignId={campaignId} data={block.data} onChange={(newData) => updateBlock(block.id, newData)} />
+            <NpcBlock
+              campaignId={campaignId}
+              data={block.data}
+              onChange={(newData) => updateBlock(block.id, newData)}
+            />
           </div>
         );
-      
-      case 'enemy':
+
+      case "enemy":
         return (
           <div className={!isEditing ? "pointer-events-none" : ""}>
             <EnemyBlock
@@ -664,7 +933,11 @@ export function ChapitreEditor({
               onChange={(newData) => updateBlock(block.id, newData)}
               isEditing={isEditing}
               onOpenCombatDashboard={() => {
-                const nextBlocks = blocks.map((b) => b.id === block.id ? { ...b, data: { ...b.data, combatEngaged: true } } : b);
+                const nextBlocks = blocks.map((b) =>
+                  b.id === block.id
+                    ? { ...b, data: { ...b.data, combatEngaged: true } }
+                    : b,
+                );
                 setBlocks(nextBlocks);
                 void (async () => {
                   await handleSave(nextBlocks);
@@ -676,8 +949,10 @@ export function ChapitreEditor({
           </div>
         );
 
-      case 'mj_note': {
-        const anchor = blocks.find((b) => b.id === block.data?.anchorBlockId && b.type !== 'mj_note');
+      case "mj_note": {
+        const anchor = blocks.find(
+          (b) => b.id === block.data?.anchorBlockId && b.type !== "mj_note",
+        );
         const attachedToLabel = anchor
           ? `${anchor.type.toUpperCase()} - ${(anchor.data?.title || anchor.data?.nom || anchor.data?.text || "Bloc").slice(0, 36)}`
           : null;
@@ -689,13 +964,17 @@ export function ChapitreEditor({
             isEditing={isEditing}
             attachedToLabel={attachedToLabel}
             fullWidth={!!anchor && pos !== "right"}
-            onDetach={anchor ? () => updateBlock(block.id, { anchorBlockId: "" }) : undefined}
+            onDetach={
+              anchor
+                ? () => updateBlock(block.id, { anchorBlockId: "" })
+                : undefined
+            }
             onChange={(newData) => updateBlock(block.id, newData)}
           />
         );
       }
 
-      case 'clue':
+      case "clue":
         return (
           <ClueBlock
             campaignId={campaignId}
@@ -705,9 +984,11 @@ export function ChapitreEditor({
           />
         );
 
-      case 'link': {
+      case "link": {
         const linkData = retroLinks.normalizeLinkData(block.data);
-        const internalTargets = retroLinks.currentChapitreBlockTargets.filter((target) => target.id !== block.id);
+        const internalTargets = retroLinks.currentChapitreBlockTargets.filter(
+          (target) => target.id !== block.id,
+        );
         const chapterBlockTargets = linkData.targetChapitreId
           ? retroLinks.getChapitreBlockTargets(linkData.targetChapitreId)
           : [];
@@ -719,12 +1000,12 @@ export function ChapitreEditor({
             chapterTargets={retroLinks.chapterTargets}
             targetChapterBlockTargets={chapterBlockTargets}
             onChange={(newData) => updateBlock(block.id, newData)}
-            onOpen={() => openLinkBlock(block)}
+            onOpen={(targetBlockId) => openLinkBlock(block, targetBlockId)}
           />
         );
       }
 
-        default:
+      default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
             Bloc [{block.type}] en mode lecture seule.
@@ -745,35 +1026,39 @@ export function ChapitreEditor({
 
   return (
     <div className="flex-1 flex flex-col h-full relative">
-
       {/* HEADER FIXE */}
       <div className="shrink-0 flex items-center justify-between px-6 h-16 border-b border-white/10 bg-[#1E1941]/90 backdrop-blur-md z-20 sticky top-0 shadow-sm">
-        
         {/* Titre et Auto-Save Côte à Côte */}
         <div className="flex items-center gap-4 min-w-0 pr-4">
-          <h1 className={`text-xl md:text-2xl font-serif tracking-wide truncate leading-none transition-colors ${completed ? 'text-white/40 line-through' : 'text-white'}`}>
+          <h1
+            className={`text-xl md:text-2xl font-serif tracking-wide truncate leading-none transition-colors ${completed ? "text-white/40 line-through" : "text-white"}`}
+          >
             {chapitre.title}
           </h1>
-          
+
           {/* Repères — menu de navigation rapide */}
           {reperes.length > 0 && (
             <div className="relative">
               <button
-                onClick={() => setIsReperesOpen(o => !o)}
+                onClick={() => setIsReperesOpen((o) => !o)}
                 className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all ${
                   isReperesOpen
-                    ? 'border-amber-400/50 bg-amber-400/10 text-amber-300'
-                    : 'border-white/10 bg-white/5 text-white/50 hover:text-white/80 hover:border-white/20'
+                    ? "border-amber-400/50 bg-amber-400/10 text-amber-300"
+                    : "border-white/10 bg-white/5 text-white/50 hover:text-white/80 hover:border-white/20"
                 }`}
                 title="Navigation rapide par repères"
               >
                 <Navigation className="w-3.5 h-3.5" />
                 <span>Repères</span>
-                <span className="ml-0.5 text-[10px] opacity-60">({reperes.length})</span>
+                <span className="ml-0.5 text-[10px] opacity-60">
+                  ({reperes.length})
+                </span>
               </button>
               {isReperesOpen && (
                 <div className="absolute top-full left-0 mt-2 w-64 bg-[#1E1941]/98 border border-amber-400/20 rounded-xl shadow-2xl py-1.5 z-50 backdrop-blur-xl">
-                  <p className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-amber-300/60 border-b border-white/5 mb-1">Aller à…</p>
+                  <p className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-amber-300/60 border-b border-white/5 mb-1">
+                    Aller à…
+                  </p>
                   {reperes.map((b) => (
                     <button
                       key={b.id}
@@ -792,34 +1077,54 @@ export function ChapitreEditor({
           {/* Indicateur d'Auto-Save (Pilule avec Icônes) */}
           <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/30 border border-white/5 text-[10px] font-mono select-none">
             {saveError ? (
-              <><PenTool className="w-3 h-3 text-red-400" /> <span className="text-red-300/90">Erreur sauvegarde</span></>
+              <>
+                <PenTool className="w-3 h-3 text-red-400" />{" "}
+                <span className="text-red-300/90">Erreur sauvegarde</span>
+              </>
             ) : isSaving ? (
-              <><CloudUpload className="w-3.5 h-3.5 text-sky-400 animate-pulse" /> <span className="text-white/60">Sauvegarde...</span></>
+              <>
+                <CloudUpload className="w-3.5 h-3.5 text-sky-400 animate-pulse" />{" "}
+                <span className="text-white/60">Sauvegarde...</span>
+              </>
             ) : hasChanges ? (
-              <><PenTool className="w-3 h-3 text-amber-400" /> <span className="text-white/60">Modifié</span></>
+              <>
+                <PenTool className="w-3 h-3 text-amber-400" />{" "}
+                <span className="text-white/60">Modifié</span>
+              </>
             ) : lastSaved ? (
-              <><CheckCircle2 className="w-3 h-3 text-emerald-400" /> <span className="text-white/60">Sauvegardé</span></>
+              <>
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />{" "}
+                <span className="text-white/60">Sauvegardé</span>
+              </>
             ) : (
-              <><CheckCircle2 className="w-3 h-3 text-white/20" /> <span className="text-white/30">À jour</span></>
+              <>
+                <CheckCircle2 className="w-3 h-3 text-white/20" />{" "}
+                <span className="text-white/30">À jour</span>
+              </>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-4 shrink-0">
-
           {/* Bouton Réalisé */}
           {onToggleCompleted && (
             <button
               onClick={onToggleCompleted}
-              title={completed ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
+              title={
+                completed
+                  ? "Marquer comme non réalisé"
+                  : "Marquer comme réalisé"
+              }
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-medium transition-all ${
                 completed
-                  ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-400'
-                  : 'border-white/10 bg-white/5 text-white/40 hover:border-emerald-400/30 hover:text-emerald-300'
+                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-400"
+                  : "border-white/10 bg-white/5 text-white/40 hover:border-emerald-400/30 hover:text-emerald-300"
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{completed ? 'Réalisé' : 'Réalisé ?'}</span>
+              <span className="hidden sm:inline">
+                {completed ? "Réalisé" : "Réalisé ?"}
+              </span>
             </button>
           )}
 
@@ -828,9 +1133,9 @@ export function ChapitreEditor({
             <button
               onClick={() => toggleMode(false)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
-                !isEditing 
-                  ? 'bg-sky-500/20 text-sky-400 shadow-sm' 
-                  : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+                !isEditing
+                  ? "bg-sky-500/20 text-sky-400 shadow-sm"
+                  : "text-white/40 hover:text-white/80 hover:bg-white/5"
               }`}
             >
               <Eye className="w-3.5 h-3.5" />
@@ -839,9 +1144,9 @@ export function ChapitreEditor({
             <button
               onClick={() => toggleMode(true)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium transition-all ${
-                isEditing 
-                  ? 'bg-[#E3CCCD]/20 text-[#E3CCCD] shadow-sm' 
-                  : 'text-white/40 hover:text-white/80 hover:bg-white/5'
+                isEditing
+                  ? "bg-[#E3CCCD]/20 text-[#E3CCCD] shadow-sm"
+                  : "text-white/40 hover:text-white/80 hover:bg-white/5"
               }`}
             >
               <Edit3 className="w-3.5 h-3.5" />
@@ -879,7 +1184,11 @@ export function ChapitreEditor({
             className="p-1.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-lg transition-colors border border-white/5"
             title={isFullscreen ? "Quitter le plein écran" : "Plein écran"}
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4" />
+            ) : (
+              <Maximize2 className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>
@@ -892,8 +1201,13 @@ export function ChapitreEditor({
         onKeyDownCapture={(e) => {
           const target = e.target as HTMLElement;
           const tagName = target.tagName;
-          if (tagName === "TEXTAREA" || tagName === "INPUT" || target.isContentEditable) {
-            preInputScrollTopRef.current = scrollContainerRef.current?.scrollTop ?? null;
+          if (
+            tagName === "TEXTAREA" ||
+            tagName === "INPUT" ||
+            target.isContentEditable
+          ) {
+            preInputScrollTopRef.current =
+              scrollContainerRef.current?.scrollTop ?? null;
             e.stopPropagation();
           }
         }}
@@ -911,25 +1225,40 @@ export function ChapitreEditor({
           });
         }}
       >
-        <div ref={editorContentRef} className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4">
-
+        <div
+          ref={editorContentRef}
+          className="max-w-4xl mx-auto space-y-6 pb-40 animate-in fade-in slide-in-from-bottom-4"
+        >
           {retroLinks.backlinks.length > 0 && (
             <section className="rounded-2xl border border-amber-300/20 bg-amber-400/7 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Navigation className="w-4 h-4 text-amber-300/80" />
-                <h2 className="text-[12px] uppercase tracking-wider text-amber-200/90 font-semibold">Retrolinks to this chapitre</h2>
-                {retroLinks.isLoadingIndex && <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-200/65" />}
+                <h2 className="text-[12px] uppercase tracking-wider text-amber-200/90 font-semibold">
+                  Retrolinks to this chapitre
+                </h2>
+                {retroLinks.isLoadingIndex && (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-200/65" />
+                )}
               </div>
               <div className="space-y-1.5">
                 {retroLinks.backlinks.map((item) => (
                   <button
                     key={`${item.sourceChapitreId}:${item.sourceBlockId}`}
                     type="button"
-                    onClick={() => onNavigateToChapitre?.(item.sourceChapitreId, item.sourceBlockId)}
+                    onClick={() =>
+                      onNavigateToChapitre?.(
+                        item.sourceChapitreId,
+                        item.sourceBlockId,
+                      )
+                    }
                     className="w-full text-left rounded-lg border border-white/8 bg-black/20 px-3 py-2 hover:bg-black/30 transition-colors"
                   >
-                    <p className="text-[12px] text-white/80 truncate">{item.label}</p>
-                    <p className="text-[11px] text-white/45 truncate">{item.sourceScenarioTitle} / {item.sourceChapitreTitle}</p>
+                    <p className="text-[12px] text-white/80 truncate">
+                      {item.label}
+                    </p>
+                    <p className="text-[11px] text-white/45 truncate">
+                      {item.sourceScenarioTitle} / {item.sourceChapitreTitle}
+                    </p>
                   </button>
                 ))}
               </div>
@@ -939,39 +1268,63 @@ export function ChapitreEditor({
           {/* BOUCLE SUR LES BLOCS */}
           {blocks.length === 0 ? (
             <p className="text-white/30 italic font-light text-center py-20">
-              {isEditing ? "Ce chapitre est vide. Utilisez l'onglet à droite pour ajouter votre premier bloc." : "Ce chapitre ne contient aucun récit."}
+              {isEditing
+                ? "Ce chapitre est vide. Utilisez l'onglet à droite pour ajouter votre premier bloc."
+                : "Ce chapitre ne contient aucun récit."}
             </p>
           ) : (
             <div className="space-y-4">
               {blocks.map((block, index) => {
-                const isMjNote = block.type === 'mj_note';
-                const hasValidAnchor = !!block.data?.anchorBlockId && blocks.some((b) => b.id === block.data.anchorBlockId && b.type !== 'mj_note');
+                const isMjNote = block.type === "mj_note";
+                const hasValidAnchor =
+                  !!block.data?.anchorBlockId &&
+                  blocks.some(
+                    (b) =>
+                      b.id === block.data.anchorBlockId && b.type !== "mj_note",
+                  );
 
                 if (isMjNote && hasValidAnchor) {
                   return null;
                 }
 
-                const notesAbove = blocks.filter((n) =>
-                  n.type === 'mj_note' && n.data?.anchorBlockId === block.id && (n.data?.position || 'below') === 'above'
+                const notesAbove = blocks.filter(
+                  (n) =>
+                    n.type === "mj_note" &&
+                    n.data?.anchorBlockId === block.id &&
+                    (n.data?.position || "below") === "above",
                 );
-                const notesRight = blocks.filter((n) =>
-                  n.type === 'mj_note' && n.data?.anchorBlockId === block.id && n.data?.position === 'right'
+                const notesRight = blocks.filter(
+                  (n) =>
+                    n.type === "mj_note" &&
+                    n.data?.anchorBlockId === block.id &&
+                    n.data?.position === "right",
                 );
-                const notesBelow = blocks.filter((n) =>
-                  n.type === 'mj_note' && n.data?.anchorBlockId === block.id && (n.data?.position || 'below') === 'below'
+                const notesBelow = blocks.filter(
+                  (n) =>
+                    n.type === "mj_note" &&
+                    n.data?.anchorBlockId === block.id &&
+                    (n.data?.position || "below") === "below",
                 );
 
-                const draggedBlock = blocks.find((b) => b.id === draggedBlockId);
-                const canAttachHere = isEditing && draggedBlock?.type === 'mj_note' && block.type !== 'mj_note' && draggedBlock.id !== block.id;
+                const draggedBlock = blocks.find(
+                  (b) => b.id === draggedBlockId,
+                );
+                const canAttachHere =
+                  isEditing &&
+                  draggedBlock?.type === "mj_note" &&
+                  block.type !== "mj_note" &&
+                  draggedBlock.id !== block.id;
 
                 return (
                   <div
                     key={block.id}
-                    ref={(el) => { blockRefsMap.current[block.id] = el; }}
+                    ref={(el) => {
+                      blockRefsMap.current[block.id] = el;
+                    }}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDrop={(e) => handleDrop(e, index)}
                     className={`group relative flex items-start gap-1 md:gap-2 -ml-2 md:-ml-12 p-2 rounded-xl transition-colors ${
-                      block.data?.isRepere ? 'ring-1 ring-amber-400/20' : ''
+                      block.data?.isRepere ? "ring-1 ring-amber-400/20" : ""
                     } ${
                       isEditing && dragOverIndex === index
                         ? canAttachHere
@@ -992,17 +1345,25 @@ export function ChapitreEditor({
                         >
                           <GripVertical className="w-4 h-4" />
                         </button>
-                        {block.type !== 'mj_note' && (
+                        {block.type !== "mj_note" && (
                           <button
                             onClick={() => toggleRepere(block.id)}
                             className={`p-1 md:p-1.5 rounded transition-all ${
                               block.data?.isRepere
-                                ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10'
-                                : 'text-white/40 hover:text-amber-400 hover:bg-amber-400/10'
+                                ? "text-amber-400 hover:text-amber-300 hover:bg-amber-400/10"
+                                : "text-white/40 hover:text-amber-400 hover:bg-amber-400/10"
                             }`}
-                            title={block.data?.isRepere ? 'Retirer le repère' : 'Marquer comme repère'}
+                            title={
+                              block.data?.isRepere
+                                ? "Retirer le repère"
+                                : "Marquer comme repère"
+                            }
                           >
-                            {block.data?.isRepere ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                            {block.data?.isRepere ? (
+                              <BookmarkCheck className="w-4 h-4" />
+                            ) : (
+                              <Bookmark className="w-4 h-4" />
+                            )}
                           </button>
                         )}
                         <button
@@ -1019,11 +1380,35 @@ export function ChapitreEditor({
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        {(block.type === "text" || block.type === "quote") && (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => applyBoldToTextBlock(block.id)}
+                            className="p-1 md:p-1.5 text-white/40 hover:text-white/80 hover:bg-white/10 rounded"
+                            title="Mettre en gras (Ctrl/Cmd+B)"
+                          >
+                            <Bold className="w-4 h-4" />
+                          </button>
+                        )}
+                        {(block.type === "text" || block.type === "quote") && (
+                          <button
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => applyUnderlineToTextBlock(block.id)}
+                            className="p-1 md:p-1.5 text-white/40 hover:text-white/80 hover:bg-white/10 rounded"
+                            title="Souligner (Ctrl/Cmd+U)"
+                          >
+                            <Underline className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     )}
 
                     {/* Wrapper factice pour compenser la largeur des actions en mode lecture */}
-                    {!isEditing && <div className="w-7 md:w-10 shrink-0 hidden md:block" />}
+                    {!isEditing && (
+                      <div className="w-7 md:w-10 shrink-0 hidden md:block" />
+                    )}
 
                     {/* Contenu du bloc + post-its attachés */}
                     <div className="flex-1 min-w-0 pt-1 pointer-events-auto space-y-2">
@@ -1037,7 +1422,9 @@ export function ChapitreEditor({
 
                       {notesRight.length > 0 ? (
                         <div className="flex flex-col xl:flex-row gap-3 items-start">
-                          <div className="flex-1 min-w-0">{renderBlock(block)}</div>
+                          <div className="flex-1 min-w-0">
+                            {renderBlock(block)}
+                          </div>
                           <div className="w-full xl:w-80 space-y-2 shrink-0">
                             {notesRight.map((note) => (
                               <div key={note.id}>{renderBlock(note)}</div>
@@ -1062,77 +1449,156 @@ export function ChapitreEditor({
             </div>
           )}
 
-            <div ref={bottomRef} className="h-10" />
+          <div ref={bottomRef} className="h-10" />
         </div>
       </div>
 
       {/* SIDE TAB : AJOUT DE BLOCS (Uniquement en édition) */}
-      {isEditing && (
-        <div 
-          className="absolute right-0 top-25 z-40 flex items-start"
-          onMouseLeave={() => setIsAddMenuOpen(false)}
-        >
-          {/* Menu déroulant vers la gauche */}
-          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isAddMenuOpen ? 'w-45 opacity-100 mr-2' : 'w-0 opacity-0 mr-0'}`}>
-            <div className="flex flex-col bg-[#1E1941]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 gap-1 w-45">
-              <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#E3CCCD]/50 border-b border-white/5 mb-1 font-bold">
-                Ajouter un bloc
-              </div>
-              {clipboardBlock && (
-                <button onClick={pasteBlock} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/15 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left border border-sky-500/20 mb-1">
-                  <ClipboardPaste className="w-4 h-4 text-sky-400/70" />
-                  Coller — {clipboardBlock.type === 'text' ? 'Texte' : clipboardBlock.type === 'quote' ? 'Citation' : clipboardBlock.type === 'image' ? 'Image' : clipboardBlock.type === 'location' ? 'Lieu' : clipboardBlock.type === 'loot' ? 'Trésor' : clipboardBlock.type === 'investigation' ? 'Enquête' : clipboardBlock.type === 'npc' ? 'PNJ' : clipboardBlock.type === 'enemy' ? 'Ennemi' : clipboardBlock.type === 'clue' ? 'Indice' : clipboardBlock.type === 'link' ? 'Lien' : 'Bloc'}
+      {isEditing &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed z-120"
+            style={{ top: addMenuPosition.top, right: addMenuPosition.right }}
+            onMouseLeave={() => setIsAddMenuOpen(false)}
+          >
+            {/* Menu déroulant vers la gauche */}
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${isAddMenuOpen ? "w-45 opacity-100" : "w-0 opacity-0"}`}
+            >
+              <div className="max-h-[calc(100vh-8rem)] overflow-y-auto flex flex-col bg-[#1E1941]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-2 gap-1 w-45">
+                <div className="px-3 py-1.5 text-[9px] uppercase tracking-widest text-[#E3CCCD]/50 border-b border-white/5 mb-1 font-bold">
+                  Ajouter un bloc
+                </div>
+                {clipboardBlock && (
+                  <button
+                    onClick={pasteBlock}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/15 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left border border-sky-500/20 mb-1"
+                  >
+                    <ClipboardPaste className="w-4 h-4 text-sky-400/70" />
+                    Coller —{" "}
+                    {clipboardBlock.type === "text"
+                      ? "Texte"
+                      : clipboardBlock.type === "quote"
+                        ? "Citation"
+                        : clipboardBlock.type === "image"
+                          ? "Image"
+                          : clipboardBlock.type === "location"
+                            ? "Lieu"
+                            : clipboardBlock.type === "loot"
+                              ? "Trésor"
+                              : clipboardBlock.type === "investigation"
+                                ? "Enquête"
+                                : clipboardBlock.type === "npc"
+                                  ? "PNJ"
+                                  : clipboardBlock.type === "enemy"
+                                    ? "Ennemi"
+                                    : clipboardBlock.type === "clue"
+                                      ? "Indice"
+                                      : clipboardBlock.type === "link"
+                                        ? "Lien"
+                                        : "Bloc"}
+                  </button>
+                )}
+                <button
+                  onClick={() => addBlock("text")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-xl text-[12px] text-white/80 transition-colors w-full text-left"
+                >
+                  <Type className="w-4 h-4 text-white/40" /> Texte
                 </button>
-              )}
-              <button onClick={() => addBlock('text')} className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-xl text-[12px] text-white/80 transition-colors w-full text-left">
-                <Type className="w-4 h-4 text-white/40" /> Texte
-              </button>
-              <button onClick={() => addBlock('quote')} className="flex items-center gap-3 px-3 py-2 hover:bg-[#E3CCCD]/10 rounded-xl text-[12px] text-[#E3CCCD]/90 transition-colors w-full text-left">
-                <Quote className="w-4 h-4 text-[#E3CCCD]/50" /> Citation
-              </button>
-              <button onClick={() => addBlock('image')} className="flex items-center gap-3 px-3 py-2 hover:bg-pink-500/10 rounded-xl text-[12px] text-pink-300 transition-colors w-full text-left">
-                <ImageIcon className="w-4 h-4 text-pink-400/50" /> Image
-              </button>
-              <button onClick={() => addBlock('location')} className="flex items-center gap-3 px-3 py-2 hover:bg-emerald-500/10 rounded-xl text-[12px] text-emerald-300 transition-colors w-full text-left">
-                <MapPin className="w-4 h-4 text-emerald-400/50" /> Lieu
-              </button>
-              <button onClick={() => addBlock('loot')} className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-300 transition-colors w-full text-left">
-                <Package className="w-4 h-4 text-amber-400/50" /> Trésor / Loot
-              </button>
-              <button onClick={() => addBlock('investigation')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-300 transition-colors w-full text-left">
-                <Search className="w-4 h-4 text-sky-400/50" /> Action / Enquête
-              </button>
-              <div className="h-px bg-white/5 my-0.5 w-full" />
-              <button onClick={() => addBlock('npc')} className="flex items-center gap-3 px-3 py-2 hover:bg-violet-500/10 rounded-xl text-[12px] text-violet-300 transition-colors w-full text-left">
-                <Users className="w-4 h-4 text-violet-400/50" /> Personnage (PNJ)
-              </button>
-              <button onClick={() => addBlock('enemy')} className="flex items-center gap-3 px-3 py-2 hover:bg-red-500/10 rounded-xl text-[12px] text-red-300 transition-colors w-full text-left">
-                <Swords className="w-4 h-4 text-red-400/50" /> Ennemi / Combat
-              </button>
-              <button onClick={() => addBlock('mj_note')} className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-200 transition-colors w-full text-left">
-                <StickyNote className="w-4 h-4 text-amber-300/70" /> Note MJ (Post-it)
-              </button>
-              <button onClick={() => addBlock('clue')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left">
-                <Search className="w-4 h-4 text-sky-400/70" /> Indice / Clue
-              </button>
-              <button onClick={() => addBlock('link')} className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left">
-                <Link2 className="w-4 h-4 text-sky-300/70" /> Lien / Retrolien
-              </button>
-            </div>
-          </div>
+                <button
+                  onClick={() => addBlock("quote")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-[#E3CCCD]/10 rounded-xl text-[12px] text-[#E3CCCD]/90 transition-colors w-full text-left"
+                >
+                  <Quote className="w-4 h-4 text-[#E3CCCD]/50" /> Citation
+                </button>
+                <button
+                  onClick={() => addBlock("image")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-pink-500/10 rounded-xl text-[12px] text-pink-300 transition-colors w-full text-left"
+                >
+                  <ImageIcon className="w-4 h-4 text-pink-400/50" /> Image
+                </button>
+                <button
+                  onClick={() => addBlock("location")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-emerald-500/10 rounded-xl text-[12px] text-emerald-300 transition-colors w-full text-left"
+                >
+                  <MapPin className="w-4 h-4 text-emerald-400/50" /> Lieu
+                </button>
+                <button
+                  onClick={() => addBlock("loot")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-300 transition-colors w-full text-left"
+                >
+                  <Package className="w-4 h-4 text-amber-400/50" /> Trésor /
+                  Loot
+                </button>
+                <button
+                  onClick={() => addBlock("investigation")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-300 transition-colors w-full text-left"
+                >
+                  <Dices className="w-4 h-4 text-sky-400/50" /> Jet d'Action
+                </button>
 
+                <button
+                  onClick={() => addBlock("clue")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left"
+                >
+                  <Search className="w-4 h-4 text-sky-400/70" /> Indice / Clue
+                </button>
+                <button
+                  onClick={() => addBlock("link")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-sky-500/10 rounded-xl text-[12px] text-sky-200 transition-colors w-full text-left"
+                >
+                  <Link2 className="w-4 h-4 text-sky-300/70" /> Lien / Retrolien
+                </button>
+                <button
+                  onClick={() => addBlock("npc")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-violet-500/10 rounded-xl text-[12px] text-violet-300 transition-colors w-full text-left"
+                >
+                  <Users className="w-4 h-4 text-violet-400/50" /> Personnage
+                  (PNJ)
+                </button>
+                <button
+                  onClick={() => addBlock("enemy")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-red-500/10 rounded-xl text-[12px] text-red-300 transition-colors w-full text-left"
+                >
+                  <Swords className="w-4 h-4 text-red-400/50" /> Ennemi / Combat
+                </button>
+                <div className="h-px bg-white/5 my-0.5 w-full" />
+                <button
+                  onClick={() => addBlock("mj_note")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-amber-500/10 rounded-xl text-[12px] text-amber-200 transition-colors w-full text-left"
+                >
+                  <StickyNote className="w-4 h-4 text-amber-300/70" /> Note MJ
+                  (Post-it)
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {isEditing && (
+        <div className="absolute right-0 top-25 z-40 flex items-start">
           {/* Onglet Déclencheur */}
           <button
-            onMouseEnter={() => setIsAddMenuOpen(true)}
-            onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+            ref={addMenuButtonRef}
+            onMouseEnter={() => {
+              updateAddMenuPosition();
+              setIsAddMenuOpen(true);
+            }}
+            onClick={() => {
+              updateAddMenuPosition();
+              setIsAddMenuOpen((prev) => !prev);
+            }}
             className="flex items-center justify-center bg-[#E3CCCD]/10 hover:bg-[#E3CCCD]/20 border border-[#E3CCCD]/20 border-r-0 rounded-l-xl p-3 text-[#E3CCCD] transition-colors shadow-lg backdrop-blur-md"
             title="Ajouter un bloc"
           >
-            <Plus className={`w-5 h-5 transition-transform duration-300 ${isAddMenuOpen ? 'rotate-45' : ''}`} />
+            <Plus
+              className={`w-5 h-5 transition-transform duration-300 ${isAddMenuOpen ? "rotate-45" : ""}`}
+            />
           </button>
         </div>
       )}
-
     </div>
   );
 }
