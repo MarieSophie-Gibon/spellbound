@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { StickyNote, Link2Off, Bold } from "lucide-react";
+import { StickyNote, Link2Off, Bold, Underline } from "lucide-react";
 
 export interface MJNoteData {
   session?: string;
@@ -81,11 +81,45 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
     });
   };
 
-  const renderWithBold = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const applyUnderline = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const text = textarea.value || "";
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    const selected = text.slice(start, end);
+
+    if (start === end) {
+      const nextText = `${text.slice(0, start)}____${text.slice(end)}`;
+      preserveScroll(() => onChange({ note: nextText }));
+      requestAnimationFrame(() => {
+        const next = textareaRef.current;
+        if (!next) return;
+        next.focus();
+        const caret = start + 2;
+        next.setSelectionRange(caret, caret);
+      });
+      return;
+    }
+
+    const nextText = `${text.slice(0, start)}__${selected}__${text.slice(end)}`;
+    preserveScroll(() => onChange({ note: nextText }));
+    requestAnimationFrame(() => {
+      const next = textareaRef.current;
+      if (!next) return;
+      next.focus();
+      next.setSelectionRange(start + 2, end + 2);
+    });
+  };
+
+  const renderWithFormatting = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
     return parts.map((part, idx) => {
       if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
         return <strong key={`mj-${idx}`} className="font-semibold">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("__") && part.endsWith("__") && part.length > 4) {
+        return <span key={`mj-${idx}`} className="underline decoration-current underline-offset-2">{part.slice(2, -2)}</span>;
       }
       return <span key={`mj-${idx}`}>{part}</span>;
     });
@@ -128,7 +162,16 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
             <Bold className="w-3.5 h-3.5" />
             <span className="text-[11px] font-semibold uppercase tracking-wide">Gras</span>
           </button>
-          <span className="text-[10px] text-amber-900/60">Sélectionnez du texte puis Ctrl/Cmd+B</span>
+          <button
+            type="button"
+            onClick={applyUnderline}
+            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-amber-900/30 bg-amber-100/55 text-amber-950 hover:bg-amber-100/75 transition-colors"
+            title="Souligner (Ctrl/Cmd+U)"
+          >
+            <Underline className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-semibold uppercase tracking-wide">Souligne</span>
+          </button>
+          <span className="text-[10px] text-amber-900/60">Selectionnez du texte puis Ctrl/Cmd+B ou Ctrl/Cmd+U</span>
         </div>
         <textarea
           ref={textareaRef}
@@ -138,6 +181,11 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
               e.preventDefault();
               applyBold();
+              return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "u") {
+              e.preventDefault();
+              applyUnderline();
               return;
             }
             e.stopPropagation();
@@ -163,7 +211,7 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
         )}
       </div>
       <p className="text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word">
-        {data.note ? renderWithBold(data.note) : <span className="italic text-amber-900/40">Note vide...</span>}
+        {data.note ? renderWithFormatting(data.note) : <span className="italic text-amber-900/40">Note vide...</span>}
       </p>
     </div>
   );

@@ -9,6 +9,10 @@ export interface LinkBlockData {
   label: string;
   targetBlockId?: string;
   targetChapitreId?: string;
+  internalLinks?: Array<{
+    label: string;
+    targetBlockId: string;
+  }>;
 }
 
 interface ScenarioBlock {
@@ -72,14 +76,39 @@ function isLinkBlockData(value: any): value is LinkBlockData {
 
 function normalizeLinkData(value: any): LinkBlockData {
   if (!isLinkBlockData(value)) {
-    return { mode: "internal_block", label: "", targetBlockId: "", targetChapitreId: "" };
+    return {
+      mode: "internal_block",
+      label: "",
+      targetBlockId: "",
+      targetChapitreId: "",
+      internalLinks: [{ label: "", targetBlockId: "" }],
+    };
   }
+
+  const legacyTargetBlockId = typeof value.targetBlockId === "string" ? value.targetBlockId : "";
+  const normalizedInternalLinks = Array.isArray(value.internalLinks)
+    ? value.internalLinks
+      .map((entry: any) => {
+        const targetBlockId = typeof entry?.targetBlockId === "string"
+          ? entry.targetBlockId
+          : (typeof entry?.target_block_id === "string" ? entry.target_block_id : "");
+        const label = typeof entry?.label === "string" ? entry.label : "";
+        return { label, targetBlockId };
+      })
+    : [];
+
+  const fallbackInternalLinks = legacyTargetBlockId
+    ? [{ label: typeof value.label === "string" ? value.label : "", targetBlockId: legacyTargetBlockId }]
+    : [];
 
   return {
     mode: value.mode,
     label: typeof value.label === "string" ? value.label : "",
-    targetBlockId: typeof value.targetBlockId === "string" ? value.targetBlockId : "",
+    targetBlockId: legacyTargetBlockId,
     targetChapitreId: typeof value.targetChapitreId === "string" ? value.targetChapitreId : "",
+    internalLinks: Array.isArray(value.internalLinks)
+      ? (normalizedInternalLinks.length > 0 ? normalizedInternalLinks : [{ label: "", targetBlockId: "" }])
+      : fallbackInternalLinks,
   };
 }
 
@@ -221,6 +250,7 @@ export function useChapitreRetroLinks({
     label: "",
     targetBlockId: "",
     targetChapitreId: "",
+    internalLinks: [{ label: "", targetBlockId: "" }],
   }), []);
 
   return {
