@@ -2,19 +2,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/useAuthStore";
 
-function normalizeProfileRole(value: unknown): "joueur" | "mj" {
-  const raw = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[\s_-]+/g, "");
-
-  if (raw === "mj" || raw === "gm" || raw === "dm" || raw === "admin" || raw === "maitredujeu") {
-    return "mj";
-  }
-
-  return "joueur";
+function normalizeProfileRole(value: unknown): "super_admin" | null {
+  const raw = String(value ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  return raw === "super_admin" ? "super_admin" : null;
 }
 
 export function useProfile() {
@@ -22,7 +12,7 @@ export function useProfile() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [profile, setProfile] = useState<{
     pseudo: string;
-    role: "joueur" | "mj";
+    role: "super_admin" | null;
   } | null>(null);
 
   useEffect(() => {
@@ -47,7 +37,7 @@ export function useProfile() {
       if (error || !data) {
         setProfile({
           pseudo: session?.user?.user_metadata?.pseudo ?? session?.user?.email?.split("@")[0] ?? "Voyageur",
-          role: useAuthStore.getState().role === "mj" ? "mj" : "joueur",
+          role: useAuthStore.getState().isSuperAdmin ? "super_admin" : null,
         });
         return;
       }

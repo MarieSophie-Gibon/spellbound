@@ -97,11 +97,11 @@ describe("usePersonnageDetail data methods", () => {
     mockState.calls.in = [];
   });
 
-  it("fetchPlayers filtre les mj et mappe id/pseudo", async () => {
+  it("fetchPlayers filtre les super_admin et mappe id/pseudo", async () => {
     queueTableResponse("utilisateurs", {
       data: [
-        { id: "u1", pseudo: "MJAdmin", role: "mj" },
-        { id: "u2", pseudo: "Lina", role: "player" },
+        { id: "u1", pseudo: "Admin", role: "super_admin" },
+        { id: "u2", pseudo: "Lina", role: "joueur" },
       ],
       error: null,
     });

@@ -43,9 +43,9 @@ export function CampaignHome({
 }: CampaignProps) {
   const isMobile = useIsMobile();
   const session = useAuthStore((s) => s.session);
-  const role = useAuthStore((s) => s.role);
-  // isMJ is true for global MJs AND for campaign managers (primary owner or Co-DM)
-  const isMJ = role === "mj" || campaign.access_type === 'owner';
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  // isMJ is true for super admins and campaign managers (primary owner or Co-DM)
+  const isMJ = isSuperAdmin || campaign.access_type === 'owner';
   const isPrimaryOwner = !!session?.user?.id && campaign.owner_id === session.user.id;
   const { data: revealedPnjs } = useRevealedPnjs(campaign.id);
   const createInvitation = useCreateCampaignInvitation();

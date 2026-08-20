@@ -12,8 +12,8 @@ interface CampaignHomeMobileProps {
 }
 
 export function CampaignHomeMobile({ campaign }: CampaignHomeMobileProps) {
-  const role = useAuthStore((s) => s.role);
-  const isMJ = role === "mj";
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const isMJ = isSuperAdmin || campaign.access_type === "owner";
   const { fetchCampaignMembers, fetchVoiesByIds } = useCampaignHomeData();
   const bgImage = campaign.image_url || "/default-bg.jpg";
   const { data: progress } = useCampaignProgress(campaign.id);

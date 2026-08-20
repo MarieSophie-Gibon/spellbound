@@ -5,7 +5,6 @@ interface SaveLobbyProfileParams {
   userId: string;
   pseudo: string;
   email: string;
-  role: "mj" | "joueur";
   currentEmail?: string | null;
   password?: string;
 }
@@ -34,19 +33,13 @@ export function useLobbyData() {
     userId,
     pseudo,
     email,
-    role,
     currentEmail,
     password,
   }: SaveLobbyProfileParams): Promise<SaveLobbyProfileResult> => {
-    const normalizedRole = role === "mj" ? "mj" : "joueur";
     const { error: profileError } = await supabase
       .from("utilisateurs")
       .upsert(
-        {
-          id: userId,
-          pseudo,
-          role: normalizedRole,
-        },
+        { id: userId, pseudo },
         { onConflict: "id" }
       );
 

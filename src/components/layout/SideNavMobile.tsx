@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useProfile } from "@/hooks/core/personnage/useProfile";
 import { useLobbyData } from "@/hooks/core/lobby/useLobbyData";
+import { useCampaigns } from "@/hooks/campaign/useCampaigns";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -54,10 +55,11 @@ export function SideNavMobile({
   showMenuTitles = false,
   tabs = ["grimoire", "compendium", "bestiaire", "scenarios", "personnages"],
 }: SideNavMobileProps) {
-  const { session, signOut, role } = useAuthStore();
+  const { session, signOut, isSuperAdmin } = useAuthStore();
   const profile = useProfile();
   const lobbyData = useLobbyData();
-  const isMJ = role === "mj" || profile?.role === "mj";
+  const { data: campaigns } = useCampaigns();
+  const isMJ = isSuperAdmin || !!campaigns?.some((c) => c.access_type === 'owner');
   const displayName = profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "Profil";
 
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -114,7 +116,6 @@ export function SideNavMobile({
         userId: session.user.id,
         pseudo,
         email,
-        role: profile?.role === "mj" ? "mj" : "joueur",
         currentEmail: session.user.email,
         password: nextPassword || undefined,
       });
