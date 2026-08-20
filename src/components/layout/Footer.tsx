@@ -28,21 +28,18 @@ interface FooterProps {
 
 
 export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDeleteCampaign, onSwitchCampaign }: FooterProps) {
-  const { session, signOut, role } = useAuthStore();
+  const { session, signOut, isSuperAdmin } = useAuthStore();
   // Co-DM = has manager access but is not the primary owner
   const isCoDM = !!activeCampaign
     && (activeCampaign as { access_type?: string }).access_type === 'owner'
     && (activeCampaign as { owner_id?: string | null }).owner_id !== session?.user?.id;
   const profile = useProfile();
   const lobbyData = useLobbyData();
-
-  const isMJ = role === "mj" || profile?.role === "mj";
-  const effectiveRole: 'mj' | 'player' = isMJ ? 'mj' : 'player';
   const displayName = profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "Voyageur";
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [profilePseudoDraft, setProfilePseudoDraft] = useState("");
   const [profileEmailDraft, setProfileEmailDraft] = useState("");
-  const [profileRoleDraft, setProfileRoleDraft] = useState<"joueur" | "mj">("joueur");
+
   const [newPasswordDraft, setNewPasswordDraft] = useState("");
   const [confirmPasswordDraft, setConfirmPasswordDraft] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -75,12 +72,13 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
     }, 200);
   };
 
-  const { data: campaigns } = useCampaigns(effectiveRole);
+  const { data: campaigns } = useCampaigns();
+  const isMJ = isSuperAdmin || !!campaigns?.some((c) => c.access_type === 'owner');
 
   const openEditProfile = () => {
     setProfilePseudoDraft(profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "");
     setProfileEmailDraft(session?.user?.email ?? "");
-    setProfileRoleDraft(profile?.role === "mj" ? "mj" : "joueur");
+
     setNewPasswordDraft("");
     setConfirmPasswordDraft("");
     setProfileFormError(null);
@@ -120,7 +118,6 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
         userId: session.user.id,
         pseudo,
         email,
-        role: profileRoleDraft,
         currentEmail: session.user.email,
         password: nextPassword || undefined,
       });
@@ -332,18 +329,6 @@ export function Footer({ activeCampaign, onCampaignClick, onEditCampaign, onDele
                 placeholder="vous@domaine.fr"
                 type="email"
               />
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-1.5 block">Rôle</label>
-              <select
-                value={profileRoleDraft}
-                onChange={(e) => setProfileRoleDraft(e.target.value === "mj" ? "mj" : "joueur")}
-                className="w-full h-9 rounded-md border border-white/10 bg-white/5 px-3 text-sm text-white outline-none"
-              >
-                <option value="joueur" className="bg-[#1E1941] text-white">Joueur</option>
-                <option value="mj" className="bg-[#1E1941] text-white">MJ</option>
-              </select>
             </div>
 
             <div className="h-px bg-white/10" />

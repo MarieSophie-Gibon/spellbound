@@ -90,7 +90,7 @@ export function usePersonnageDetail() {
 				if (error) throw error;
 
 				return (data ?? [])
-					.filter((p: any) => p.role !== "mj")
+					.filter((p: any) => p.role !== "super_admin")
 					.map((p: any) => ({ id: p.id as string, pseudo: p.pseudo as string }));
 			},
 

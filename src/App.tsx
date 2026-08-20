@@ -29,37 +29,15 @@ import { supabase } from "@/lib/supabase";
 interface CampaignNotif { id: string; pseudo: string; }
 interface CampaignActivity { id: string; pseudo: string; at: string; }
 
-function normalizeRole(value: unknown): "mj" | "player" {
-  const raw = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  const compact = raw.replace(/[\s_-]+/g, "");
-  if (
-    raw === "mj" ||
-    raw === "gm" ||
-    raw === "dm" ||
-    raw === "admin" ||
-    compact === "maitredujeu" ||
-    compact === "master"
-  ) {
-    return "mj";
-  }
-  return "player";
-}
-
 function App() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const isBattlemapRoute = location.pathname === "/battlemap";
   const isLobbyRoute = location.pathname === "/";
 
-  const { session, isLoading, isPasswordRecovery, initializeAuth } = useAuthStore();
-  const role = useAuthStore((s) => s.role);
+  const { session, isLoading, isPasswordRecovery, initializeAuth, isSuperAdmin } = useAuthStore();
   const profile = useProfile();
-  const isGlobalEditor = role === "mj" || normalizeRole(profile?.role) === "mj";
+  const isGlobalEditor = isSuperAdmin;
 const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
     const saved = localStorage.getItem("spellbound_active_campaign");
     if (saved) {

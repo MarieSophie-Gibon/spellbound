@@ -42,10 +42,10 @@ export function LobbyMobile({
   onDeleteCampaign,
   onLeaveCampaign,
 }: LobbyMobileProps) {
-  const { session, signOut, role } = useAuthStore();
+  const { session, signOut, isSuperAdmin } = useAuthStore();
   const profile = useProfile();
   const lobbyData = useLobbyData();
-  const isMJ = role === "mj" || profile?.role === "mj";
+  const isMJ = isSuperAdmin || campaigns.some((c) => c.access_type === 'owner');
   const displayName = profile?.pseudo?.trim() || session?.user?.email?.split("@")[0] || "Profil";
 
   const [isJoinOpen, setIsJoinOpen] = useState(false);
@@ -102,7 +102,6 @@ export function LobbyMobile({
         userId: session.user.id,
         pseudo,
         email,
-        role: profile?.role === "mj" ? "mj" : "joueur",
         currentEmail: session.user.email,
         password: nextPassword || undefined,
       });

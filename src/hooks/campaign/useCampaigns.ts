@@ -38,9 +38,9 @@ function createInviteCode(length = 8): string {
   return code
 }
 
-export function useCampaigns(role?: 'mj' | 'player') {
+export function useCampaigns() {
   return useQuery({
-    queryKey: ['campaigns', role],
+    queryKey: ['campaigns'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return []
