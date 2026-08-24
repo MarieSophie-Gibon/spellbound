@@ -21,12 +21,17 @@ export function useCompendiumData() {
     return (data as Peuple[]) ?? [];
   }, []);
 
-  const fetchFamillesArchetypes = useCallback(async (campaignId?: string): Promise<FamilleArchetype[]> => {
-    const query = applyCampaignFilter(
-      supabase.from("familles").select("*").order("nom"),
-      campaignId,
-    );
-    const { data } = await query;
+  const fetchFamillesArchetypes = useCallback(async (): Promise<FamilleArchetype[]> => {
+    const { data, error } = await supabase
+      .from("familles")
+      .select("*")
+      .order("nom");
+
+    if (error) {
+      console.error("Erreur fetchFamillesArchetypes:", error);
+      return [];
+    }
+
     return (data as FamilleArchetype[]) ?? [];
   }, []);
 
