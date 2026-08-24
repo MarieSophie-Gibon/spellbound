@@ -21,7 +21,8 @@ export function useCompendiumData() {
     return (data as Peuple[]) ?? [];
   }, []);
 
-  const fetchFamillesArchetypes = useCallback(async (): Promise<FamilleArchetype[]> => {
+  const fetchFamillesArchetypes = useCallback(async (campaignId?: string): Promise<FamilleArchetype[]> => {
+    void campaignId;
     const { data, error } = await supabase
       .from("familles")
       .select("*")
