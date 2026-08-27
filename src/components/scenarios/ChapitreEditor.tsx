@@ -6,6 +6,7 @@ import {
   useRef,
   useLayoutEffect,
   useMemo,
+  Fragment,
 } from "react";
 import { createPortal } from "react-dom";
 import { useChapitreEditorData } from "@/hooks/core/scenarios/useChapitreEditorData";
@@ -38,10 +39,12 @@ import {
   Navigation,
   Bold,
   Underline,
+  Italic,
   Copy,
   ClipboardPaste,
   Link2,
   Dices,
+  Table2,
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
@@ -80,7 +83,8 @@ type BlockType =
   | "enemy"
   | "mj_note"
   | "clue"
-  | "link";
+  | "link"
+  | "table";
 
 interface Block {
   id: string;
@@ -115,6 +119,12 @@ export function ChapitreEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Textarea active pour la barre de formatage
+  const [hasActiveTextarea, setHasActiveTextarea] = useState(false);
+
+  // Index d'insertion entre blocs (null = append à la fin)
+  const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
+
   // Menu d'ajout volant (Side Tab)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const addMenuButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -142,13 +152,27 @@ export function ChapitreEditor({
       id: crypto.randomUUID(),
       data: { ...clipboardBlock.data, isRepere: false },
     };
-    setBlocks((prev) => [...prev, newBlock]);
+    if (insertAtIndex !== null) {
+      const newBlocks = [...blocks];
+      newBlocks.splice(insertAtIndex, 0, newBlock);
+      setBlocks(newBlocks);
+    } else {
+      setBlocks((prev) => [...prev, newBlock]);
+    }
     setHasChanges(true);
     setIsAddMenuOpen(false);
-    setTimeout(
-      () => bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-      100,
-    );
+    setInsertAtIndex(null);
+    setTimeout(() => scrollToBlock(newBlock.id), 80);
+  };
+
+  // Ouvre le menu en mode insertion à un index spécifique
+  const handleInsertAt = (index: number, clientY: number) => {
+    setInsertAtIndex(index);
+    setAddMenuPosition({
+      top: Math.max(8, clientY - 16),
+      right: 24,
+    });
+    setIsAddMenuOpen(true);
   };
 
   // Repères (bookmarks)
@@ -220,7 +244,6 @@ export function ChapitreEditor({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const textAreaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   // Pour défiler automatiquement vers le nouveau bloc
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -454,15 +477,22 @@ export function ChapitreEditor({
                               }
                             : type === "link"
                               ? retroLinks.defaultLinkData()
-                              : {},
+                              : type === "table"
+                                ? { headers: ["", "", ""], rows: [["", "", ""]] }
+                                : {},
     };
-    setBlocks([...blocks, newBlock]);
+    if (insertAtIndex !== null) {
+      const newBlocks = [...blocks];
+      newBlocks.splice(insertAtIndex, 0, newBlock);
+      setBlocks(newBlocks);
+    } else {
+      setBlocks([...blocks, newBlock]);
+    }
     setHasChanges(true);
     setIsAddMenuOpen(false);
+    setInsertAtIndex(null);
 
-    setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
+    setTimeout(() => scrollToBlock(newBlock.id), 80);
   };
 
   const openLinkBlock = (block: Block, selectedTargetBlockId?: string) => {
@@ -540,80 +570,83 @@ export function ChapitreEditor({
     resizeTextareaPreserveScroll(el);
   };
 
-  const bindTextBlockRef = (
-    blockId: string,
-    el: HTMLTextAreaElement | null,
-  ) => {
-    textAreaRefs.current[blockId] = el;
-    bindAutosizeRef(el);
-  };
+  // Applique un formatage inline (gras, souligné, italique) sur n'importe quelle textarea active
+  const applyFormatToActiveTextarea = useCallback(
+    (prefix: string, suffix: string) => {
+      const textarea = document.activeElement as HTMLTextAreaElement;
+      if (!textarea || textarea.tagName !== "TEXTAREA") return;
+      if (!scrollContainerRef.current?.contains(textarea)) return;
 
-  const applyBoldToTextBlock = (blockId: string) => {
-    const textarea = textAreaRefs.current[blockId];
-    if (!textarea) return;
-    const text = textarea.value || "";
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? start;
-    const selected = text.slice(start, end);
+      const text = textarea.value;
+      const start = textarea.selectionStart ?? 0;
+      const end = textarea.selectionEnd ?? start;
+      const selected = text.slice(start, end);
 
-    if (start === end) {
-      const insert = "****";
-      const nextText = `${text.slice(0, start)}${insert}${text.slice(end)}`;
-      preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
+      let newText: string;
+      let newCursorStart: number;
+      let newCursorEnd: number;
+
+      if (start === end) {
+        newText = `${text.slice(0, start)}${prefix}${suffix}${text.slice(end)}`;
+        newCursorStart = newCursorEnd = start + prefix.length;
+      } else {
+        newText = `${text.slice(0, start)}${prefix}${selected}${suffix}${text.slice(end)}`;
+        newCursorStart = start + prefix.length;
+        newCursorEnd = end + prefix.length;
+      }
+
+      const savedTop = scrollContainerRef.current?.scrollTop ?? 0;
+      // Déclenche le onChange React via le setter natif (fonctionne pour tous les blocs)
+      const nativeValueSetter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      nativeValueSetter?.call(textarea, newText);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = savedTop;
+      }
       requestAnimationFrame(() => {
-        const next = textAreaRefs.current[blockId];
-        if (!next) return;
-        next.focus();
-        const caret = start + 2;
-        next.setSelectionRange(caret, caret);
+        textarea.focus();
+        textarea.setSelectionRange(newCursorStart, newCursorEnd);
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = savedTop;
+        }
       });
-      return;
-    }
+    },
+    [],
+  );
 
-    const nextText = `${text.slice(0, start)}**${selected}**${text.slice(end)}`;
-    preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
-    requestAnimationFrame(() => {
-      const next = textAreaRefs.current[blockId];
-      if (!next) return;
-      next.focus();
-      next.setSelectionRange(start + 2, end + 2);
-    });
-  };
-
-  const applyUnderlineToTextBlock = (blockId: string) => {
-    const textarea = textAreaRefs.current[blockId];
-    if (!textarea) return;
-    const text = textarea.value || "";
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? start;
-    const selected = text.slice(start, end);
-
-    if (start === end) {
-      const insert = "____";
-      const nextText = `${text.slice(0, start)}${insert}${text.slice(end)}`;
-      preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
-      requestAnimationFrame(() => {
-        const next = textAreaRefs.current[blockId];
-        if (!next) return;
-        next.focus();
-        const caret = start + 2;
-        next.setSelectionRange(caret, caret);
-      });
-      return;
-    }
-
-    const nextText = `${text.slice(0, start)}__${selected}__${text.slice(end)}`;
-    preserveScrollOnChange(() => updateBlock(blockId, { text: nextText }));
-    requestAnimationFrame(() => {
-      const next = textAreaRefs.current[blockId];
-      if (!next) return;
-      next.focus();
-      next.setSelectionRange(start + 2, end + 2);
-    });
-  };
+  // Raccourcis Ctrl+B/U/I globaux — capture phase pour intercepter AVANT les handlers des blocs
+  useEffect(() => {
+    if (!isEditing) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const ta = document.activeElement as HTMLTextAreaElement;
+      if (!ta || ta.tagName !== "TEXTAREA") return;
+      if (!scrollContainerRef.current?.contains(ta)) return;
+      const key = e.key.toLowerCase();
+      if (key === "b") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        applyFormatToActiveTextarea("**", "**");
+      } else if (key === "u") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        applyFormatToActiveTextarea("__", "__");
+      } else if (key === "i") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        applyFormatToActiveTextarea("*", "*");
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      document.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [isEditing, applyFormatToActiveTextarea]);
 
   const renderTextWithFormatting = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
+    const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*)/g);
     return parts.map((part, idx) => {
       if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
         return (
@@ -627,6 +660,13 @@ export function ChapitreEditor({
           <span key={`t-${idx}`} className="underline decoration-white/80 underline-offset-2">
             {part.slice(2, -2)}
           </span>
+        );
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return (
+          <em key={`t-${idx}`} className="italic text-white/85">
+            {part.slice(1, -1)}
+          </em>
         );
       }
       return <span key={`t-${idx}`}>{part}</span>;
@@ -715,25 +755,13 @@ export function ChapitreEditor({
               className="w-full bg-transparent text-white/75 text-[18px] font-semibold font-serif tracking-wide outline-none border-b border-white/10 focus:border-[#E3CCCD]/35 pb-1 placeholder:text-white/15 transition-colors"
             />
             <textarea
-              ref={(el) => bindTextBlockRef(block.id, el)}
+              ref={bindAutosizeRef}
               value={block.data.text || ""}
               onChange={(e) =>
                 preserveScrollOnChange(() =>
                   updateBlock(block.id, { text: e.target.value }),
                 )
               }
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-                  e.preventDefault();
-                  applyBoldToTextBlock(block.id);
-                } else if (
-                  (e.ctrlKey || e.metaKey) &&
-                  e.key.toLowerCase() === "u"
-                ) {
-                  e.preventDefault();
-                  applyUnderlineToTextBlock(block.id);
-                }
-              }}
               placeholder="Commencez à écrire votre récit ici..."
               className="w-full bg-transparent text-white/80 text-[15px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 rounded transition-colors"
               onInput={(e) => {
@@ -764,25 +792,13 @@ export function ChapitreEditor({
           <div className="relative pl-6 py-2 border-l-4 border-[#E3CCCD]/40 bg-linear-to-r from-[#E3CCCD]/5 to-transparent rounded-r-xl group/quote">
             <Quote className="absolute top-2 left-2 w-8 h-8 text-[#E3CCCD]/10 -z-10" />
             <textarea
-              ref={(el) => bindTextBlockRef(block.id, el)}
+              ref={bindAutosizeRef}
               value={block.data.text || ""}
               onChange={(e) =>
                 preserveScrollOnChange(() =>
                   updateBlock(block.id, { text: e.target.value }),
                 )
               }
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-                  e.preventDefault();
-                  applyBoldToTextBlock(block.id);
-                } else if (
-                  (e.ctrlKey || e.metaKey) &&
-                  e.key.toLowerCase() === "u"
-                ) {
-                  e.preventDefault();
-                  applyUnderlineToTextBlock(block.id);
-                }
-              }}
               placeholder="Texte de la citation (ex: description à lire aux joueurs)..."
               className="w-full bg-transparent text-[#E3CCCD]/90 font-serif text-lg leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-[#E3CCCD]/30"
               onInput={(e) => {
@@ -1005,6 +1021,155 @@ export function ChapitreEditor({
         );
       }
 
+      case "table": {
+        const headers: string[] = block.data.headers ?? ["", ""];
+        const rows: string[][] = block.data.rows ?? [["", ""]];
+        const colCount = headers.length;
+
+        const updateHeader = (ci: number, value: string) =>
+          updateBlock(block.id, {
+            headers: headers.map((h, i) => (i === ci ? value : h)),
+          });
+
+        const updateCell = (ri: number, ci: number, value: string) =>
+          updateBlock(block.id, {
+            rows: rows.map((row, rIdx) =>
+              rIdx === ri
+                ? row.map((cell, cIdx) => (cIdx === ci ? value : cell))
+                : row,
+            ),
+          });
+
+        const addRow = () =>
+          updateBlock(block.id, { rows: [...rows, Array(colCount).fill("")] });
+
+        const removeRow = (ri: number) => {
+          if (rows.length <= 1) return;
+          updateBlock(block.id, { rows: rows.filter((_, i) => i !== ri) });
+        };
+
+        const addCol = () =>
+          updateBlock(block.id, {
+            headers: [...headers, ""],
+            rows: rows.map((row) => [...row, ""]),
+          });
+
+        const removeCol = () => {
+          if (headers.length <= 1) return;
+          updateBlock(block.id, {
+            headers: headers.slice(0, -1),
+            rows: rows.map((row) => row.slice(0, -1)),
+          });
+        };
+
+        return isEditing ? (
+          <div className="space-y-2">
+            <div className="overflow-x-auto rounded-xl border border-white/10">
+              <table className="w-full border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-white/5">
+                    {headers.map((h, ci) => (
+                      <th
+                        key={ci}
+                        className="border border-white/10 px-2 py-1 min-w-28"
+                      >
+                        <input
+                          value={h}
+                          onChange={(e) => updateHeader(ci, e.target.value)}
+                          placeholder={`En-tête ${ci + 1}`}
+                          className="w-full bg-transparent text-white/80 font-semibold text-center outline-none placeholder:text-white/20 text-[12px]"
+                        />
+                      </th>
+                    ))}
+                    <th className="border border-white/10 w-7" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, ri) => (
+                    <tr key={ri}>
+                      {row.map((cell, ci) => (
+                        <td
+                          key={ci}
+                          className="border border-white/10 px-2 py-1"
+                        >
+                          <input
+                            value={cell}
+                            onChange={(e) => updateCell(ri, ci, e.target.value)}
+                            placeholder="—"
+                            className="w-full bg-transparent text-white/70 outline-none placeholder:text-white/15 text-[12px]"
+                          />
+                        </td>
+                      ))}
+                      <td className="border border-white/10 w-7 text-center">
+                        <button
+                          onClick={() => removeRow(ri)}
+                          disabled={rows.length <= 1}
+                          className="p-1 text-white/20 hover:text-red-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={addRow}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors"
+              >
+                <Plus className="w-3 h-3" /> Ligne
+              </button>
+              <button
+                onClick={addCol}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors"
+              >
+                <Plus className="w-3 h-3" /> Colonne
+              </button>
+              <button
+                onClick={removeCol}
+                disabled={headers.length <= 1}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-white/30 hover:text-red-400 border border-white/10 hover:border-red-400/20 rounded-lg transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3 h-3" /> Col
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full border-collapse text-[13px]">
+              <thead>
+                <tr className="bg-white/5">
+                  {headers.map((h, ci) => (
+                    <th
+                      key={ci}
+                      className="border border-white/10 px-3 py-2 text-white/80 font-semibold text-left whitespace-nowrap"
+                    >
+                      {h || <span className="text-white/20 italic">—</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, ri) => (
+                  <tr key={ri} className="hover:bg-white/3 transition-colors">
+                    {row.map((cell, ci) => (
+                      <td
+                        key={ci}
+                        className="border border-white/10 px-3 py-2 text-white/70"
+                      >
+                        {cell || <span className="text-white/15">—</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
       default:
         return (
           <div className="p-4 border border-dashed border-white/20 rounded-xl bg-white/5 text-white/40 text-sm text-center">
@@ -1193,11 +1358,77 @@ export function ChapitreEditor({
         </div>
       </div>
 
+      {/* BARRE DE FORMATAGE (visible uniquement en édition) */}
+      {isEditing && (
+        <div className="shrink-0 flex items-center gap-1 px-6 py-1.5 border-b border-white/5 bg-[#1E1941]/70 z-20 sticky top-16">
+          <button
+            type="button"
+            disabled={!hasActiveTextarea}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => applyFormatToActiveTextarea("**", "**")}
+            className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              hasActiveTextarea
+                ? "text-white/70 hover:text-white hover:bg-white/10"
+                : "text-white/20 cursor-not-allowed"
+            }`}
+            title="Gras (Ctrl+B)"
+          >
+            <Bold className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={!hasActiveTextarea}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => applyFormatToActiveTextarea("__", "__")}
+            className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              hasActiveTextarea
+                ? "text-white/70 hover:text-white hover:bg-white/10"
+                : "text-white/20 cursor-not-allowed"
+            }`}
+            title="Souligné (Ctrl+U)"
+          >
+            <Underline className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            disabled={!hasActiveTextarea}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => applyFormatToActiveTextarea("*", "*")}
+            className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              hasActiveTextarea
+                ? "text-white/70 hover:text-white hover:bg-white/10"
+                : "text-white/20 cursor-not-allowed"
+            }`}
+            title="Italique (Ctrl+I)"
+          >
+            <Italic className="w-3.5 h-3.5" />
+          </button>
+          {hasActiveTextarea && (
+            <span className="ml-2 text-[10px] text-white/25 italic select-none truncate max-w-48">
+              champ actif
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ZONE PRINCIPALE DU CHAPITRE */}
       <div
         ref={scrollContainerRef}
         data-chapitre-scroll="true"
         className="flex-1 overflow-y-auto p-6 md:p-12 scrollbar-thin scrollbar-thumb-white/10 relative"
+        onFocusCapture={(e) => {
+          if ((e.target as HTMLElement).tagName === "TEXTAREA") {
+            setHasActiveTextarea(true);
+          }
+        }}
+        onBlurCapture={(e) => {
+          if ((e.target as HTMLElement).tagName === "TEXTAREA") {
+            const related = e.relatedTarget as HTMLElement | null;
+            if (!related || related.tagName !== "TEXTAREA") {
+              setHasActiveTextarea(false);
+            }
+          }
+        }}
         onKeyDownCapture={(e) => {
           const target = e.target as HTMLElement;
           const tagName = target.tagName;
@@ -1316,8 +1547,20 @@ export function ChapitreEditor({
                   draggedBlock.id !== block.id;
 
                 return (
-                  <div
-                    key={block.id}
+                  <Fragment key={block.id}>
+                    {isEditing && (
+                      <div
+                        className="group/ins h-5 flex items-center gap-2 -mx-2 px-2 cursor-pointer"
+                        onClick={(e) => handleInsertAt(index, e.clientY)}
+                      >
+                        <div className="flex-1 h-px bg-transparent group-hover/ins:bg-white/15 transition-colors" />
+                        <div className="opacity-0 group-hover/ins:opacity-100 flex items-center justify-center w-5 h-5 rounded-full bg-white/8 hover:bg-[#E3CCCD]/15 border border-white/15 transition-all">
+                          <Plus className="w-3 h-3 text-white/40" />
+                        </div>
+                        <div className="flex-1 h-px bg-transparent group-hover/ins:bg-white/15 transition-colors" />
+                      </div>
+                    )}
+                    <div
                     ref={(el) => {
                       blockRefsMap.current[block.id] = el;
                     }}
@@ -1380,28 +1623,6 @@ export function ChapitreEditor({
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        {(block.type === "text" || block.type === "quote") && (
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => applyBoldToTextBlock(block.id)}
-                            className="p-1 md:p-1.5 text-white/40 hover:text-white/80 hover:bg-white/10 rounded"
-                            title="Mettre en gras (Ctrl/Cmd+B)"
-                          >
-                            <Bold className="w-4 h-4" />
-                          </button>
-                        )}
-                        {(block.type === "text" || block.type === "quote") && (
-                          <button
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => applyUnderlineToTextBlock(block.id)}
-                            className="p-1 md:p-1.5 text-white/40 hover:text-white/80 hover:bg-white/10 rounded"
-                            title="Souligner (Ctrl/Cmd+U)"
-                          >
-                            <Underline className="w-4 h-4" />
-                          </button>
-                        )}
                       </div>
                     )}
 
@@ -1444,6 +1665,7 @@ export function ChapitreEditor({
                       )}
                     </div>
                   </div>
+                  </Fragment>
                 );
               })}
             </div>
@@ -1551,6 +1773,12 @@ export function ChapitreEditor({
                   <Link2 className="w-4 h-4 text-sky-300/70" /> Lien / Retrolien
                 </button>
                 <button
+                  onClick={() => addBlock("table")}
+                  className="flex items-center gap-3 px-3 py-2 hover:bg-indigo-500/10 rounded-xl text-[12px] text-indigo-200 transition-colors w-full text-left"
+                >
+                  <Table2 className="w-4 h-4 text-indigo-400/70" /> Tableau
+                </button>
+                <button
                   onClick={() => addBlock("npc")}
                   className="flex items-center gap-3 px-3 py-2 hover:bg-violet-500/10 rounded-xl text-[12px] text-violet-300 transition-colors w-full text-left"
                 >
@@ -1584,10 +1812,12 @@ export function ChapitreEditor({
             ref={addMenuButtonRef}
             onMouseEnter={() => {
               updateAddMenuPosition();
+              setInsertAtIndex(null);
               setIsAddMenuOpen(true);
             }}
             onClick={() => {
               updateAddMenuPosition();
+              setInsertAtIndex(null);
               setIsAddMenuOpen((prev) => !prev);
             }}
             className="flex items-center justify-center bg-[#E3CCCD]/10 hover:bg-[#E3CCCD]/20 border border-[#E3CCCD]/20 border-r-0 rounded-l-xl p-3 text-[#E3CCCD] transition-colors shadow-lg backdrop-blur-md"
