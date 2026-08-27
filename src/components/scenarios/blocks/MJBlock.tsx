@@ -1,5 +1,4 @@
-import { useRef } from "react";
-import { StickyNote, Link2Off, Bold, Underline } from "lucide-react";
+import { StickyNote, Link2Off } from "lucide-react";
 
 export interface MJNoteData {
   session?: string;
@@ -48,78 +47,18 @@ function resizeTextareaPreserveScroll(target: HTMLTextAreaElement) {
 
 export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange, onDetach }: MJBlockProps) {
   const widthClass = fullWidth ? "w-full" : "max-w-xl";
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const applyBold = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const text = textarea.value || "";
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? start;
-    const selected = text.slice(start, end);
-
-    if (start === end) {
-      const nextText = `${text.slice(0, start)}****${text.slice(end)}`;
-      preserveScroll(() => onChange({ note: nextText }));
-      requestAnimationFrame(() => {
-        const next = textareaRef.current;
-        if (!next) return;
-        next.focus();
-        const caret = start + 2;
-        next.setSelectionRange(caret, caret);
-      });
-      return;
-    }
-
-    const nextText = `${text.slice(0, start)}**${selected}**${text.slice(end)}`;
-    preserveScroll(() => onChange({ note: nextText }));
-    requestAnimationFrame(() => {
-      const next = textareaRef.current;
-      if (!next) return;
-      next.focus();
-      next.setSelectionRange(start + 2, end + 2);
-    });
-  };
-
-  const applyUnderline = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const text = textarea.value || "";
-    const start = textarea.selectionStart ?? 0;
-    const end = textarea.selectionEnd ?? start;
-    const selected = text.slice(start, end);
-
-    if (start === end) {
-      const nextText = `${text.slice(0, start)}____${text.slice(end)}`;
-      preserveScroll(() => onChange({ note: nextText }));
-      requestAnimationFrame(() => {
-        const next = textareaRef.current;
-        if (!next) return;
-        next.focus();
-        const caret = start + 2;
-        next.setSelectionRange(caret, caret);
-      });
-      return;
-    }
-
-    const nextText = `${text.slice(0, start)}__${selected}__${text.slice(end)}`;
-    preserveScroll(() => onChange({ note: nextText }));
-    requestAnimationFrame(() => {
-      const next = textareaRef.current;
-      if (!next) return;
-      next.focus();
-      next.setSelectionRange(start + 2, end + 2);
-    });
-  };
 
   const renderWithFormatting = (text: string) => {
-    const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__)/g);
+    const parts = text.split(/(\*\*[^*]+\*\*|__[^_]+__|\*[^*\n]+\*)/g);
     return parts.map((part, idx) => {
       if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
         return <strong key={`mj-${idx}`} className="font-semibold">{part.slice(2, -2)}</strong>;
       }
       if (part.startsWith("__") && part.endsWith("__") && part.length > 4) {
         return <span key={`mj-${idx}`} className="underline decoration-current underline-offset-2">{part.slice(2, -2)}</span>;
+      }
+      if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        return <em key={`mj-${idx}`} className="italic">{part.slice(1, -1)}</em>;
       }
       return <span key={`mj-${idx}`}>{part}</span>;
     });
@@ -152,44 +91,9 @@ export function MJBlock({ data, isEditing, attachedToLabel, fullWidth, onChange,
             </button>
           )}
         </div>
-        <div className="mb-2 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={applyBold}
-            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-amber-900/30 bg-amber-100/55 text-amber-950 hover:bg-amber-100/75 transition-colors"
-            title="Mettre en gras (Ctrl/Cmd+B)"
-          >
-            <Bold className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide">Gras</span>
-          </button>
-          <button
-            type="button"
-            onClick={applyUnderline}
-            className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-amber-900/30 bg-amber-100/55 text-amber-950 hover:bg-amber-100/75 transition-colors"
-            title="Souligner (Ctrl/Cmd+U)"
-          >
-            <Underline className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-semibold uppercase tracking-wide">Souligne</span>
-          </button>
-          <span className="text-[10px] text-amber-900/60">Selectionnez du texte puis Ctrl/Cmd+B ou Ctrl/Cmd+U</span>
-        </div>
         <textarea
-          ref={textareaRef}
           value={data.note || ""}
           onChange={(e) => preserveScroll(() => onChange({ note: e.target.value }))}
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
-              e.preventDefault();
-              applyBold();
-              return;
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "u") {
-              e.preventDefault();
-              applyUnderline();
-              return;
-            }
-            e.stopPropagation();
-          }}
           placeholder="Notes rapides MJ : decisions des PJ, consequences, idees pour la prochaine session..."
           className="w-full bg-amber-50/60 border border-amber-800/20 rounded-lg px-3 py-2 text-[13px] leading-relaxed text-amber-950 placeholder:text-amber-800/50 outline-none resize-none overflow-hidden min-h-24"
           onInput={(e) => {
