@@ -201,19 +201,22 @@ export function ChapitreEditor({
     }
   };
 
-  const scrollToBlock = useCallback((blockId: string) => {
-    const el = blockRefsMap.current[blockId];
-    if (el && scrollContainerRef.current) {
-      const containerTop =
-        scrollContainerRef.current.getBoundingClientRect().top;
-      const elTop = el.getBoundingClientRect().top;
-      scrollContainerRef.current.scrollBy({
-        top: elTop - containerTop - 80,
-        behavior: "smooth",
-      });
-    }
-    setIsReperesOpen(false);
-  }, []);
+  const scrollToBlock = useCallback(
+    (blockId: string, behavior: ScrollBehavior = "smooth") => {
+      const el = blockRefsMap.current[blockId];
+      const container = scrollContainerRef.current;
+      if (!el || !container || !container.contains(el)) return false;
+
+      const top =
+        container.scrollTop +
+        (el.getBoundingClientRect().top - container.getBoundingClientRect().top) -
+        80;
+      container.scrollTo({ top: Math.max(0, top), behavior });
+      setIsReperesOpen(false);
+      return true;
+    },
+    [],
+  );
 
   const toggleRepere = (blockId: string) => {
     updateBlock(blockId, {
@@ -313,19 +316,43 @@ export function ChapitreEditor({
 
     const key = `${chapitreId}:${initialFocusBlockId}`;
     if (lastInitialFocusKeyRef.current === key) return;
+    if (isLoading) return;
 
     const existsInCurrentChapter = blocks.some(
       (block) => block.id === initialFocusBlockId,
     );
     if (!existsInCurrentChapter) return;
 
-    scrollToBlock(initialFocusBlockId);
-    lastInitialFocusKeyRef.current = key;
-    onInitialFocusHandled?.();
+    let cancelled = false;
+    let attempts = 0;
+    let recenterTimer = 0;
+
+    // Le bloc cible peut ne pas encore etre monte (ou sa hauteur pas encore stable
+    // a cause des images), d'ou les tentatives puis le recalage differe.
+    const tryScroll = () => {
+      if (cancelled) return;
+      if (!scrollToBlock(initialFocusBlockId, "auto")) {
+        if (attempts++ < 30) requestAnimationFrame(tryScroll);
+        return;
+      }
+      lastInitialFocusKeyRef.current = key;
+      recenterTimer = window.setTimeout(() => {
+        if (!cancelled) scrollToBlock(initialFocusBlockId, "auto");
+        onInitialFocusHandled?.();
+      }, 250);
+    };
+
+    tryScroll();
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(recenterTimer);
+    };
   }, [
     blocks,
     chapitreId,
     initialFocusBlockId,
+    isLoading,
     onInitialFocusHandled,
     scrollToBlock,
   ]);
