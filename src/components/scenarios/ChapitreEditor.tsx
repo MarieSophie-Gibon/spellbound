@@ -463,6 +463,7 @@ export function ChapitreEditor({
                               note: "",
                               anchorBlockId: "",
                               position: "below",
+                              color: "yellow",
                             }
                           : type === "clue"
                             ? {
@@ -495,26 +496,26 @@ export function ChapitreEditor({
     setTimeout(() => scrollToBlock(newBlock.id), 80);
   };
 
-  const openLinkBlock = (block: Block, selectedTargetBlockId?: string) => {
+  const openLinkBlock = (
+    block: Block,
+    selectedTargetBlockId?: string,
+    selectedTargetChapitreId?: string,
+  ) => {
     const linkData = retroLinks.normalizeLinkData(block.data);
 
-    if (linkData.mode === "internal_block") {
-      const fallbackTarget = linkData.internalLinks?.find(
-        (choice) => !!choice.targetBlockId,
-      )?.targetBlockId;
-      const targetBlockId =
-        selectedTargetBlockId || fallbackTarget || linkData.targetBlockId;
-      if (targetBlockId) {
-        scrollToBlock(targetBlockId);
-      }
+    if (selectedTargetChapitreId && selectedTargetChapitreId !== chapitreId) {
+      onNavigateToChapitre?.(selectedTargetChapitreId, selectedTargetBlockId);
       return;
     }
 
-    if (!linkData.targetChapitreId) return;
-    onNavigateToChapitre?.(
-      linkData.targetChapitreId,
-      linkData.targetBlockId || undefined,
-    );
+    const fallbackTarget = linkData.internalLinks?.find(
+      (choice) => !!choice.targetBlockId && !choice.targetChapitreId,
+    )?.targetBlockId;
+    const targetBlockId =
+      selectedTargetBlockId || fallbackTarget || linkData.targetBlockId;
+    if (targetBlockId) {
+      scrollToBlock(targetBlockId);
+    }
   };
 
   const updateBlock = (id: string, newData: any) => {
@@ -1005,18 +1006,17 @@ export function ChapitreEditor({
         const internalTargets = retroLinks.currentChapitreBlockTargets.filter(
           (target) => target.id !== block.id,
         );
-        const chapterBlockTargets = linkData.targetChapitreId
-          ? retroLinks.getChapitreBlockTargets(linkData.targetChapitreId)
-          : [];
         return (
           <LinkBlock
             data={linkData}
             isEditing={isEditing}
             internalTargets={internalTargets}
             chapterTargets={retroLinks.chapterTargets}
-            targetChapterBlockTargets={chapterBlockTargets}
+            getChapitreBlockTargets={retroLinks.getChapitreBlockTargets}
             onChange={(newData) => updateBlock(block.id, newData)}
-            onOpen={(targetBlockId) => openLinkBlock(block, targetBlockId)}
+            onOpen={(targetBlockId, targetChapitreId) =>
+              openLinkBlock(block, targetBlockId, targetChapitreId)
+            }
           />
         );
       }

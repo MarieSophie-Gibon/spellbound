@@ -12,6 +12,7 @@ export interface LinkBlockData {
   internalLinks?: Array<{
     label: string;
     targetBlockId: string;
+    targetChapitreId?: string;
   }>;
 }
 
@@ -81,7 +82,7 @@ function normalizeLinkData(value: any): LinkBlockData {
       label: "",
       targetBlockId: "",
       targetChapitreId: "",
-      internalLinks: [{ label: "", targetBlockId: "" }],
+      internalLinks: [{ label: "", targetBlockId: "", targetChapitreId: "" }],
     };
   }
 
@@ -92,23 +93,28 @@ function normalizeLinkData(value: any): LinkBlockData {
         const targetBlockId = typeof entry?.targetBlockId === "string"
           ? entry.targetBlockId
           : (typeof entry?.target_block_id === "string" ? entry.target_block_id : "");
+        const targetChapitreId = typeof entry?.targetChapitreId === "string"
+          ? entry.targetChapitreId
+          : (typeof entry?.target_chapitre_id === "string" ? entry.target_chapitre_id : "");
         const label = typeof entry?.label === "string" ? entry.label : "";
-        return { label, targetBlockId };
+        return { label, targetBlockId, targetChapitreId };
       })
     : [];
 
-  const fallbackInternalLinks = legacyTargetBlockId
-    ? [{ label: typeof value.label === "string" ? value.label : "", targetBlockId: legacyTargetBlockId }]
+  const fallbackInternalLinks = (legacyTargetBlockId || value.mode === "cross_chapter")
+    ? [{
+      label: typeof value.label === "string" ? value.label : "",
+      targetBlockId: legacyTargetBlockId,
+      targetChapitreId: value.mode === "cross_chapter" && typeof value.targetChapitreId === "string" ? value.targetChapitreId : "",
+    }]
     : [];
 
   return {
-    mode: value.mode,
+    mode: "internal_block",
     label: typeof value.label === "string" ? value.label : "",
     targetBlockId: legacyTargetBlockId,
     targetChapitreId: typeof value.targetChapitreId === "string" ? value.targetChapitreId : "",
-    internalLinks: Array.isArray(value.internalLinks)
-      ? (normalizedInternalLinks.length > 0 ? normalizedInternalLinks : [{ label: "", targetBlockId: "" }])
-      : fallbackInternalLinks,
+    internalLinks: normalizedInternalLinks.length > 0 ? normalizedInternalLinks : fallbackInternalLinks,
   };
 }
 
@@ -225,8 +231,12 @@ export function useChapitreRetroLinks({
         if (block.type !== "link") continue;
 
         const linkData = normalizeLinkData(block.data);
-        if (linkData.mode !== "cross_chapter") continue;
-        if (linkData.targetChapitreId !== chapitreId) continue;
+
+        const pointsToCurrent = (linkData.internalLinks || []).some(
+          (choice) => choice.targetChapitreId === chapitreId,
+        );
+
+        if (!pointsToCurrent) continue;
 
         rows.push({
           sourceChapitreId: sourceChapitre.id,
@@ -250,7 +260,7 @@ export function useChapitreRetroLinks({
     label: "",
     targetBlockId: "",
     targetChapitreId: "",
-    internalLinks: [{ label: "", targetBlockId: "" }],
+    internalLinks: [{ label: "", targetBlockId: "", targetChapitreId: "" }],
   }), []);
 
   return {

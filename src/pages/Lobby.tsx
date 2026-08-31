@@ -216,13 +216,9 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
               >
                 <div
                   ref={railContentRef}
-                  className={`flex items-stretch py-6 w-max min-w-full ${
-                    hasOverflow
-                      ? "gap-3 justify-start snap-x snap-mandatory pl-1 pr-0"
-                      : "gap-5 justify-center px-4"
-                  }`}
+                  className="flex items-stretch py-6 w-max min-w-full gap-5 justify-center px-4 snap-x snap-mandatory"
                 >
-                  <div className={`shrink-0 ${hasOverflow ? "snap-start" : ""}`}>
+                  <div className="shrink-0 snap-start">
                     <MagicCard
                       size="compact"
                       onClick={onCreateCampaign}
@@ -239,7 +235,7 @@ export function Lobby({ onSelectCampaign, onCreateCampaign }: LobbyProps) {
                   </div>
 
                   {sortedCampaigns.map((campaign) => (
-                      <div key={campaign.id} className={`shrink-0 ${hasOverflow ? "snap-start" : ""}`}>
+                      <div key={campaign.id} className="shrink-0 snap-start">
                         {(() => {
                           const isOwner = !!currentUserId && campaign.owner_id === currentUserId;
                           const canLeave = !isOwner && campaign.access_type === "member";
