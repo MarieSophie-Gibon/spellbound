@@ -1087,6 +1087,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       <div className="absolute top-14 bottom-0 left-88 right-4 z-0 overflow-hidden py-2 pr-2">
         {isHydrated ? (
           <BattleMap
+            chapitreId={chapitreId}
             imageUrl={battlemapUrl}
             onChange={(url) => {
               setBattlemapUrl(url);

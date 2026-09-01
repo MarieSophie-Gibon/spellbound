@@ -5,6 +5,7 @@ import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type F
 import { CONDITION_OPTIONS } from "./types";
 
 interface BattleMapProps {
+  chapitreId?: string;
   imageUrl: string | null;
   onChange: (url: string | null) => void;
   combatants: Combatant[];
@@ -141,7 +142,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange }: BattleMapProps) {
+function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -315,7 +316,8 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
       stateRef.current = nextState;
       channelRef.current?.postMessage(nextState);
     }
-    window.open("/battlemap", "_blank", "noopener");
+    const url = chapitreId ? `/battlemap?chapitreId=${encodeURIComponent(chapitreId)}` : "/battlemap";
+    window.open(url, "_blank", "noopener");
     setPlayerTabOpen(true);
   };
 
@@ -923,6 +925,7 @@ function BattleMapInner({ imageUrl, onChange, combatants, encounters, mapTokens,
 
 function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boolean {
   return (
+    prev.chapitreId === next.chapitreId &&
     prev.imageUrl === next.imageUrl &&
     prev.onChange === next.onChange &&
     prev.combatants === next.combatants &&

@@ -60,6 +60,18 @@ function FlatVoieList({ voies, sections }: { voies: VoieEntry[]; sections: Set<V
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export function isNpcMonsterModeForCombatant(combatant: Combatant): boolean {
+    if (combatant.type !== "npc") return false;
+    const pj = combatant.pjStats;
+    if (pj?.is_combatant !== true) return false;
+
+    const hasMonsterAttackData = (pj?.attaques?.length ?? 0) > 0 || (pj?.capacites_speciales?.length ?? 0) > 0;
+    const hasLegacyMonsterDetails = (combatant.details?.attaques?.length ?? 0) > 0 || (combatant.details?.capacites?.length ?? 0) > 0;
+
+    return hasMonsterAttackData || hasLegacyMonsterDetails;
+}
+
 export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClose, onSummonFamilier }: CombatantCardProps) {
     const [editOpen, setEditOpen] = useState(false);
     const [pvDelta, setPvDelta] = useState<string>("1");
@@ -91,9 +103,8 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
     // - combattant: is_combatant === true && combat_stats_mode !== "extended"
     // - combattant/monstre: is_combatant === true && combat_stats_mode === "extended"
     // Fallback legacy: si mode absent mais attaques/capacites_speciales présentes, on traite comme combattant/monstre.
-    const npcHasMonsterData = (pj?.attaques?.length ?? 0) > 0 || (pj?.capacites_speciales?.length ?? 0) > 0;
     const isNpcNonCombatant = isNPC && pj?.is_combatant !== true;
-    const isNpcMonsterMode = isNPC && pj?.is_combatant === true && (npcHasMonsterData || pj?.combat_stats_mode === "extended");
+    const isNpcMonsterMode = isNpcMonsterModeForCombatant(combatant);
     const isNpcCombatant = isNPC && pj?.is_combatant === true && !isNpcMonsterMode;
     const isPJLike = isPJ || isNpcCombatant;
 
