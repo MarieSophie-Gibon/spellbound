@@ -22,6 +22,13 @@ type DragState = {
 
 type FloatingCardPosition = { x: number; y: number };
 
+// battlemapUrl a sa propre colonne DB : ne jamais le renvoyer dans le blob combat_state.
+function omitBattlemapUrl(state: PersistedCombatState): Omit<PersistedCombatState, "battlemapUrl"> {
+  const rest: Partial<PersistedCombatState> = { ...state };
+  delete rest.battlemapUrl;
+  return rest as Omit<PersistedCombatState, "battlemapUrl">;
+}
+
 function normalizeCombatState(raw: Partial<PersistedCombatState> | null | undefined): PersistedCombatState {
   return {
     combatants: Array.isArray(raw?.combatants) ? raw.combatants : [],
@@ -186,7 +193,10 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     stateRef.current = payload;
     setCombatState(payload);
     try {
-      await combatData.updateChapitreCombatState(chapitreId, payload);
+      // battlemapUrl a sa propre colonne : ne jamais le réécrire ici sous peine
+      // d'écraser la carte avec une copie locale obsolète.
+      const payloadForDb = omitBattlemapUrl(payload);
+      await combatData.updateChapitreCombatState(chapitreId, payloadForDb);
       setSaveError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de synchroniser les déplacements";
@@ -202,7 +212,8 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     stateRef.current = next;
     setCombatState(next);
     try {
-      await combatData.updateChapitreCombatState(chapitreId, next);
+      const payloadForDb = omitBattlemapUrl(next);
+      await combatData.updateChapitreCombatState(chapitreId, payloadForDb);
       setSaveError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de synchroniser l'action";
@@ -256,6 +267,7 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     const bootstrap = async () => {
       const data = await combatData.fetchChapitreCombatAndContent(chapitreId);
       const normalized = normalizeCombatState(data?.combat_state as Partial<PersistedCombatState> | null);
+      normalized.battlemapUrl = (data as { battlemap_url?: string | null } | null)?.battlemap_url ?? null;
       if (isCancelled) return;
       stateRef.current = normalized;
       setCombatState(normalized);
@@ -263,10 +275,21 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
 
     void bootstrap();
 
-    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incoming) => {
+    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incoming, incomingBattlemapUrl) => {
       if (isDraggingRef.current) return;
+
+      // Toujours appliqué, indépendamment du reste de l'état de combat.
+      setCombatState((prev) => {
+        const base = prev ?? stateRef.current;
+        if (!base) return prev;
+        const next = { ...base, battlemapUrl: incomingBattlemapUrl };
+        stateRef.current = next;
+        return next;
+      });
+
       if (!incoming || typeof incoming !== "object") return;
       const normalized = normalizeCombatState(incoming as Partial<PersistedCombatState>);
+      normalized.battlemapUrl = incomingBattlemapUrl;
       const incomingSig = JSON.stringify(normalized);
       const currentSig = stateRef.current ? JSON.stringify(stateRef.current) : null;
       if (currentSig && currentSig === incomingSig) return;

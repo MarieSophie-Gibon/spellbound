@@ -308,13 +308,14 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       try {
         const chapterData = await combatData.fetchChapitreCombatAndContent(chapitreId);
         const dbStateRaw = (chapterData?.combat_state ?? null) as Partial<PersistedCombatState> | null;
+        // battlemap_url vit dans sa propre colonne : jamais écrasé par un blob combat_state obsolète.
+        setBattlemapUrl((chapterData as { battlemap_url?: string | null } | null)?.battlemap_url ?? null);
 
         if (dbStateRaw && typeof dbStateRaw === "object") {
           const normalized = normalizeCombatState(dbStateRaw, getDefaultNotePosition());
           setCombatants(normalized.combatants);
           setActiveCombatantId(normalized.activeCombatantId);
           setRound(normalized.round);
-          setBattlemapUrl(normalized.battlemapUrl ?? null);
           setMapTokens(normalized.mapTokens ?? []);
           setEncounters(normalized.encounters ?? []);
           setFogEnabled(normalized.fogEnabled ?? false);
@@ -353,7 +354,10 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   }, [chapitreId, combatData]);
 
   useEffect(() => {
-    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw) => {
+    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw, incomingBattlemapUrl) => {
+      // Toujours appliqué, indépendamment du dedup du reste de l'état de combat.
+      setBattlemapUrl(incomingBattlemapUrl);
+
       if (!incomingRaw || typeof incomingRaw !== "object") return;
 
       const normalized = normalizeCombatState(
@@ -368,7 +372,6 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       setCombatants(normalized.combatants);
       setActiveCombatantId(normalized.activeCombatantId);
       setRound(normalized.round);
-      setBattlemapUrl(normalized.battlemapUrl ?? null);
       setMapTokens(normalized.mapTokens ?? []);
       setEncounters(normalized.encounters ?? []);
       setFogEnabled(normalized.fogEnabled ?? false);
@@ -386,14 +389,24 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     await combatData.updateChapitreCombatState(chapitreId, payload);
   }, [chapitreId, combatData]);
 
+  const persistBattlemapUrl = useCallback(async (url: string | null) => {
+    try {
+      await combatData.updateChapitreBattlemapUrl(chapitreId, url);
+    } catch (error) {
+      console.error("Impossible de sauvegarder la battlemap:", error);
+    }
+  }, [chapitreId, combatData]);
+
   // --- Persist ---
+  // battlemapUrl est volontairement exclu de ce blob : il a sa propre colonne
+  // et sa propre écriture immédiate (voir handleBattlemapChange), pour ne jamais
+  // être écrasé par la réécriture complète de l'état de combat par un autre client.
   useEffect(() => {
     if (!isHydrated) return;
     const payload: PersistedCombatState = {
       combatants,
       activeCombatantId,
       round,
-      battlemapUrl,
       mapTokens,
       encounters,
       fogEnabled,
@@ -408,16 +421,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       void persistCombatState(payload);
     }, 400);
     return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, battlemapUrl, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
-
-  useEffect(() => {
-    return () => {
-      if (!isHydrated) return;
-      const payload = latestPayloadRef.current;
-      if (!payload) return;
-      void persistCombatState(payload);
-    };
-  }, [isHydrated, persistCombatState]);
+  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -1091,6 +1095,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             imageUrl={battlemapUrl}
             onChange={(url) => {
               setBattlemapUrl(url);
+              void persistBattlemapUrl(url);
               if (url) {
                 setFogEnabled(true);
                 setFogReveals([]);

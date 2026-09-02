@@ -8,7 +8,7 @@ export function useCombatDashboardData() {
       async fetchChapitreCombatAndContent(chapitreId: string) {
         const { data, error } = await supabase
           .from("chapitres")
-          .select("combat_state, content")
+          .select("combat_state, content, battlemap_url")
           .eq("id", chapitreId)
           .single();
         if (error) throw error;
@@ -19,6 +19,16 @@ export function useCombatDashboardData() {
         const { error } = await supabase
           .from("chapitres")
           .update({ combat_state: payload })
+          .eq("id", chapitreId);
+        if (error) throw error;
+      },
+
+      // Écriture immédiate et isolée : ne peut jamais être écrasée par une
+      // réécriture concurrente du blob combat_state par un autre client.
+      async updateChapitreBattlemapUrl(chapitreId: string, battlemapUrl: string | null) {
+        const { error } = await supabase
+          .from("chapitres")
+          .update({ battlemap_url: battlemapUrl })
           .eq("id", chapitreId);
         if (error) throw error;
       },
@@ -183,7 +193,7 @@ export function useCombatDashboardData() {
 
       subscribeChapitreCombatState(
         chapitreId: string,
-        onUpdate: (combatState: Record<string, unknown> | null) => void,
+        onUpdate: (combatState: Record<string, unknown> | null, battlemapUrl: string | null) => void,
       ) {
         const channel = supabase
           .channel(`chapitre-combat:${chapitreId}`)
@@ -196,8 +206,8 @@ export function useCombatDashboardData() {
               filter: `id=eq.${chapitreId}`,
             },
             (payload) => {
-              const next = (payload.new as { combat_state?: Record<string, unknown> | null } | null)?.combat_state ?? null;
-              onUpdate(next);
+              const row = payload.new as { combat_state?: Record<string, unknown> | null; battlemap_url?: string | null } | null;
+              onUpdate(row?.combat_state ?? null, row?.battlemap_url ?? null);
             },
           )
           .subscribe();
