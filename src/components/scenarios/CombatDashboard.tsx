@@ -385,6 +385,42 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     return unsubscribe;
   }, [chapitreId, combatData]);
 
+  // Rafra\u00eechit en direct l'apparence (image, cadrage du jeton) des combattants d\u00e9j\u00e0
+  // plac\u00e9s quand leur fiche bestiaire/pnj est \u00e9dit\u00e9e pendant que le combat est en cours.
+  useEffect(() => {
+    const unsubscribe = combatData.subscribeCombatantSourceUpdates(
+      campaignId,
+      (row) => {
+        const m = row as { id: string; image_url?: string | null; combat?: any; stats?: any; attaques?: any; capacites?: any };
+        setCombatants((prev) => prev.map((c) => {
+          if (c.type !== "monster" || c.entityId !== m.id) return c;
+          return {
+            ...c,
+            imageUrl: m.image_url ?? c.imageUrl,
+            defense: toNumber(m.combat?.defense, c.defense),
+            details: { stats: m.stats as MonsterStatsMap, combat: m.combat, attaques: m.attaques, capacites: m.capacites },
+            ...getTokenFaceFromStats(m.stats),
+          };
+        }));
+      },
+      (row) => {
+        const n = row as { id: string; image_url?: string | null; stats?: any };
+        setCombatants((prev) => prev.map((c) => {
+          if (c.type !== "npc" || c.entityId !== n.id) return c;
+          return {
+            ...c,
+            imageUrl: n.image_url ?? c.imageUrl,
+            defense: toNumber(n.stats?.defense, c.defense),
+            pjStats: buildPJStats({ stats: n.stats }),
+            ...getTokenFaceFromStats(n.stats),
+          };
+        }));
+      },
+    );
+
+    return unsubscribe;
+  }, [campaignId, combatData]);
+
   const persistCombatState = useCallback(async (payload: PersistedCombatState) => {
     await combatData.updateChapitreCombatState(chapitreId, payload);
   }, [chapitreId, combatData]);

@@ -141,6 +141,32 @@ export function useCombatDashboardData() {
         return data ?? [];
       },
 
+      // Permet de rafra\u00eechir en direct l'apparence (image, cadrage du jeton) des
+      // combattants d\u00e9j\u00e0 plac\u00e9s quand leur fiche bestiaire/pnj est \u00e9dit\u00e9e pendant le combat.
+      subscribeCombatantSourceUpdates(
+        campaignId: string,
+        onMonsterUpdate: (row: Record<string, unknown>) => void,
+        onNpcUpdate: (row: Record<string, unknown>) => void,
+      ) {
+        const channel = supabase
+          .channel(`combatant-sources:${campaignId}`)
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "bestiaire", filter: `campaign_id=eq.${campaignId}` },
+            (payload) => onMonsterUpdate(payload.new as Record<string, unknown>),
+          )
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "pnj", filter: `campaign_id=eq.${campaignId}` },
+            (payload) => onNpcUpdate(payload.new as Record<string, unknown>),
+          )
+          .subscribe();
+
+        return () => {
+          void channel.unsubscribe();
+        };
+      },
+
       async fetchCampaignPjs(campaignId: string) {
         const { data, error } = await supabase
           .from("pj")
