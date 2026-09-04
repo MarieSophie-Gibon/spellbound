@@ -113,6 +113,12 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
   const latestPayloadRef = useRef<PersistedCombatState | null>(null);
+  const pendingMapTokensRef = useRef<MapToken[] | null>(null);
+
+  const handleMapTokensChange = useCallback((tokens: MapToken[]) => {
+    pendingMapTokensRef.current = tokens;
+    setMapTokens(tokens);
+  }, []);
 
   // Drag-and-drop manual ordering
   const [manualOrder, setManualOrder] = useState<string[] | null>(null);
@@ -364,6 +370,15 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         incomingRaw as Partial<PersistedCombatState>,
         { x: 32, y: 110 },
       );
+
+      const pendingMapTokens = pendingMapTokensRef.current;
+      if (pendingMapTokens) {
+        if (JSON.stringify(normalized.mapTokens) === JSON.stringify(pendingMapTokens)) {
+          pendingMapTokensRef.current = null;
+        } else {
+          return;
+        }
+      }
 
       const incomingSig = JSON.stringify(normalized);
       const localSig = latestPayloadRef.current ? JSON.stringify(latestPayloadRef.current) : null;
@@ -1143,7 +1158,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             combatants={orderedCombatants}
             encounters={encounters}
             mapTokens={mapTokens}
-            onUpdateTokens={setMapTokens}
+            onUpdateTokens={handleMapTokensChange}
             activeCombatantId={activeCombatantId}
             fogEnabled={fogEnabled}
             fogReveals={fogReveals}
