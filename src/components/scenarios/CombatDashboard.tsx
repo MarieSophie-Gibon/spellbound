@@ -114,6 +114,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const hasAutoImportedRef = useRef(false);
   const latestPayloadRef = useRef<PersistedCombatState | null>(null);
   const pendingMapTokensRef = useRef<MapToken[] | null>(null);
+  const pendingBattlemapUrlRef = useRef<{ url: string | null; at: number } | null>(null);
 
   const handleMapTokensChange = useCallback((tokens: MapToken[]) => {
     pendingMapTokensRef.current = tokens;
@@ -361,8 +362,19 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
 
   useEffect(() => {
     const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw, incomingBattlemapUrl) => {
-      // Toujours appliqué, indépendamment du dedup du reste de l'état de combat.
-      setBattlemapUrl(incomingBattlemapUrl);
+      const pendingBattlemapUrl = pendingBattlemapUrlRef.current;
+      if (pendingBattlemapUrl) {
+        if (incomingBattlemapUrl === pendingBattlemapUrl.url) {
+          pendingBattlemapUrlRef.current = null;
+        } else if (Date.now() - pendingBattlemapUrl.at < 5000) {
+          // Keep the locally selected map while an older realtime row is in flight.
+        } else {
+          pendingBattlemapUrlRef.current = null;
+          setBattlemapUrl(incomingBattlemapUrl);
+        }
+      } else {
+        setBattlemapUrl(incomingBattlemapUrl);
+      }
 
       if (!incomingRaw || typeof incomingRaw !== "object") return;
 
@@ -1145,6 +1157,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             chapitreId={chapitreId}
             imageUrl={battlemapUrl}
             onChange={(url) => {
+              pendingBattlemapUrlRef.current = { url, at: Date.now() };
               setBattlemapUrl(url);
               void persistBattlemapUrl(url);
               if (url) {
