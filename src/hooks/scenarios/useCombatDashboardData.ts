@@ -15,6 +15,17 @@ export function useCombatDashboardData() {
         return data;
       },
 
+      // Lecture légère du brouillard actuel en base (piloté par le MJ).
+      async fetchChapitreFogState(chapitreId: string) {
+        const { data, error } = await supabase
+          .from("chapitres")
+          .select("combat_state->fogEnabled, combat_state->fogReveals")
+          .eq("id", chapitreId)
+          .single();
+        if (error) throw error;
+        return data as { fogEnabled?: boolean | null; fogReveals?: any[] | null } | null;
+      },
+
       async updateChapitreCombatState(chapitreId: string, payload: any) {
         const { error } = await supabase
           .from("chapitres")

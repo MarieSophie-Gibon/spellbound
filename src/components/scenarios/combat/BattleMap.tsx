@@ -352,12 +352,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const placedCombatantIds = useMemo(() => new Set(mapTokens.map((t) => t.combatantId)), [mapTokens]);
 
   const openPlayerView = () => {
-    if (!fogEnabled) {
-      onFogEnabledChange(true);
-      const nextState: BattleMapBroadcast = { ...stateRef.current, fogEnabled: true };
-      stateRef.current = nextState;
-      channelRef.current?.postMessage(nextState);
-    }
+    // On respecte le choix du MJ : ouvrir la vue joueur ne réactive plus le brouillard.
     const url = chapitreId ? `/battlemap?chapitreId=${encodeURIComponent(chapitreId)}` : "/battlemap";
     window.open(url, "_blank", "noopener");
     setPlayerTabOpen(true);
@@ -803,7 +798,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 <canvas
                   ref={fogCanvasRef}
                   className="absolute inset-0 z-25"
-                  style={{ pointerEvents: isFogEditMode && fogEnabled ? "auto" : "none", opacity: 0.5 }}
+                  style={{ pointerEvents: isFogEditMode && fogEnabled && !isPingMode ? "auto" : "none", opacity: 0.5 }}
                   onPointerDown={onFogPointerDown}
                   onPointerMove={onFogPointerMove}
                   onPointerUp={onFogPointerUp}
@@ -859,7 +854,11 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
               )}
               <div className="flex items-center gap-1 rounded-xl bg-black/60 backdrop-blur border border-white/15 p-1">
                 <button
-                  onClick={() => setIsPingMode((value) => !value)}
+                  onClick={() => {
+                    // Ping et pinceau sont exclusifs : sinon le canvas du brouillard capte le clic
+                    if (!isPingMode) setIsFogEditMode(false);
+                    setIsPingMode((value) => !value);
+                  }}
                   className={`p-1.5 rounded-lg border transition-colors ${isPingMode ? "bg-cyan-500/25 border-cyan-300/40 text-cyan-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
                   title="Mode ping"
                 >
@@ -877,7 +876,10 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                   <Cloud className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setIsFogEditMode((v) => !v)}
+                  onClick={() => {
+                    if (!isFogEditMode) setIsPingMode(false);
+                    setIsFogEditMode((v) => !v);
+                  }}
                   disabled={!fogEnabled}
                   className={`p-1.5 rounded-lg border transition-colors ${isFogEditMode ? "bg-cyan-500/25 border-cyan-300/40 text-cyan-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"} ${!fogEnabled ? "opacity-40 cursor-not-allowed" : ""}`}
                   title="Mode pinceau"
