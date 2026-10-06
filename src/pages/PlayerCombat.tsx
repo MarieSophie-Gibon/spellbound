@@ -189,6 +189,24 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     return ownCombatants.find((c) => c.id === selectedCombatantId) ?? null;
   }, [ownCombatants, selectedCombatantId]);
 
+  // Le brouillard est piloté par le MJ : avant d'écrire le blob combat_state,
+  // on reprend sa valeur actuelle en base pour ne jamais la remplacer par une
+  // copie locale obsolète (le brouillard se désactivait/réactivait tout seul).
+  const withFreshFog = useCallback(async (payload: PersistedCombatState): Promise<PersistedCombatState> => {
+    if (!chapitreId) return payload;
+    try {
+      const fog = await combatData.fetchChapitreFogState(chapitreId);
+      if (!fog) return payload;
+      return {
+        ...payload,
+        fogEnabled: fog.fogEnabled ?? payload.fogEnabled,
+        fogReveals: (fog.fogReveals ?? payload.fogReveals) as PersistedCombatState["fogReveals"],
+      };
+    } catch {
+      return payload;
+    }
+  }, [chapitreId, combatData]);
+
   const persistMapTokens = useCallback(async (tokens: MapToken[]) => {
     if (!chapitreId) return;
     const current = stateRef.current;
@@ -199,14 +217,14 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     try {
       // battlemapUrl a sa propre colonne : ne jamais le réécrire ici sous peine
       // d'écraser la carte avec une copie locale obsolète.
-      const payloadForDb = omitBattlemapUrl(payload);
+      const payloadForDb = omitBattlemapUrl(await withFreshFog(payload));
       await combatData.updateChapitreCombatState(chapitreId, payloadForDb);
       setSaveError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de synchroniser les déplacements";
       setSaveError(message);
     }
-  }, [chapitreId, combatData]);
+  }, [chapitreId, combatData, withFreshFog]);
 
   const commitCombatState = useCallback(async (updater: (prev: PersistedCombatState) => PersistedCombatState) => {
     if (!chapitreId) return;
@@ -216,14 +234,14 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     stateRef.current = next;
     setCombatState(next);
     try {
-      const payloadForDb = omitBattlemapUrl(next);
+      const payloadForDb = omitBattlemapUrl(await withFreshFog(next));
       await combatData.updateChapitreCombatState(chapitreId, payloadForDb);
       setSaveError(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Impossible de synchroniser l'action";
       setSaveError(message);
     }
-  }, [chapitreId, combatData]);
+  }, [chapitreId, combatData, withFreshFog]);
 
   const broadcastDragPreview = useCallback((
     state: PersistedCombatState,
