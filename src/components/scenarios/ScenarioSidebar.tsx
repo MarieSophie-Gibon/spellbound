@@ -1,4 +1,4 @@
-import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2, CheckCircle2, GripVertical } from "lucide-react";
+import { ChevronDown, FileText, FolderPlus, Plus, ArrowLeft, Loader2, BookOpen, Trash2, CheckCircle2, GripVertical, Pencil } from "lucide-react";
 
 interface Chapitre {
   id: string;
@@ -29,6 +29,8 @@ interface ScenarioSidebarProps {
   onCreateChapitre: (scenarioId: string) => void;
   onDeleteScenario: (id: string, title: string) => void;
   onDeleteChapitre: (id: string, title: string) => void;
+  onEditScenario: (scenario: Scenario) => void;
+  onEditChapitre: (chapitre: Chapitre) => void;
   onToggleCompleted: (id: string, current: boolean) => void;
   draggedChapitreId: string | null;
   dragOverChapitreId: string | null;
@@ -53,6 +55,8 @@ export function ScenarioSidebar({
   onCreateChapitre,
   onDeleteScenario,
   onDeleteChapitre,
+  onEditScenario,
+  onEditChapitre,
   onToggleCompleted,
   draggedChapitreId,
   dragOverChapitreId,
@@ -106,6 +110,16 @@ export function ScenarioSidebar({
                   </div>
                   
                   <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditScenario(scenario);
+                      }}
+                      className="p-1 opacity-0 group-hover:opacity-100 text-white/40 hover:text-[#E3CCCD] hover:bg-white/10 rounded-md transition-all"
+                      title="Renommer le scénario"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -172,6 +186,16 @@ export function ScenarioSidebar({
                               title={chapitre.completed ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditChapitre(chapitre);
+                              }}
+                              className="p-1 opacity-0 group-hover/item:opacity-100 text-white/40 hover:text-[#E3CCCD] hover:bg-white/10 rounded-md transition-all shrink-0"
+                              title="Renommer le chapitre"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={(e) => {
