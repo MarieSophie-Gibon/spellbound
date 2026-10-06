@@ -76,10 +76,13 @@ export function usePersonnageDetail() {
 			async fetchAllVoies() {
 				const { data, error } = await supabase
 					.from("voies")
-					.select("id, nom, type, peuple_id, profil_id, capacites")
+					.select("id, nom, type, peuple_id, profil_id, famille_id, capacites, familles(nom)")
 					.order("nom");
 				if (error) throw error;
-				return (data ?? []) as VoieDetail[];
+				return (data ?? []).map((v: any) => {
+					const famille = Array.isArray(v.familles) ? v.familles[0] : v.familles;
+					return { ...v, famille_nom: famille?.nom ?? null };
+				}) as VoieDetail[];
 			},
 
 			async fetchPlayers() {
