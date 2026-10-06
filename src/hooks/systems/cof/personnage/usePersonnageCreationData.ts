@@ -177,19 +177,7 @@ export function usePersonnageCreationData() {
           .select();
         if (error) throw error;
 
-        const newPNJId = newPNJData?.[0]?.id;
-        if (newPNJId) {
-          const { data: oldItems } = await supabase
-            .from("pj_inventaire")
-            .select("item_type, item_id, nom_custom, description_custom, qte, is_equipped")
-            .eq("pnj_id", payload.source.id);
-          if (oldItems && oldItems.length > 0) {
-            await supabase.from("pj_inventaire").insert(
-              oldItems.map((item) => ({ ...item, pj_id: null, pnj_id: newPNJId }))
-            );
-          }
-        }
-
+        // L'inventaire des PNJ (inventory.items) est copié avec la colonne inventory ci-dessus.
         return newPNJData ?? [];
       },
 
