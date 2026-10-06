@@ -79,7 +79,11 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
   // Gestion des Modales
   const [showScenarioModal, setShowScenarioModal] = useState(false);
   const [editingScenario, setEditingScenario] = useState<{ id: string; title: string; description: string | null } | null>(null);
-  const [chapitreModalConfig, setChapitreModalConfig] = useState<{ isOpen: boolean; scenarioId: string }>({ isOpen: false, scenarioId: "" });
+  const [chapitreModalConfig, setChapitreModalConfig] = useState<{
+    isOpen: boolean;
+    scenarioId: string;
+    initialData?: { id: string; title: string };
+  }>({ isOpen: false, scenarioId: "" });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'scenario' | 'chapitre'; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [draggedChapitreId, setDraggedChapitreId] = useState<string | null>(null);
@@ -274,6 +278,13 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
       onCreateChapitre={(scenarioId) => setChapitreModalConfig({ isOpen: true, scenarioId })}
       onDeleteScenario={(id, title) => setDeleteTarget({ id, type: 'scenario', title })}
       onDeleteChapitre={(id, title) => setDeleteTarget({ id, type: 'chapitre', title })}
+      onEditScenario={(sc) => {
+        setEditingScenario({ id: sc.id, title: sc.title, description: sc.description });
+        setShowScenarioModal(true);
+      }}
+      onEditChapitre={(ch) =>
+        setChapitreModalConfig({ isOpen: true, scenarioId: ch.scenario_id, initialData: { id: ch.id, title: ch.title } })
+      }
       onToggleCompleted={handleToggleCompleted}
       draggedChapitreId={draggedChapitreId}
       dragOverChapitreId={dragOverChapitreId}
@@ -303,6 +314,11 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
               setPendingFocusBlockId(targetBlockId || null);
             }}
             completed={!!chapitres.find(c => c.id === selectedChapitreId)?.completed}
+            title={chapitres.find(c => c.id === selectedChapitreId)?.title}
+            onEditTitle={() => {
+              const ch = chapitres.find(c => c.id === selectedChapitreId);
+              if (ch) setChapitreModalConfig({ isOpen: true, scenarioId: ch.scenario_id, initialData: { id: ch.id, title: ch.title } });
+            }}
             onToggleCompleted={() => {
               const ch = chapitres.find(c => c.id === selectedChapitreId);
               if (ch) handleToggleCompleted(ch.id, !!ch.completed);
@@ -398,12 +414,14 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
       {chapitreModalConfig.isOpen && (
         <ChapitreModal
           scenarioId={chapitreModalConfig.scenarioId}
+          initialData={chapitreModalConfig.initialData}
           onClose={() => setChapitreModalConfig({ isOpen: false, scenarioId: "" })}
           onSuccess={(newChapitreId) => {
             fetchData();
+            const isEdit = !!chapitreModalConfig.initialData;
             setChapitreModalConfig({ isOpen: false, scenarioId: "" });
             setExpandedScenarios((prev) => ({ ...prev, [chapitreModalConfig.scenarioId]: true }));
-            if (newChapitreId) {
+            if (newChapitreId && !isEdit) {
               setSelectedChapitreId(newChapitreId);
             }
           }}

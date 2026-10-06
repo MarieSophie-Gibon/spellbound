@@ -52,6 +52,7 @@ export default function LevelUpOverlay({
     canShowUnlockList,
     unlockOptions,
     groupedOtherProfileVoies,
+    groupedPrestigeVoies,
     groupedHybridVoies,
     toggleRankDescription,
     isProfileGroupCollapsed,
@@ -479,7 +480,27 @@ export default function LevelUpOverlay({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredAvailableVoies.map((v) => {
+                  {/* Prestige : regroupé par famille ; autres onglets : un seul groupe sans titre */}
+                  {(unlockType === "prestige"
+                    ? Object.entries(groupedPrestigeVoies)
+                    : [["", filteredAvailableVoies] as [string, VoieDetail[]]]
+                  ).map(([familyName, voies]) => {
+                    const groupKey = `prestige:${familyName}`;
+                    const isCollapsed = !!familyName && isProfileGroupCollapsed(groupKey);
+
+                    return (
+                      <div key={familyName || "all"} className="space-y-2">
+                        {familyName && (
+                          <button
+                            type="button"
+                            onClick={() => toggleProfileGroup(groupKey)}
+                            className="w-full flex items-center justify-between text-[10px] uppercase tracking-widest text-white/60 px-1 pt-1"
+                          >
+                            <span>{familyName}</span>
+                            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                  {!isCollapsed && voies.map((v) => {
                     const unlockRanks = getUnlockRanksForVoieId(v.id);
 
                     return unlockRanks.map((rank) => {
@@ -558,6 +579,9 @@ export default function LevelUpOverlay({
                         </div>
                       );
                     });
+                  })}
+                      </div>
+                    );
                   })}
                 </div>
               )}

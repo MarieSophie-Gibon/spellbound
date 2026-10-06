@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { Swords } from "lucide-react";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
-import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
+import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type BattleMapPing, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
 
 interface LiveState {
   imageUrl: string | null;
@@ -18,6 +18,7 @@ interface LiveState {
   fogReveals: FogRevealStamp[];
   showNameTags?: boolean;
   dragPreviewToken?: { combatantId: string; x: number; y: number } | null;
+  dragPreviewTokens?: Record<string, { x: number; y: number }> | null;
 }
 
 type ImgRect = { left: number; top: number; width: number; height: number };
@@ -29,6 +30,8 @@ export function PlayerView() {
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgRect, setImgRect] = useState<ImgRect | null>(null);
   const fogCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [mapPing, setMapPing] = useState<Pick<BattleMapPing, "id" | "x" | "y"> | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
   const [smoothedTokenPositions, setSmoothedTokenPositions] = useState<Record<string, { x: number; y: number }>>({});
   const smoothRafRef = useRef<number | null>(null);
 
@@ -36,6 +39,13 @@ export function PlayerView() {
     const ch = new BroadcastChannel(BATTLEMAP_CHANNEL);
     channelRef.current = ch;
     ch.onmessage = (e) => {
+      if (e.data?.type === "ping") {
+        const ping = e.data as BattleMapPing;
+        setMapPing(ping);
+        if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+        pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
+        return;
+      }
       if (e.data?.type !== "update") return;
       const incoming = e.data as BattleMapBroadcast;
       setState({
@@ -52,10 +62,14 @@ export function PlayerView() {
         fogReveals: incoming.fogReveals ?? [],
         showNameTags: incoming.showNameTags ?? true,
         dragPreviewToken: incoming.dragPreviewToken ?? null,
+        dragPreviewTokens: incoming.dragPreviewTokens ?? null,
       });
     };
     ch.postMessage({ type: "request" });
-    return () => ch.close();
+    return () => {
+      if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+      ch.close();
+    };
   }, []);
 
   const updateImgRect = useCallback(() => {
@@ -114,7 +128,8 @@ export function PlayerView() {
     if (!state) return targets;
 
     for (const token of state.mapTokens) {
-      const preview = state.dragPreviewToken?.combatantId === token.combatantId ? state.dragPreviewToken : null;
+      const preview = state.dragPreviewTokens?.[token.combatantId]
+        ?? (state.dragPreviewToken?.combatantId === token.combatantId ? state.dragPreviewToken : null);
       targets[token.combatantId] = {
         x: preview?.x ?? token.x,
         y: preview?.y ?? token.y,
@@ -274,6 +289,16 @@ export function PlayerView() {
                     className="absolute inset-0"
                     style={{ opacity: 1 }}
                   />
+                  {mapPing && (
+                    <div
+                      key={mapPing.id}
+                      className="absolute z-20 pointer-events-none"
+                      style={{ left: `${mapPing.x}%`, top: `${mapPing.y}%`, transform: "translate(-50%, -50%)" }}
+                    >
+                      <div className="absolute -inset-8 rounded-full border-2 border-cyan-300/90 animate-ping" />
+                      <div className="relative w-4 h-4 rounded-full bg-cyan-300 border-2 border-white shadow-[0_0_14px_rgba(103,232,249,0.9)]" />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

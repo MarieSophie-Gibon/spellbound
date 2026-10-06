@@ -113,6 +113,13 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
   const latestPayloadRef = useRef<PersistedCombatState | null>(null);
+  const pendingMapTokensRef = useRef<MapToken[] | null>(null);
+  const pendingBattlemapUrlRef = useRef<{ url: string | null; at: number } | null>(null);
+
+  const handleMapTokensChange = useCallback((tokens: MapToken[]) => {
+    pendingMapTokensRef.current = tokens;
+    setMapTokens(tokens);
+  }, []);
 
   // Drag-and-drop manual ordering
   const [manualOrder, setManualOrder] = useState<string[] | null>(null);
@@ -355,8 +362,19 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
 
   useEffect(() => {
     const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw, incomingBattlemapUrl) => {
-      // Toujours appliqué, indépendamment du dedup du reste de l'état de combat.
-      setBattlemapUrl(incomingBattlemapUrl);
+      const pendingBattlemapUrl = pendingBattlemapUrlRef.current;
+      if (pendingBattlemapUrl) {
+        if (incomingBattlemapUrl === pendingBattlemapUrl.url) {
+          pendingBattlemapUrlRef.current = null;
+        } else if (Date.now() - pendingBattlemapUrl.at < 5000) {
+          // Keep the locally selected map while an older realtime row is in flight.
+        } else {
+          pendingBattlemapUrlRef.current = null;
+          setBattlemapUrl(incomingBattlemapUrl);
+        }
+      } else {
+        setBattlemapUrl(incomingBattlemapUrl);
+      }
 
       if (!incomingRaw || typeof incomingRaw !== "object") return;
 
@@ -364,6 +382,15 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         incomingRaw as Partial<PersistedCombatState>,
         { x: 32, y: 110 },
       );
+
+      const pendingMapTokens = pendingMapTokensRef.current;
+      if (pendingMapTokens) {
+        if (JSON.stringify(normalized.mapTokens) === JSON.stringify(pendingMapTokens)) {
+          pendingMapTokensRef.current = null;
+        } else {
+          return;
+        }
+      }
 
       const incomingSig = JSON.stringify(normalized);
       const localSig = latestPayloadRef.current ? JSON.stringify(latestPayloadRef.current) : null;
@@ -1130,6 +1157,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             chapitreId={chapitreId}
             imageUrl={battlemapUrl}
             onChange={(url) => {
+              pendingBattlemapUrlRef.current = { url, at: Date.now() };
               setBattlemapUrl(url);
               void persistBattlemapUrl(url);
               if (url) {
@@ -1143,7 +1171,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             combatants={orderedCombatants}
             encounters={encounters}
             mapTokens={mapTokens}
-            onUpdateTokens={setMapTokens}
+            onUpdateTokens={handleMapTokensChange}
             activeCombatantId={activeCombatantId}
             fogEnabled={fogEnabled}
             fogReveals={fogReveals}

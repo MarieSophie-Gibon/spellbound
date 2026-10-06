@@ -66,6 +66,9 @@ interface ChapitreEditorProps {
   campaignSystem: RpgSystem;
   completed?: boolean;
   onToggleCompleted?: () => void;
+  /** Titre à jour fourni par la page (prioritaire sur le titre chargé localement, ex. après un renommage) */
+  title?: string;
+  onEditTitle?: () => void;
   onOpenCombatDashboard?: (chapitreId: string) => void;
   onNavigateToChapitre?: (chapitreId: string, targetBlockId?: string) => void;
   initialFocusBlockId?: string | null;
@@ -100,6 +103,8 @@ export function ChapitreEditor({
   campaignSystem,
   completed,
   onToggleCompleted,
+  title,
+  onEditTitle,
   onOpenCombatDashboard,
   onNavigateToChapitre,
   initialFocusBlockId,
@@ -1225,8 +1230,18 @@ export function ChapitreEditor({
           <h1
             className={`text-xl md:text-2xl font-serif tracking-wide truncate leading-none transition-colors ${completed ? "text-white/40 line-through" : "text-white"}`}
           >
-            {chapitre.title}
+            {title ?? chapitre.title}
           </h1>
+          {onEditTitle && (
+            <button
+              type="button"
+              onClick={onEditTitle}
+              className="shrink-0 p-1.5 rounded-lg text-white/35 hover:text-[#E3CCCD] hover:bg-white/10 transition-colors"
+              title="Renommer le chapitre"
+            >
+              <Edit3 className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Repères — menu de navigation rapide */}
           {reperes.length > 0 && (

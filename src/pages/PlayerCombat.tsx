@@ -4,7 +4,7 @@ import { GripVertical, Minus, Plus, Swords } from "lucide-react";
 import { useCombatDashboardData } from "@/hooks/scenarios/useCombatDashboardData";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { CONDITION_OPTIONS, readTokenFaceFromCombatant } from "@/components/scenarios/combat/types";
-import { BATTLEMAP_CHANNEL, tokenRingClass, type BattleMapBroadcast } from "@/components/scenarios/combat/BattleMap";
+import { BATTLEMAP_CHANNEL, tokenRingClass, type BattleMapBroadcast, type BattleMapPing } from "@/components/scenarios/combat/BattleMap";
 import { CombatantCard } from "@/components/scenarios/combat/CombatantCard";
 import type { FogRevealStamp, MapToken, PersistedCombatState } from "@/components/scenarios/combat/types";
 
@@ -80,6 +80,9 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
   const [isDragging, setIsDragging] = useState(false);
   const isDraggingRef = useRef(false);
   const [dragPreviewToken, setDragPreviewToken] = useState<{ combatantId: string; x: number; y: number } | null>(null);
+  const [dragPreviewTokens, setDragPreviewTokens] = useState<Record<string, { x: number; y: number }> | null>(null);
+  const [mapPing, setMapPing] = useState<Pick<BattleMapPing, "id" | "x" | "y"> | null>(null);
+  const pingTimerRef = useRef<number | null>(null);
   const [selectedCombatantId, setSelectedCombatantId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -170,7 +173,8 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     if (!combatState) return targets;
 
     for (const token of combatState.mapTokens ?? []) {
-      const preview = dragPreviewToken?.combatantId === token.combatantId ? dragPreviewToken : null;
+      const preview = dragPreviewTokens?.[token.combatantId]
+        ?? (dragPreviewToken?.combatantId === token.combatantId ? dragPreviewToken : null);
       targets[token.combatantId] = {
         x: preview?.x ?? token.x,
         y: preview?.y ?? token.y,
@@ -178,7 +182,7 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
     }
 
     return targets;
-  }, [combatState, dragPreviewToken]);
+  }, [combatState, dragPreviewToken, dragPreviewTokens]);
 
   const selectedCombatant = useMemo(() => {
     if (!selectedCombatantId) return null;
@@ -312,15 +316,23 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
 
     channel.onmessage = (event) => {
       if (isDraggingRef.current) return;
+      if (event.data?.type === "ping") {
+        const ping = event.data as BattleMapPing;
+        setMapPing(ping);
+        if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+        pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
+        return;
+      }
       if (event.data?.type !== "update") return;
       const incoming = event.data as BattleMapBroadcast;
       setTokenSize(incoming.tokenSize ?? 40);
       setTokenSizePct(incoming.tokenSizePct);
       setDragPreviewToken(incoming.dragPreviewToken ?? null);
+      setDragPreviewTokens(incoming.dragPreviewTokens ?? null);
 
       // During remote drag, render only the lightweight preview token position.
       // Rebuilding the full combat state each frame causes visible snapping.
-      if (incoming.dragPreviewToken) return;
+      if (incoming.dragPreviewToken || incoming.dragPreviewTokens) return;
 
       setCombatState((prev) => {
         const base = prev ?? normalizeCombatState(null);
@@ -354,6 +366,7 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
       pendingPreviewRef.current = null;
       if (smoothRafRef.current !== null) cancelAnimationFrame(smoothRafRef.current);
       smoothRafRef.current = null;
+      if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
     };
   }, []);
 
@@ -760,6 +773,16 @@ export function PlayerCombat({ campaignId }: PlayerCombatProps) {
                         </div>
                       );
                     })}
+                    {mapPing && (
+                      <div
+                        key={mapPing.id}
+                        className="absolute z-20 pointer-events-none"
+                        style={{ left: `${mapPing.x}%`, top: `${mapPing.y}%`, transform: "translate(-50%, -50%)" }}
+                      >
+                        <div className="absolute -inset-8 rounded-full border-2 border-cyan-300/90 animate-ping" />
+                        <div className="relative w-4 h-4 rounded-full bg-cyan-300 border-2 border-white shadow-[0_0_14px_rgba(103,232,249,0.9)]" />
+                      </div>
+                    )}
                     <canvas ref={fogCanvasRef} className="absolute inset-0 pointer-events-none z-10" style={{ opacity: combatState.fogEnabled ? 1 : 0 }} />
                   </div>
                 )}

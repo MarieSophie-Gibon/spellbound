@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { Brush, Cloud, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
+import { Brush, Cloud, Crosshair, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type FogRevealStamp, type MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
@@ -51,6 +51,14 @@ export interface BattleMapBroadcast {
   fogReveals: FogRevealStamp[];
   showNameTags?: boolean;
   dragPreviewToken?: { combatantId: string; x: number; y: number } | null;
+  dragPreviewTokens?: Record<string, { x: number; y: number }> | null;
+}
+
+export interface BattleMapPing {
+  type: "ping";
+  id: number;
+  x: number;
+  y: number;
 }
 
 export interface TokenNameTagMetrics {
@@ -80,6 +88,7 @@ interface MapTokenMarkerProps {
   combatant: Combatant;
   isActive: boolean;
   tokenSize: number;
+  isSelected: boolean;
   onPointerDown: (e: React.PointerEvent, token: MapToken) => void;
   setTokenEl: (id: string) => (el: HTMLDivElement | null) => void;
 }
@@ -89,6 +98,7 @@ const MapTokenMarker = memo(function MapTokenMarker({
   combatant,
   isActive,
   tokenSize,
+  isSelected,
   onPointerDown,
   setTokenEl,
 }: MapTokenMarkerProps) {
@@ -108,7 +118,7 @@ const MapTokenMarker = memo(function MapTokenMarker({
         <div className="absolute rounded-full border-2 border-amber-400 animate-ping pointer-events-none opacity-75" style={{ inset: -6, width: tokenSize + 12, height: tokenSize + 12 }} />
       )}
       <div
-        className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)}`}
+        className={`relative rounded-full border-2 overflow-hidden ${tokenRingClass(combatant.type)} ${isSelected ? "ring-2 ring-cyan-300 ring-offset-2 ring-offset-black/40" : ""}`}
         style={{ width: tokenSize, height: tokenSize, cursor: "grab" }}
       >
         <img
@@ -152,7 +162,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const imgContainerRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
   const tokenElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
-  const incomingPreviewRef = useRef<{ combatantId: string; x: number; y: number } | null>(null);
+  const incomingPreviewRef = useRef<Record<string, { x: number; y: number }> | null>(null);
   const incomingPreviewRafRef = useRef<number | null>(null);
 
   const [uploading, setUploading] = useState(false);
@@ -167,7 +177,11 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
 
   const [tokenSize, setTokenSize] = useState(40);
   const [showNameTags] = useState(true);
-  const [dragPreviewToken, setDragPreviewToken] = useState<{ combatantId: string; x: number; y: number } | null>(null);
+  const [dragPreviewTokens, setDragPreviewTokens] = useState<Record<string, { x: number; y: number }> | null>(null);
+  const [selectedTokenIds, setSelectedTokenIds] = useState<Set<string>>(() => new Set());
+  const [mapPing, setMapPing] = useState<Pick<BattleMapPing, "id" | "x" | "y"> | null>(null);
+  const [isPingMode, setIsPingMode] = useState(false);
+  const pingTimerRef = useRef<number | null>(null);
   const fogRevealsToPaths = useCallback((stamps: FogRevealStamp[]): FogRevealPath[] => {
     if (!Array.isArray(stamps) || stamps.length === 0) return [];
 
@@ -224,17 +238,33 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     return (tokenSize / base) * 100;
   }, [imgLocalRect, tokenSize]);
 
-  const draggingRef = useRef<{ combatantId: string; ox: number; oy: number } | null>(null);
-  const livePosRef = useRef<{ x: number; y: number } | null>(null);
+  const draggingRef = useRef<{ tokenIds: string[]; offsets: Record<string, { x: number; y: number }> } | null>(null);
+  const livePositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null);
+  const pendingCommittedPositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null);
+  const isDraggingTokenRef = useRef(false);
+  const localCommitAtRef = useRef(0);
   const [isDraggingToken, setIsDraggingToken] = useState(false);
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewToken,
+    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewToken };
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewToken]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens };
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens]);
+
+  useEffect(() => {
+    const pending = pendingCommittedPositionsRef.current;
+    if (!pending) return;
+    const isApplied = Object.entries(pending).every(([combatantId, position]) => {
+      const token = mapTokens.find((item) => item.combatantId === combatantId);
+      return token?.x === position.x && token.y === position.y;
+    });
+    if (isApplied) {
+      pendingCommittedPositionsRef.current = null;
+      requestAnimationFrame(() => setDragPreviewTokens(null));
+    }
+  }, [mapTokens]);
 
   useEffect(() => {
     fogPathsRef.current = fogPaths;
@@ -265,17 +295,28 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
         return;
       }
 
+      if (e.data?.type === "ping") {
+        const ping = e.data as BattleMapPing;
+        setMapPing(ping);
+        if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+        pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
+        return;
+      }
+
       if (e.data?.type !== "update") return;
+      if (isDraggingTokenRef.current || pendingCommittedPositionsRef.current) return;
       const incoming = e.data as BattleMapBroadcast;
-      incomingPreviewRef.current = incoming.dragPreviewToken ?? null;
+      incomingPreviewRef.current = incoming.dragPreviewTokens
+        ?? (incoming.dragPreviewToken ? { [incoming.dragPreviewToken.combatantId]: incoming.dragPreviewToken } : null);
       if (incomingPreviewRafRef.current === null) {
         incomingPreviewRafRef.current = requestAnimationFrame(() => {
           incomingPreviewRafRef.current = null;
-          setDragPreviewToken(incomingPreviewRef.current);
+          setDragPreviewTokens(incomingPreviewRef.current);
         });
       }
 
-      if (!incoming.dragPreviewToken && Array.isArray(incoming.mapTokens)) {
+      if (!incomingPreviewRef.current && Array.isArray(incoming.mapTokens)) {
+        if (Date.now() - localCommitAtRef.current < 1500) return;
         const currentSig = JSON.stringify(stateRef.current.mapTokens ?? []);
         const incomingSig = JSON.stringify(incoming.mapTokens);
         if (currentSig !== incomingSig) {
@@ -291,13 +332,14 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   }, [onUpdateTokens]);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewToken });
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewToken]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens });
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens]);
 
   useEffect(() => {
     return () => {
       if (panRafRef.current !== null) cancelAnimationFrame(panRafRef.current);
       if (fogNoticeTimerRef.current !== null) window.clearTimeout(fogNoticeTimerRef.current);
+      if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
     };
   }, []);
 
@@ -348,6 +390,16 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     };
   }, []);
 
+  const emitMapPing = useCallback((clientX: number, clientY: number) => {
+    const pos = screenToMapPct(clientX, clientY);
+    if (!pos) return;
+    const ping: BattleMapPing = { type: "ping", id: Date.now(), ...pos };
+    setMapPing(ping);
+    if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+    pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
+    channelRef.current?.postMessage(ping);
+  }, [screenToMapPct]);
+
   const clampZoom = (z: number) => Math.min(4, Math.max(0.4, z));
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -367,6 +419,10 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const handleBgPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
+    if (isPingMode) {
+      emitMapPing(e.clientX, e.clientY);
+      return;
+    }
     const startPan = { x: pan.x, y: pan.y };
     const startMouse = { x: e.clientX, y: e.clientY };
 
@@ -392,7 +448,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onUp);
-  }, [pan]);
+  }, [emitMapPing, isPingMode, pan]);
   const resetView = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
 
   const handleFile = async (file: File) => {
@@ -441,12 +497,23 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   // ── Drag DOM-direct ──────────────────────────────────────────────────────────
   const commitTokenDrag = useCallback(() => {
     const d = draggingRef.current;
-    const pos = livePosRef.current;
-    if (d && pos) onUpdateTokens(mapTokens.map(t => t.combatantId === d.combatantId ? { ...t, ...pos } : t));
-    channelRef.current?.postMessage({ ...stateRef.current, dragPreviewToken: null });
-    setDragPreviewToken(null);
+    const positions = livePositionsRef.current;
+    const nextTokens = d && positions
+      ? mapTokens.map((token) => positions[token.combatantId] ? { ...token, ...positions[token.combatantId] } : token)
+      : mapTokens;
+    stateRef.current = { ...stateRef.current, mapTokens: nextTokens, dragPreviewTokens: null };
+    if (d && positions) {
+      pendingCommittedPositionsRef.current = positions;
+      onUpdateTokens(nextTokens);
+      setDragPreviewTokens(positions);
+    } else {
+      setDragPreviewTokens(null);
+    }
+    channelRef.current?.postMessage(stateRef.current);
+    localCommitAtRef.current = Date.now();
     draggingRef.current = null;
-    livePosRef.current = null;
+    livePositionsRef.current = null;
+    isDraggingTokenRef.current = false;
     setIsDraggingToken(false);
   }, [mapTokens, onUpdateTokens]);
 
@@ -460,16 +527,25 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       const rect = el.getBoundingClientRect();
       const px = ((e.clientX - rect.left) / rect.width) * 100;
       const py = ((e.clientY - rect.top) / rect.height) * 100;
-      const newX = Math.max(1, Math.min(99, px - d.ox));
-      const newY = Math.max(1, Math.min(99, py - d.oy));
-      livePosRef.current = { x: newX, y: newY };
-      setDragPreviewToken({ combatantId: d.combatantId, x: newX, y: newY });
+      const nextPositions: Record<string, { x: number; y: number }> = {};
+      for (const tokenId of d.tokenIds) {
+        const offset = d.offsets[tokenId];
+        if (!offset) continue;
+        nextPositions[tokenId] = {
+          x: Math.max(1, Math.min(99, px - offset.x)),
+          y: Math.max(1, Math.min(99, py - offset.y)),
+        };
+      }
+      livePositionsRef.current = nextPositions;
+      setDragPreviewTokens(nextPositions);
       channelRef.current?.postMessage({
         ...stateRef.current,
-        dragPreviewToken: { combatantId: d.combatantId, x: newX, y: newY },
+        dragPreviewTokens: nextPositions,
       });
-      const tokenEl = tokenElsRef.current.get(d.combatantId);
-      if (tokenEl) { tokenEl.style.left = `${newX}%`; tokenEl.style.top = `${newY}%`; }
+      for (const [tokenId, position] of Object.entries(nextPositions)) {
+        const tokenEl = tokenElsRef.current.get(tokenId);
+        if (tokenEl) { tokenEl.style.left = `${position.x}%`; tokenEl.style.top = `${position.y}%`; }
+      }
     };
     const onUp = () => commitTokenDrag();
     document.addEventListener("pointermove", onMove);
@@ -485,13 +561,35 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const tokenPointerDown = useCallback((e: React.PointerEvent, token: MapToken) => {
     e.stopPropagation();
     e.preventDefault();
+    if (isPingMode) {
+      emitMapPing(e.clientX, e.clientY);
+      return;
+    }
     const pct = screenToMapPct(e.clientX, e.clientY);
     if (!pct) return;
-    draggingRef.current = { combatantId: token.combatantId, ox: pct.x - token.x, oy: pct.y - token.y };
-    livePosRef.current = { x: token.x, y: token.y };
-    setDragPreviewToken({ combatantId: token.combatantId, x: token.x, y: token.y });
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      setSelectedTokenIds((current) => {
+        const next = new Set(current);
+        if (next.has(token.combatantId)) next.delete(token.combatantId); else next.add(token.combatantId);
+        return next;
+      });
+      return;
+    }
+    const selectedIds = selectedTokenIds.has(token.combatantId) ? [...selectedTokenIds] : [token.combatantId];
+    const tokensToDrag = mapTokens.filter((item) => selectedIds.includes(item.combatantId));
+    const offsets: Record<string, { x: number; y: number }> = {};
+    const initialPositions: Record<string, { x: number; y: number }> = {};
+    for (const selectedToken of tokensToDrag) {
+      offsets[selectedToken.combatantId] = { x: pct.x - selectedToken.x, y: pct.y - selectedToken.y };
+      initialPositions[selectedToken.combatantId] = { x: selectedToken.x, y: selectedToken.y };
+    }
+    setSelectedTokenIds(new Set(selectedIds));
+    draggingRef.current = { tokenIds: tokensToDrag.map((item) => item.combatantId), offsets };
+    livePositionsRef.current = initialPositions;
+    isDraggingTokenRef.current = true;
+    setDragPreviewTokens(initialPositions);
     setIsDraggingToken(true);
-  }, [screenToMapPct]);
+  }, [emitMapPing, isPingMode, mapTokens, screenToMapPct, selectedTokenIds]);
 
   const setTokenEl = useCallback((id: string) => (el: HTMLDivElement | null) => {
     if (el) tokenElsRef.current.set(id, el); else tokenElsRef.current.delete(id);
@@ -665,7 +763,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       <div
         ref={mapZoneRef}
         className="absolute inset-0 bottom-18 rounded-xl overflow-hidden bg-black/20"
-        style={{ cursor: isDraggingToken ? "grabbing" : "grab" }}
+        style={{ cursor: isPingMode ? "crosshair" : isDraggingToken ? "grabbing" : "grab" }}
         onWheel={handleWheel}
         onDragEnter={enterDrag}
         onDragOver={(e) => e.preventDefault()}
@@ -711,12 +809,23 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                   onPointerUp={onFogPointerUp}
                   onPointerCancel={onFogPointerUp}
                 />
+                {mapPing && (
+                  <div
+                    key={mapPing.id}
+                    className="absolute z-30 pointer-events-none"
+                    style={{ left: `${mapPing.x}%`, top: `${mapPing.y}%`, transform: "translate(-50%, -50%)" }}
+                  >
+                    <div className="absolute -inset-8 rounded-full border-2 border-cyan-300/90 animate-ping" />
+                    <div className="relative w-4 h-4 rounded-full bg-cyan-300 border-2 border-white shadow-[0_0_14px_rgba(103,232,249,0.9)]" />
+                  </div>
+                )}
                 {mapTokens.map((token) => {
                   const combatant = combatantsById.get(token.combatantId);
                   if (!combatant) return null;
                   const isActive = combatant.id === activeCombatantId;
-                  const displayToken = dragPreviewToken?.combatantId === token.combatantId
-                    ? { ...token, x: dragPreviewToken.x, y: dragPreviewToken.y }
+                  const previewPosition = dragPreviewTokens?.[token.combatantId];
+                  const displayToken = previewPosition
+                    ? { ...token, x: previewPosition.x, y: previewPosition.y }
                     : token;
                   return (
                     <div key={token.combatantId} className={combatant.hidden ? "opacity-40 grayscale" : ""}>
@@ -726,6 +835,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                       combatant={combatant}
                       isActive={isActive}
                       tokenSize={tokenSize}
+                      isSelected={selectedTokenIds.has(token.combatantId)}
                       onPointerDown={tokenPointerDown}
                       setTokenEl={setTokenEl}
                     />
@@ -748,6 +858,13 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 </div>
               )}
               <div className="flex items-center gap-1 rounded-xl bg-black/60 backdrop-blur border border-white/15 p-1">
+                <button
+                  onClick={() => setIsPingMode((value) => !value)}
+                  className={`p-1.5 rounded-lg border transition-colors ${isPingMode ? "bg-cyan-500/25 border-cyan-300/40 text-cyan-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"}`}
+                  title="Mode ping"
+                >
+                  <Crosshair className="w-4 h-4" />
+                </button>
                 <button
                   onClick={() => {
                     const next = !fogEnabled;
@@ -850,16 +967,20 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
             <div
               key={combatant.id}
               draggable={!isPlaced && !!imageUrl}
-              onDragStart={(e) => { e.dataTransfer.setData("text/plain", JSON.stringify({ combatantId: combatant.id })); e.dataTransfer.effectAllowed = "move"; }}
+              onDragStart={(e) => {
+                e.dataTransfer.setData("text/plain", JSON.stringify({ combatantId: combatant.id }));
+                e.dataTransfer.effectAllowed = "move";
+                const dragImage = e.currentTarget.querySelector<HTMLElement>("[data-drag-token]");
+                if (dragImage) e.dataTransfer.setDragImage(dragImage, 18, 18);
+              }}
               onClick={() => { if (isPlaced) removeToken(combatant.id); }}
               className={`relative shrink-0 group/tt select-none ${
                 isPlaced
                   ? "cursor-pointer"
                   : imageUrl ? "cursor-grab active:cursor-grabbing" : "opacity-40 cursor-not-allowed"
               }`}
-              title={isPlaced ? `Retirer ${combatant.name} de la carte` : combatant.name}
             >
-              <div className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-transform group-hover/tt:scale-110 ${tokenRingClass(combatant.type)} ${isPlaced ? "opacity-60" : ""}`}>
+              <div data-drag-token className={`relative w-9 h-9 rounded-full border-2 overflow-hidden transition-transform group-hover/tt:scale-110 ${tokenRingClass(combatant.type)} ${isPlaced ? "opacity-60" : ""}`}>
                 <img
                   src={combatant.imageUrl || "/default-avatar.png"}
                   alt={combatant.name}
@@ -883,9 +1004,6 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 </div>
               )}
               {isActive && <div className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-black animate-pulse" />}
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 pointer-events-none opacity-0 group-hover/tt:opacity-100 transition-opacity whitespace-nowrap z-50">
-                <span className="text-[9px] text-white bg-black/80 backdrop-blur px-1.5 py-0.5 rounded">{combatant.name}</span>
-              </div>
             </div>
           );
         })}

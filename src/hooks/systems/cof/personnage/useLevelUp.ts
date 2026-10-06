@@ -14,6 +14,8 @@ export interface VoieDetail {
   type: string;
   peuple_id?: string | null;
   profil_id?: string | null;
+  famille_id?: string | null;
+  famille_nom?: string | null;
   capacites: Record<
     string,
     { nom: string; type?: string; description: string }
@@ -364,6 +366,25 @@ export function useLevelUp({
       return acc;
     }, {});
 
+  // Voies de prestige regroupées par famille (même classement que le compendium)
+  const groupedPrestigeVoies =
+    unlockType === "prestige"
+      ? filteredAvailableVoies
+          .slice()
+          .sort((a, b) => {
+            const aFamily = a.famille_nom || "Sans famille";
+            const bFamily = b.famille_nom || "Sans famille";
+            if (aFamily !== bFamily) return aFamily.localeCompare(bFamily, "fr");
+            return a.nom.localeCompare(b.nom, "fr");
+          })
+          .reduce<Record<string, VoieDetail[]>>((acc, voie) => {
+            const familyName = voie.famille_nom || "Sans famille";
+            if (!acc[familyName]) acc[familyName] = [];
+            acc[familyName].push(voie);
+            return acc;
+          }, {})
+      : {};
+
   const toggleRankDescription = (key: string) => {
     setExpandedRankDescriptions((prev) => ({
       ...prev,
@@ -400,6 +421,7 @@ export function useLevelUp({
     canShowUnlockList,
     unlockOptions,
     groupedOtherProfileVoies,
+    groupedPrestigeVoies,
     groupedHybridVoies,
     toggleRankDescription,
     isProfileGroupCollapsed,

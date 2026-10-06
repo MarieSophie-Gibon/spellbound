@@ -21,6 +21,8 @@ import {
   Search,
   History,
   Sparkles,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { usePersonnageCreationData } from "@/hooks/systems/cof/personnage/usePersonnageCreationData";
 import { MagicCard } from "@/components/ui/MagicCard";
@@ -115,6 +117,39 @@ function computeDerived(stats: StatsMap, famille: FamilleRef | null) {
   };
 }
 
+type CombatMode = "monstre" | "personnage";
+
+interface MonsterAttaque {
+  nom: string;
+  bonus: string;
+  degats: string;
+  description: string;
+}
+
+interface MonsterCapacite {
+  nom: string;
+  description: string;
+}
+
+function NumStepper({ label, value, onChange, min }: { label: string; value: number; onChange: (v: number) => void; min?: number }) {
+  const clamp = (v: number) => (min !== undefined ? Math.max(min, v) : v);
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">{label}</label>
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => onChange(clamp(value - 1))} className="w-7 h-7 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center text-lg leading-none transition-colors">−</button>
+        <input
+          type="number"
+          value={value}
+          onChange={(e) => onChange(clamp(parseInt(e.target.value) || 0))}
+          className="w-12 text-center text-white text-xl font-semibold bg-transparent outline-none"
+        />
+        <button type="button" onClick={() => onChange(clamp(value + 1))} className="w-7 h-7 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center text-lg leading-none transition-colors">+</button>
+      </div>
+    </div>
+  );
+}
+
 function normalizeCompendiumItemId(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "string") return null;
@@ -129,6 +164,8 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCombatant, setIsCombatant] = useState(false);
+  const [combatMode, setCombatMode] = useState<CombatMode>("personnage");
+  const isMonsterMode = isCombatant && combatMode === "monstre";
 
   // ── Wizard Mode ──────────────────────────────
   const [wizardMode, setWizardMode] = useState<'select' | 'new' | 'recover'>('select');
@@ -180,12 +217,35 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   const [derived, setDerived] = useState(() => computeDerived(buildDefaultStats(), null));
   const [overrides, setOverrides] = useState<Partial<typeof derived>>({});
 
+  // ── Mode Monstre (étapes 7, 8, 9) ───────────
+  const [monsterCaract, setMonsterCaract] = useState<StatsMap>(buildDefaultStats());
+  const [monsterCombat, setMonsterCombat] = useState({
+    pv_max: 10,
+    defense: 10,
+    initiative: 10,
+    att_contact: 0,
+    att_distance: 0,
+    att_magie: 0,
+  });
+  const [attaques, setAttaques] = useState<MonsterAttaque[]>([]);
+  const [capacites, setCapacites] = useState<MonsterCapacite[]>([]);
+  const setMonsterCombatField = (key: keyof typeof monsterCombat, value: number) =>
+    setMonsterCombat((prev) => ({ ...prev, [key]: value }));
+
   // ── Step 6 (Lore) ───────────────────────────
   const [description, setDescription] = useState("");
   const [notes, setNotes] = useState("");
 
   // Étapes dynamiques
-  const STEPS = isCombatant
+  const STEPS = isMonsterMode
+    ? [
+        { num: 1, label: "Identité & Origine" },
+        { num: 7, label: "Stats" },
+        { num: 8, label: "Attaques" },
+        { num: 9, label: "Capacités" },
+        { num: 6, label: "Lore & Notes" },
+      ]
+    : isCombatant
     ? [
         { num: 1, label: "Identité & Origine" },
         { num: 2, label: "Famille" },
@@ -433,8 +493,24 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         pjVoies.push({ voie_id: cultureVoieId, rangs_acquis: [1] });
       }
 
-      // S'il est combattant, on ajoute les voies complètes et les stats de combat
-      if (isCombatant) {
+      if (isMonsterMode) {
+        // Même format que le mode « Monstre » de l'édition (PersonnageDetail)
+        pnjStats = {
+          ...pnjStats,
+          combat_stats_mode: "simple",
+          caracteristiques: monsterCaract,
+          pv: monsterCombat.pv_max,
+          pv_max: monsterCombat.pv_max,
+          initiative: monsterCombat.initiative,
+          defense: monsterCombat.defense,
+          att_contact: monsterCombat.att_contact,
+          att_distance: monsterCombat.att_distance,
+          att_magie: monsterCombat.att_magie,
+          attaques: attaques.filter((a) => a.nom.trim() || a.degats.trim()),
+          capacites_speciales: capacites.filter((c) => c.nom.trim() || c.description.trim()),
+        };
+      } else if (isCombatant) {
+        // S'il est combattant, on ajoute les voies complètes et les stats de combat
         let bonusDef = 0;
         const armureProfil = profilEquipItems.find((item) => item.source === "armure");
         if (armureProfil && armureProfil.details) {
@@ -454,6 +530,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
 
         pnjStats = {
           ...pnjStats,
+          combat_stats_mode: "extended",
           niveau: 1,
           caracteristiques: totalStats,
           pv: d.pv,
@@ -471,32 +548,34 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         };
       }
 
+      // L'inventaire des PNJ est stocké dans pnj.inventory.items (pas dans pj_inventaire)
+      const hasCharacterSheet = isCombatant && !isMonsterMode;
+      const inventoryItems = hasCharacterSheet
+        ? selectedEquipItems.map((item) => ({
+            id: crypto.randomUUID(),
+            item_type: item.source,
+            item_id: normalizeCompendiumItemId(item.id),
+            nom_custom: item.nom,
+            description_custom: item.details ?? "",
+            qte: 1,
+            is_equipped: false,
+          }))
+        : [];
+
       const pnjInsertData = await personnageData.createPnj({
         campaign_id: campaignId,
         name: nom.trim(),
         image_url: imageUrl,
         peuple_id: (isDemiElf ? selectedDemiElfVoieId : selectedPeupleId) || null,
-        profils_id: isCombatant ? (selectedFamilleId || null) : null,
+        profils_id: hasCharacterSheet ? (selectedFamilleId || null) : null,
         stats: pnjStats,
         pathways: pjVoies,
-        inventory: isCombatant ? {
+        inventory: hasCharacterSheet ? {
           equipement_base: selectedFamille?.equipement_base ?? null,
           selected_equipements: selectedEquipItems,
-        } : { equipement_base: null, selected_equipements: [] },
+          items: inventoryItems,
+        } : { equipement_base: null, selected_equipements: [], items: [] },
       });
-
-      if (isCombatant && pnjInsertData?.[0]?.id && selectedEquipItems.length > 0) {
-        const itemsToInsert = selectedEquipItems.map((item) => ({
-          pnj_id: pnjInsertData[0].id,
-          item_type: item.source,
-          item_id: normalizeCompendiumItemId(item.id),
-          nom_custom: item.nom,
-          description_custom: item.details ?? "",
-          qte: 1,
-          is_equipped: false,
-        }));
-        await personnageData.insertInventaireRows(itemsToInsert);
-      }
 
       const created = pnjInsertData?.[0] ? { id: pnjInsertData[0].id, name: pnjInsertData[0].name, image_url: pnjInsertData[0].image_url } : undefined;
       onSuccess(created);
@@ -509,11 +588,11 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   };
 
   const canAdvance = () => {
-    // Étape 1 : Le nom est requis + le peuple + l'héritage (si demi-elfe)
-    if (step === 1) return nom.trim().length > 0 && !!selectedPeupleId && (!isDemiElf || !!selectedDemiElfVoieId);
-    
-    // Si c'est un PNJ normal, il n'y a que l'étape 6 ensuite, donc toujours valide.
-    if (!isCombatant) return true;
+    // Étape 1 : Le nom est requis + l'héritage (si demi-elfe). Le peuple est facultatif.
+    if (step === 1) return nom.trim().length > 0 && (!isDemiElf || !!selectedDemiElfVoieId);
+
+    // PNJ non combattant ou monstre : aucune autre étape bloquante.
+    if (!isCombatant || isMonsterMode) return true;
 
     // Étapes Combatant
     if (step === 2) return !!selectedFamilleId;
@@ -743,9 +822,9 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
               </div>
             </div>
 
-            {/* PEUPLE OBLIGATOIRE POUR TOUS */}
+            {/* PEUPLE (facultatif : un monstre n'a pas forcément de peuple) */}
             <div className="space-y-1.5">
-              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Peuple *</label>
+              <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Peuple <span className="normal-case tracking-normal text-white/30">(facultatif)</span></label>
               {peuples.length === 0 && <p className="text-white/30 text-xs italic pt-1">Chargement...</p>}
               <div className="flex gap-3 pt-1">
                 <div className="flex flex-col gap-1 w-44 shrink-0 h-95 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
@@ -753,7 +832,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => { setSelectedPeupleId(p.id); setSelectedDemiElfVoieId(""); }}
+                      onClick={() => { setSelectedPeupleId((prev) => (prev === p.id ? "" : p.id)); setSelectedDemiElfVoieId(""); }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all text-left ${selectedPeupleId === p.id ? "border-[#E3CCCD]/50 bg-[#E3CCCD]/8 text-[#E3CCCD]" : "border-white/10 bg-white/3 hover:border-white/20 hover:bg-white/5 text-white/60"}`}
                     >
                       <div className="w-6 h-6 rounded-md overflow-hidden shrink-0 bg-white/8 flex items-center justify-center">
@@ -789,7 +868,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-full rounded-xl border border-white/8 bg-white/2 min-h-28">
-                      <p className="text-[12px] text-white/20 italic">Sélectionnez un peuple</p>
+                      <p className="text-[12px] text-white/20 italic">Aucun peuple (cliquez pour en choisir un)</p>
                     </div>
                   )}
 
@@ -831,14 +910,40 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
                 <span className="text-[13px] font-medium text-white/90">Personnage Combattant (Boss, allié, monstre...)</span>
               </label>
               <p className="text-[11px] text-white/50 mt-2 ml-8 leading-relaxed">
-                Cochez cette case si ce PNJ doit posséder des statistiques de combat, une famille, des caractéristiques et des voies. Si décoché, vous passerez directement à la rédaction de son histoire.
+                Cochez cette case si ce PNJ doit posséder des statistiques de combat. Si décoché, vous passerez directement à la rédaction de son histoire.
               </p>
+              {isCombatant && (
+                <div className="ml-8 mt-3 space-y-2">
+                  <div className="inline-flex items-center rounded-lg border border-white/15 overflow-hidden text-[11px] font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setCombatMode("monstre")}
+                      className={`px-3 py-1.5 transition-colors ${combatMode === "monstre" ? "bg-white/20 text-white" : "text-white/40 hover:bg-white/8 hover:text-white/70"}`}
+                    >
+                      Monstre
+                    </button>
+                    <div className="w-px h-4 bg-white/15" />
+                    <button
+                      type="button"
+                      onClick={() => setCombatMode("personnage")}
+                      className={`px-3 py-1.5 transition-colors ${combatMode === "personnage" ? "bg-white/20 text-white" : "text-white/40 hover:bg-white/8 hover:text-white/70"}`}
+                    >
+                      Personnage
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-white/40 leading-relaxed">
+                    {combatMode === "monstre"
+                      ? "Fiche simplifiée comme au bestiaire : caractéristiques, stats de combat, attaques et capacités spéciales saisies librement."
+                      : "Fiche complète de personnage : famille, caractéristiques, voies et équipement."}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* ── STEP 2 : Famille ── (Uniquement si combattant) */}
-        {wizardMode === 'new' && isCombatant && step === 2 && (
+        {wizardMode === 'new' && isCombatant && !isMonsterMode && step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
              <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Famille *</label>
@@ -917,7 +1022,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 3 : Caractéristiques ── (Uniquement si combattant) */}
-        {wizardMode === 'new' && isCombatant && step === 3 && (
+        {wizardMode === 'new' && isCombatant && !isMonsterMode && step === 3 && (
           <div className="flex gap-4 animate-in slide-in-from-right-4 fade-in">
             {/* Colonne gauche */}
             <div className="w-56 shrink-0 space-y-4">
@@ -1000,7 +1105,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 4 : Voies ── (Uniquement si combattant) */}
-        {wizardMode === 'new' && isCombatant && step === 4 && (
+        {wizardMode === 'new' && isCombatant && !isMonsterMode && step === 4 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
             {/* ENCART MAGE */}
             {isMage && magePeuple?.voie && (
@@ -1068,7 +1173,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
         )}
 
         {/* ── STEP 5 : Statistiques Dérivées ── (Uniquement si combattant) */}
-        {wizardMode === 'new' && isCombatant && step === 5 && (
+        {wizardMode === 'new' && isCombatant && !isMonsterMode && step === 5 && (
           <div className="space-y-5 animate-in slide-in-from-right-4 fade-in">
             <div className="flex gap-3 p-4 rounded-xl border border-white/10 bg-white/4">
               <Info className="w-4 h-4 text-white/40 shrink-0 mt-0.5" />
@@ -1208,6 +1313,119 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
           </div>
         )}
 
+        {/* ── STEP 7 : Stats (mode Monstre) ── */}
+        {wizardMode === 'new' && isMonsterMode && step === 7 && (
+          <div className="space-y-8 animate-in slide-in-from-right-4 fade-in">
+            <div>
+              <h3 className="text-[10px] uppercase tracking-[0.15em] text-white/60 mb-4">Caractéristiques</h3>
+              <div className="grid grid-cols-4 gap-3 sm:grid-cols-7">
+                {STATS_KEYS.map((key) => {
+                  const v = monsterCaract[key];
+                  return (
+                    <div key={key} className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col items-center gap-2">
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-white/50 font-semibold" title={STAT_LABEL[key]}>{key}</span>
+                      <div className="flex items-center gap-1.5">
+                        <button type="button" onClick={() => setMonsterCaract((prev) => ({ ...prev, [key]: prev[key] - 1 }))} className="w-5 h-5 rounded border border-white/20 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center text-sm leading-none transition-colors">−</button>
+                        <span className={`text-base font-semibold w-7 text-center ${v > 0 ? "text-emerald-400" : v < 0 ? "text-red-400" : "text-white"}`}>{v > 0 ? `+${v}` : v}</span>
+                        <button type="button" onClick={() => setMonsterCaract((prev) => ({ ...prev, [key]: prev[key] + 1 }))} className="w-5 h-5 rounded border border-white/20 text-white/60 hover:text-white hover:border-white/40 flex items-center justify-center text-sm leading-none transition-colors">+</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-x-8 gap-y-5">
+              <NumStepper label="Points de Vie Max" value={monsterCombat.pv_max} min={1} onChange={(v) => setMonsterCombatField("pv_max", v)} />
+              <NumStepper label="Défense" value={monsterCombat.defense} min={0} onChange={(v) => setMonsterCombatField("defense", v)} />
+              <NumStepper label="Initiative" value={monsterCombat.initiative} min={0} onChange={(v) => setMonsterCombatField("initiative", v)} />
+              <NumStepper label="Attaque contact" value={monsterCombat.att_contact} onChange={(v) => setMonsterCombatField("att_contact", v)} />
+              <NumStepper label="Attaque distance" value={monsterCombat.att_distance} onChange={(v) => setMonsterCombatField("att_distance", v)} />
+              <NumStepper label="Attaque magique" value={monsterCombat.att_magie} onChange={(v) => setMonsterCombatField("att_magie", v)} />
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 8 : Attaques (mode Monstre) ── */}
+        {wizardMode === 'new' && isMonsterMode && step === 8 && (
+          <div className="space-y-3 animate-in slide-in-from-right-4 fade-in">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] text-white/50 italic">Attaques du PNJ (nom, bonus au jet, dégâts).</p>
+              <button
+                type="button"
+                onClick={() => setAttaques((prev) => [...prev, { nom: "", bonus: "", degats: "", description: "" }])}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 text-[12px] transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Ajouter
+              </button>
+            </div>
+            {attaques.length === 0 ? (
+              <p className="text-[12px] text-white/30 italic text-center py-8">Aucune attaque. Cliquez sur « Ajouter ».</p>
+            ) : (
+              attaques.map((att, idx) => {
+                const update = (patch: Partial<MonsterAttaque>) =>
+                  setAttaques((prev) => prev.map((a, i) => (i === idx ? { ...a, ...patch } : a)));
+                return (
+                  <div key={idx} className="rounded-xl border border-white/12 bg-white/4 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input value={att.nom} onChange={(e) => update({ nom: e.target.value })} placeholder="Nom de l'attaque..." className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                      <button type="button" onClick={() => setAttaques((prev) => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-white/50">Bonus</label>
+                        <input value={att.bonus} onChange={(e) => update({ bonus: e.target.value })} placeholder="+5" className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase tracking-[0.15em] text-white/50">Dégâts</label>
+                        <input value={att.degats} onChange={(e) => update({ degats: e.target.value })} placeholder="2d6+3" className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50" />
+                      </div>
+                    </div>
+                    <textarea value={att.description} onChange={(e) => update({ description: e.target.value })} placeholder="Description (optionnel)..." rows={2} className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-[#E3CCCD]/50 resize-none placeholder:text-white/25" />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ── STEP 9 : Capacités spéciales (mode Monstre) ── */}
+        {wizardMode === 'new' && isMonsterMode && step === 9 && (
+          <div className="space-y-3 animate-in slide-in-from-right-4 fade-in">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] text-white/50 italic">Capacités spéciales du PNJ.</p>
+              <button
+                type="button"
+                onClick={() => setCapacites((prev) => [...prev, { nom: "", description: "" }])}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/20 text-white/60 hover:text-white hover:border-white/40 text-[12px] transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Ajouter
+              </button>
+            </div>
+            {capacites.length === 0 ? (
+              <p className="text-[12px] text-white/30 italic text-center py-8">Aucune capacité. Cliquez sur « Ajouter ».</p>
+            ) : (
+              capacites.map((cap, idx) => {
+                const update = (patch: Partial<MonsterCapacite>) =>
+                  setCapacites((prev) => prev.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+                return (
+                  <div key={idx} className="rounded-xl border border-white/12 bg-white/4 p-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input value={cap.nom} onChange={(e) => update({ nom: e.target.value })} placeholder="Nom de la capacité..." className="flex-1 bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50" />
+                      <button type="button" onClick={() => setCapacites((prev) => prev.filter((_, i) => i !== idx))} className="text-white/30 hover:text-red-400/70 transition-colors shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <textarea value={cap.description} onChange={(e) => update({ description: e.target.value })} placeholder="Description de la capacité..." rows={3} className="w-full bg-white/5 border border-white/15 rounded-lg px-2.5 py-1.5 text-white text-[12px] outline-none focus:border-violet-400/50 resize-none placeholder:text-white/25" />
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
         {/* ── STEP 6 : Lore & Notes (Étape 2 si non-combattant) ── */}
         {wizardMode === 'new' && step === 6 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
@@ -1267,8 +1485,8 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
             ) : <div />}
 
             <div className="flex items-center gap-2">
-              {STEPS.map((s) => (
-                <div key={s.num} className={`w-1.5 h-1.5 rounded-full transition-all ${step === s.num ? "bg-[#E3CCCD]" : step > s.num ? "bg-white/40" : "bg-white/15"}`} />
+              {STEPS.map((s, i) => (
+                <div key={s.num} className={`w-1.5 h-1.5 rounded-full transition-all ${step === s.num ? "bg-[#E3CCCD]" : currentStepVisualIndex > i ? "bg-white/40" : "bg-white/15"}`} />
               ))}
             </div>
 
