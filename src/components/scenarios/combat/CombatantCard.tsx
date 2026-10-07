@@ -308,7 +308,9 @@ export function CombatantCard({ combatant, onUpdatePv, onToggleCondition, onClos
                     <div className="flex flex-col justify-around flex-1">
                         {STAT_ORDER.map((statKey) => {
                             let displayVal: string;
-                            if (isPJLike) {
+                            // Tout PNJ (y compris combattant/monstre) stocke ses caractéristiques
+                            // dans stats.caracteristiques, pas au format bestiaire de details.stats.
+                            if (isPJLike || (isNPC && Object.keys(caract).length > 0)) {
                                 const raw = caract[statKey];
                                 displayVal = raw !== undefined ? String(raw) : "-";
                             } else {

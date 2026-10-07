@@ -10,6 +10,7 @@ interface FamilierResult {
   pv: number;
   owner: string;
   data: Record<string, unknown> | null;
+  monster_id: string | null;
 }
 
 interface CombatMenuProps {

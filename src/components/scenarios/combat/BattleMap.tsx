@@ -17,6 +17,13 @@ interface BattleMapProps {
   fogReveals: FogRevealStamp[];
   onFogEnabledChange: (enabled: boolean) => void;
   onFogRevealsChange: (reveals: FogRevealStamp[]) => void;
+  // Session partagée : positions des jetons glissés localement (null = fin du glissement)…
+  onDragPreviewChange?: (positions: Record<string, { x: number; y: number }> | null) => void;
+  // …et positions des jetons glissés par un autre MJ.
+  remoteDragPreview?: Record<string, { x: number; y: number }> | null;
+  // Session partagée : ping émis localement, et ping reçu d'un autre MJ.
+  onPing?: (ping: { id: number; x: number; y: number }) => void;
+  remotePing?: { id: number; x: number; y: number } | null;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -152,7 +159,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange }: BattleMapProps) {
+function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, onDragPreviewChange, remoteDragPreview, onPing, remotePing }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -211,7 +218,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const isFogPaintingRef = useRef(false);
   const fogPathsRef = useRef<FogRevealPath[]>([]);
   const lastFogPointRef = useRef<{ x: number; y: number; strokeId: number } | null>(null);
-  const fogStrokeSeqRef = useRef(0);
+  // Coups de pinceau peints dans cette session : l'annulation ne retire que ceux-là.
+  const ownFogStrokeIdsRef = useRef(new Set<number>());
   const currentFogStrokeIdRef = useRef<number | null>(null);
   const [fogActionNotice, setFogActionNotice] = useState<string | null>(null);
   const fogNoticeTimerRef = useRef<number | null>(null);
@@ -270,10 +278,32 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     fogPathsRef.current = fogPaths;
   }, [fogPaths]);
 
+  // Brouillard reçu du parent (ex. dessiné par un co-MJ) : on l'adopte localement,
+  // sauf pendant un coup de pinceau en cours.
+  const lastFogPropSigRef = useRef(JSON.stringify(fogRevealsProp ?? []));
+  const lastLocalFogSigRef = useRef(JSON.stringify(fogReveals));
+  useEffect(() => {
+    const propSig = JSON.stringify(fogRevealsProp ?? []);
+    if (propSig === lastFogPropSigRef.current) return;
+    lastFogPropSigRef.current = propSig;
+    // Écho de notre propre valeur remontée : rien à faire.
+    if (propSig === lastLocalFogSigRef.current) return;
+    const incoming = fogRevealsToPaths(fogRevealsProp ?? []);
+    requestAnimationFrame(() => setFogPaths((prev) => {
+      const paintingId = isFogPaintingRef.current ? currentFogStrokeIdRef.current : null;
+      const painting = paintingId === null ? undefined : prev.find((path) => path.id === paintingId);
+      if (!painting) return incoming;
+      return [...incoming.filter((path) => path.id !== painting.id), painting];
+    }));
+  }, [fogRevealsProp, fogRevealsToPaths]);
+
+  // Brouillard modifié localement : remonté au parent, uniquement quand c'est le local qui change
+  // (sinon une valeur reçue du parent serait aussitôt écrasée par l'ancienne valeur locale).
   useEffect(() => {
     const localSig = JSON.stringify(fogReveals);
-    const incomingSig = JSON.stringify(fogRevealsProp ?? []);
-    if (localSig === incomingSig) return;
+    if (localSig === lastLocalFogSigRef.current) return;
+    lastLocalFogSigRef.current = localSig;
+    if (localSig === JSON.stringify(fogRevealsProp ?? [])) return;
     onFogRevealsChange(fogReveals);
   }, [fogReveals, fogRevealsProp, onFogRevealsChange]);
 
@@ -385,6 +415,21 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     };
   }, []);
 
+  const onPingRef = useRef(onPing);
+  useEffect(() => {
+    onPingRef.current = onPing;
+  }, [onPing]);
+
+  // Ping d'un autre MJ : affiché ici et relayé à l'écran de streaming de ce navigateur.
+  useEffect(() => {
+    if (!remotePing) return;
+    channelRef.current?.postMessage({ type: "ping", ...remotePing } satisfies BattleMapPing);
+    const frame = requestAnimationFrame(() => setMapPing(remotePing));
+    if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+    pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
+    return () => cancelAnimationFrame(frame);
+  }, [remotePing]);
+
   const emitMapPing = useCallback((clientX: number, clientY: number) => {
     const pos = screenToMapPct(clientX, clientY);
     if (!pos) return;
@@ -393,6 +438,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
     pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
     channelRef.current?.postMessage(ping);
+    onPingRef.current?.({ id: ping.id, x: ping.x, y: ping.y });
   }, [screenToMapPct]);
 
   const clampZoom = (z: number) => Math.min(4, Math.max(0.4, z));
@@ -490,6 +536,44 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const leaveDrag = () => { dragCountRef.current--; if (dragCountRef.current <= 0) { dragCountRef.current = 0; setIsDragOver(false); } };
 
   // ── Drag DOM-direct ──────────────────────────────────────────────────────────
+  const onDragPreviewChangeRef = useRef(onDragPreviewChange);
+  useEffect(() => {
+    onDragPreviewChangeRef.current = onDragPreviewChange;
+  }, [onDragPreviewChange]);
+
+  // Glissement d'un autre MJ : affiché comme un aperçu. Au lâcher (null), on garde la dernière
+  // position jusqu'à ce que les jetons définitifs arrivent (même logique que le lâcher local).
+  const lastRemotePreviewRef = useRef<Record<string, { x: number; y: number }> | null>(null);
+  useEffect(() => {
+    if (isDraggingTokenRef.current) return;
+    if (remoteDragPreview) {
+      lastRemotePreviewRef.current = remoteDragPreview;
+      const frame = requestAnimationFrame(() => setDragPreviewTokens(remoteDragPreview));
+      return () => cancelAnimationFrame(frame);
+    }
+    const last = lastRemotePreviewRef.current;
+    lastRemotePreviewRef.current = null;
+    if (!last) return;
+    const isApplied = Object.entries(last).every(([combatantId, position]) => {
+      const token = mapTokens.find((item) => item.combatantId === combatantId);
+      return token?.x === position.x && token.y === position.y;
+    });
+    if (isApplied) {
+      const frame = requestAnimationFrame(() => setDragPreviewTokens(null));
+      return () => cancelAnimationFrame(frame);
+    }
+    pendingCommittedPositionsRef.current = last;
+    // Filet de sécurité si les jetons définitifs n'arrivent jamais.
+    const timer = window.setTimeout(() => {
+      if (pendingCommittedPositionsRef.current === last) {
+        pendingCommittedPositionsRef.current = null;
+        setDragPreviewTokens(null);
+      }
+    }, 2000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit uniquement aux aperçus distants
+  }, [remoteDragPreview]);
+
   const commitTokenDrag = useCallback(() => {
     const d = draggingRef.current;
     const positions = livePositionsRef.current;
@@ -505,6 +589,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       setDragPreviewTokens(null);
     }
     channelRef.current?.postMessage(stateRef.current);
+    onDragPreviewChangeRef.current?.(null);
     localCommitAtRef.current = Date.now();
     draggingRef.current = null;
     livePositionsRef.current = null;
@@ -533,6 +618,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       }
       livePositionsRef.current = nextPositions;
       setDragPreviewTokens(nextPositions);
+      onDragPreviewChangeRef.current?.(nextPositions);
       channelRef.current?.postMessage({
         ...stateRef.current,
         dragPreviewTokens: nextPositions,
@@ -683,9 +769,11 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
 
   const undoLastFogStroke = useCallback(() => {
     const current = fogPathsRef.current;
-    if (current.length === 0) return false;
-    const next = current.slice(0, -1);
-    setFogPaths(next);
+    let index = current.length - 1;
+    while (index >= 0 && !ownFogStrokeIdsRef.current.has(current[index].id)) index--;
+    if (index < 0) return false;
+    ownFogStrokeIdsRef.current.delete(current[index].id);
+    setFogPaths([...current.slice(0, index), ...current.slice(index + 1)]);
     return true;
   }, []);
 
@@ -723,13 +811,15 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     if (x < 0 || x > 100 || y < 0 || y > 100) return;
 
-    fogStrokeSeqRef.current += 1;
-    currentFogStrokeIdRef.current = fogStrokeSeqRef.current;
+    // Identifiant unique entre sessions : deux MJ peuvent peindre en même temps.
+    const strokeId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+    ownFogStrokeIdsRef.current.add(strokeId);
+    currentFogStrokeIdRef.current = strokeId;
     setFogPaths((prev) => trimFogPaths([
       ...prev,
-      { id: fogStrokeSeqRef.current, r: fogBrushSize, points: [{ x, y }] },
+      { id: strokeId, r: fogBrushSize, points: [{ x, y }] },
     ]));
-    lastFogPointRef.current = { x, y, strokeId: fogStrokeSeqRef.current };
+    lastFogPointRef.current = { x, y, strokeId };
     isFogPaintingRef.current = true;
     (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
   }, [isFogEditMode, fogEnabled, fogBrushSize, trimFogPaths]);
@@ -1056,7 +1146,11 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.fogEnabled === next.fogEnabled &&
     prev.fogReveals === next.fogReveals &&
     prev.onFogEnabledChange === next.onFogEnabledChange &&
-    prev.onFogRevealsChange === next.onFogRevealsChange
+    prev.onFogRevealsChange === next.onFogRevealsChange &&
+    prev.onDragPreviewChange === next.onDragPreviewChange &&
+    prev.remoteDragPreview === next.remoteDragPreview &&
+    prev.onPing === next.onPing &&
+    prev.remotePing === next.remotePing
   );
 }
 

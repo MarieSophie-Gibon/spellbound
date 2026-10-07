@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { GripVertical } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GripVertical, Users } from "lucide-react";
 import { useCombatDashboardData } from "@/hooks/scenarios/useCombatDashboardData";
 import {
   type Combatant,
@@ -27,7 +27,23 @@ import { CombatTopActions } from "./combat/CombatTopActions";
 import { RoundTriggerPanel } from "./combat/RoundTriggerPanel";
 import { CombatTriggerNotification } from "./combat/CombatTriggerNotification";
 import { CombatStickyNote } from "./combat/CombatStickyNote";
+import {
+  type FogPatch,
+  type FogStroke,
+  type TokensPatch,
+  applyFogPatch,
+  applyTokensPatch,
+  chunkFogForTransfer,
+  compactStroke,
+  diffFogStrokes,
+  diffTokens,
+  stampsToStrokes,
+  strokeSig,
+  tokenSig,
+} from "./combat/sessionPatches";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { type CombatSessionEvent, type CombatSlice, type CombatSnapshot, useCombatSession, usePublishSlice } from "@/hooks/scenarios/useCombatSession";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface CombatDashboardProps {
@@ -35,6 +51,8 @@ interface CombatDashboardProps {
   campaignId: string;
   campaignSystem: RpgSystem;
   onBackToScenario?: () => void;
+  // Rôle affiché aux autres MJ dans la session partagée ("MJ" ou "co-MJ").
+  sessionRole?: string;
 }
 
 type FloatingCardPosition = { x: number; y: number };
@@ -45,31 +63,33 @@ function getStorageKey(chapitreId: string): string {
   return `${STORAGE_PREFIX}${chapitreId}`;
 }
 
-function sortCombatants(combatants: Combatant[]): Combatant[] {
+// Marqueur « retiré à distance » pour l'anti-écho des jetons et du brouillard.
+const REMOVED = "removed";
+
+// Les voies (descriptions complètes des capacités) ne sont pas envoyées sur la session partagée.
+function withoutVoies(c: Combatant): Combatant {
+  if (c.voies === undefined) return c;
+  const { voies: _voies, ...rest } = c;
+  void _voies;
+  return rest;
+}
+
+function hasSameInitiative(a: Combatant, b: Combatant | undefined): boolean {
+  return !!b && toNumber(a.initiative, 0) === toNumber(b.initiative, 0);
+}
+
+// Initiative décroissante. À égalité : ordre manuel choisi par le MJ (flèches), puis nom.
+function sortCombatants(combatants: Combatant[], manualOrder: string[] | null): Combatant[] {
+  const manualRank = new Map((manualOrder ?? []).map((id, i) => [id, i]));
   return [...combatants].sort((a, b) => {
-    if (b.initiative !== a.initiative) return b.initiative - a.initiative;
+    const initA = toNumber(a.initiative, 0);
+    const initB = toNumber(b.initiative, 0);
+    if (initB !== initA) return initB - initA;
+    const rankA = manualRank.get(a.id);
+    const rankB = manualRank.get(b.id);
+    if (rankA !== undefined && rankB !== undefined && rankA !== rankB) return rankA - rankB;
     return a.name.localeCompare(b.name);
   });
-}
-
-// Sérialisation à clés triées : jsonb (Postgres) réordonne les clés des objets,
-// un JSON.stringify brut ne reconnaîtrait jamais l'écho de notre propre écriture.
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
-// Signature d'un état de combat, hors battlemapUrl (stocké dans sa propre colonne)
-function combatStateSig(state: PersistedCombatState): string {
-  const { battlemapUrl: _battlemapUrl, ...rest } = state;
-  void _battlemapUrl;
-  return stableStringify(rest);
 }
 
 function normalizeCombatState(
@@ -91,7 +111,7 @@ function normalizeCombatState(
   };
 }
 
-export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBackToScenario }: CombatDashboardProps) {
+export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBackToScenario, sessionRole = "MJ" }: CombatDashboardProps) {
   const combatData = useCombatDashboardData();
   const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
@@ -111,7 +131,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const [, setLoadingSearch] = useState(false);
   const [importingCompany, setImportingCompany] = useState(false);
   const [importingEngaged, setImportingEngaged] = useState(false);
-  const [familierResults, setFamilierResults] = useState<Array<{ id: string; name: string; image_url: string | null; pv_max: number; pv: number; owner: string; data: Record<string, unknown> | null }>>([]);
+  const [familierResults, setFamilierResults] = useState<Array<{ id: string; name: string; image_url: string | null; pv_max: number; pv: number; owner: string; data: Record<string, unknown> | null; monster_id: string | null }>>([]);
   const [cardPositions, setCardPositions] = useState<Record<string, FloatingCardPosition>>({});
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -132,43 +152,13 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
 
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
-  const latestPayloadRef = useRef<PersistedCombatState | null>(null);
-  const pendingMapTokensRef = useRef<MapToken[] | null>(null);
-  // Dernier état local pas encore confirmé par le realtime : tant qu'il est en vol,
-  // les échos d'écritures plus anciennes sont ignorés (sinon ex. le brouillard
-  // se désactive puis se réactive tout seul).
-  const pendingLocalWriteRef = useRef<{ sig: string; at: number } | null>(null);
-  // Signature du dernier état reçu du realtime : inutile de le réécrire en base.
-  const lastRemoteSigRef = useRef<string | null>(null);
-  // Valeurs courantes du brouillard, lues par l'abonnement realtime (MJ = seule source de vérité).
-  const fogEnabledRef = useRef(false);
-  const fogRevealsRef = useRef<PersistedCombatState["fogReveals"]>([]);
-  useLayoutEffect(() => {
-    fogEnabledRef.current = fogEnabled;
-    fogRevealsRef.current = fogReveals;
-  }, [fogEnabled, fogReveals]);
-  const pendingBattlemapUrlRef = useRef<{ url: string | null; at: number } | null>(null);
-
-  const handleMapTokensChange = useCallback((tokens: MapToken[]) => {
-    pendingMapTokensRef.current = tokens;
-    setMapTokens(tokens);
-  }, []);
 
   // Drag-and-drop manual ordering
   const [manualOrder, setManualOrder] = useState<string[] | null>(null);
   const currentOrderRef = useRef<string[]>([]);
 
   const orderedCombatants = useMemo(() => {
-    let result: Combatant[];
-    if (manualOrder) {
-      const byId = new Map(combatants.map((c) => [c.id, c]));
-      const ordered = manualOrder.map((id) => byId.get(id)).filter(Boolean) as Combatant[];
-      const inOrder = new Set(manualOrder);
-      const rest = combatants.filter((c) => !inOrder.has(c.id));
-      result = [...ordered, ...rest];
-    } else {
-      result = sortCombatants(combatants);
-    }
+    const result = sortCombatants(combatants, manualOrder);
     currentOrderRef.current = result.map((c) => c.id);
     return result;
   }, [combatants, manualOrder]);
@@ -393,89 +383,6 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     void bootstrap();
   }, [chapitreId, combatData]);
 
-  useEffect(() => {
-    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw, incomingBattlemapUrl) => {
-      const pendingBattlemapUrl = pendingBattlemapUrlRef.current;
-      if (pendingBattlemapUrl) {
-        if (incomingBattlemapUrl === pendingBattlemapUrl.url) {
-          pendingBattlemapUrlRef.current = null;
-        } else if (Date.now() - pendingBattlemapUrl.at < 5000) {
-          // Keep the locally selected map while an older realtime row is in flight.
-        } else {
-          pendingBattlemapUrlRef.current = null;
-          setBattlemapUrl(incomingBattlemapUrl);
-        }
-      } else {
-        setBattlemapUrl(incomingBattlemapUrl);
-      }
-
-      if (!incomingRaw || typeof incomingRaw !== "object") return;
-
-      const normalized = normalizeCombatState(
-        incomingRaw as Partial<PersistedCombatState>,
-        { x: 32, y: 110 },
-      );
-
-      const pendingMapTokens = pendingMapTokensRef.current;
-      if (pendingMapTokens) {
-        if (JSON.stringify(normalized.mapTokens) === JSON.stringify(pendingMapTokens)) {
-          pendingMapTokensRef.current = null;
-        } else {
-          return;
-        }
-      }
-
-      const incomingSig = combatStateSig(normalized);
-
-      const pendingWrite = pendingLocalWriteRef.current;
-      if (pendingWrite) {
-        if (incomingSig === pendingWrite.sig) {
-          pendingLocalWriteRef.current = null;
-          return;
-        }
-        // Écho d'une écriture antérieure à notre dernier changement local : on l'ignore.
-        if (Date.now() - pendingWrite.at < 5000) return;
-        pendingLocalWriteRef.current = null;
-      }
-
-      // Le brouillard est piloté par le MJ : on garde toujours la valeur locale,
-      // un client distant (vue joueur, écho tardif) ne peut pas la modifier.
-      const merged: PersistedCombatState = {
-        ...normalized,
-        fogEnabled: fogEnabledRef.current,
-        fogReveals: fogRevealsRef.current,
-      };
-      const mergedSig = combatStateSig(merged);
-      const remoteFogIsStale = mergedSig !== incomingSig;
-
-      const localSig = latestPayloadRef.current ? combatStateSig(latestPayloadRef.current) : null;
-      if (localSig && localSig === mergedSig) {
-        // Seul le brouillard diffère : la base contient un brouillard obsolète, on le corrige.
-        if (remoteFogIsStale && latestPayloadRef.current) {
-          pendingLocalWriteRef.current = { sig: mergedSig, at: Date.now() };
-          void combatData.updateChapitreCombatState(chapitreId, latestPayloadRef.current).catch((error) => {
-            console.error("Impossible de corriger le brouillard en base:", error);
-          });
-        }
-        return;
-      }
-
-      setCombatants(normalized.combatants);
-      setActiveCombatantId(normalized.activeCombatantId);
-      setRound(normalized.round);
-      setMapTokens(normalized.mapTokens ?? []);
-      setEncounters(normalized.encounters ?? []);
-      setCombatNote(normalized.combatNote ?? "");
-      setNotePosition(normalized.combatNotePosition ?? { x: 32, y: 110 });
-      setRoundTriggers(normalized.roundTriggers ?? []);
-      latestPayloadRef.current = merged;
-      // Si le brouillard distant était obsolète, on laisse l'effet de sauvegarde réécrire l'état corrigé.
-      lastRemoteSigRef.current = remoteFogIsStale ? null : incomingSig;
-    });
-
-    return unsubscribe;
-  }, [chapitreId, combatData]);
-
   // Rafra\u00eechit en direct l'apparence (image, cadrage du jeton) des combattants d\u00e9j\u00e0
   // plac\u00e9s quand leur fiche bestiaire/pnj est \u00e9dit\u00e9e pendant que le combat est en cours.
   useEffect(() => {
@@ -484,6 +391,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       (row) => {
         const m = row as { id: string; image_url?: string | null; combat?: any; stats?: any; attaques?: any; capacites?: any };
         setCombatants((prev) => prev.map((c) => {
+          if (c.type === "familier" && c.sourceEntityId === m.id) {
+            return { ...c, imageUrl: m.image_url ?? c.imageUrl, ...getTokenFaceFromStats(m.stats) };
+          }
           if (c.type !== "monster" || c.entityId !== m.id) return c;
           return {
             ...c,
@@ -497,6 +407,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       (row) => {
         const n = row as { id: string; image_url?: string | null; stats?: any };
         setCombatants((prev) => prev.map((c) => {
+          if (c.type === "familier" && c.sourceEntityId === n.id) {
+            return { ...c, imageUrl: n.image_url ?? c.imageUrl, ...getTokenFaceFromStats(n.stats) };
+          }
           if (c.type !== "npc" || c.entityId !== n.id) return c;
           return {
             ...c,
@@ -542,21 +455,295 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       combatNotePosition: notePosition,
       roundTriggers,
     };
-    latestPayloadRef.current = payload;
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
-    const sig = combatStateSig(normalizeCombatState(payload, notePosition));
-    // État tout juste reçu du realtime : déjà en base, pas de réécriture.
-    if (sig === lastRemoteSigRef.current) return;
-    const pendingWrite = pendingLocalWriteRef.current;
-    // Un état identique à celui déjà en vol ne repousse pas le délai.
-    if (!pendingWrite || pendingWrite.sig !== sig) {
-      pendingLocalWriteRef.current = { sig, at: Date.now() };
-    }
     const timer = setTimeout(() => {
+      // En session partagée, une seule session écrit en base (voir isPrimaryWriter).
+      if (!isPrimaryWriterRef.current) return;
       void persistCombatState(payload);
     }, 400);
     return () => clearTimeout(timer);
   }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
+
+  // --- Session partagée MJ / co-MJ (WebSocket) ---
+  // La position de la note reste propre à chaque écran : seul son texte est partagé.
+  const authUser = useAuthStore((s) => s.user);
+  const isPrimaryWriterRef = useRef(true);
+  // Vrai dès qu'un état complet a été reçu d'une autre session : il fait foi sur l'état local.
+  const receivedSnapshotRef = useRef(false);
+  const remoteSliceValuesRef = useRef<CombatSnapshot>({});
+  const sliceValuesRef = useRef<CombatSnapshot>({});
+  useEffect(() => {
+    sliceValuesRef.current = {
+      combatants, activeCombatantId, round, mapTokens, encounters,
+      fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl,
+    };
+  }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl]);
+
+  // Combattants : échangés par modifications (patch) plutôt qu'en liste complète.
+  // On mémorise ce qui vient du réseau pour ne pas le renvoyer (anti-écho) :
+  // les objets combattants reçus (par référence) et les ids retirés à distance.
+  const remoteCombatantObjsRef = useRef(new WeakSet<Combatant>());
+  const remoteRemovedIdsRef = useRef(new Set<string>());
+
+  // Les voies ne voyagent pas sur le réseau (trop volumineuses) : on reprend celles déjà connues
+  // localement pour le même combattant, sinon elles sont rechargées depuis la base (voir plus bas).
+  // L'objet fusionné est marqué comme reçu pour ne pas être renvoyé.
+  const mergeRemoteCombatant = useCallback((incoming: Combatant, local: Combatant | undefined): Combatant => {
+    const merged = incoming.voies === undefined && local?.voies !== undefined ? { ...incoming, voies: local.voies } : incoming;
+    remoteCombatantObjsRef.current.add(merged);
+    return merged;
+  }, []);
+
+  const applyRemoteCombatants = useCallback((list: Combatant[]) => {
+    const nextIds = new Set(list.map((c) => c.id));
+    setCombatants((prev) => {
+      const prevById = new Map(prev.map((c) => [c.id, c]));
+      for (const c of prev) if (!nextIds.has(c.id)) remoteRemovedIdsRef.current.add(c.id);
+      return list.map((c) => mergeRemoteCombatant(c, prevById.get(c.id)));
+    });
+  }, [mergeRemoteCombatant]);
+
+  const applyCombatantsPatch = useCallback((patch: { upserts?: Combatant[]; removed?: string[] }) => {
+    const upserts = Array.isArray(patch?.upserts) ? patch.upserts : [];
+    const removed = new Set(Array.isArray(patch?.removed) ? patch.removed : []);
+    for (const id of removed) remoteRemovedIdsRef.current.add(id);
+    setCombatants((prev) => {
+      const byId = new Map(upserts.map((c) => [c.id, c]));
+      const next = prev
+        .filter((c) => !removed.has(c.id))
+        .map((c) => {
+          const incoming = byId.get(c.id);
+          return incoming ? mergeRemoteCombatant(incoming, c) : c;
+        });
+      const known = new Set(prev.map((c) => c.id));
+      for (const c of upserts) if (!known.has(c.id) && !removed.has(c.id)) next.push(mergeRemoteCombatant(c, undefined));
+      return next;
+    });
+  }, [mergeRemoteCombatant]);
+
+  // Jetons et brouillard : échangés par modifications. On note ce qui vient du réseau (par contenu)
+  // pour ne pas le renvoyer : position attendue par jeton, signature attendue par coup de pinceau.
+  const expectedRemoteTokensRef = useRef(new Map<string, string>());
+  const expectedRemoteFogRef = useRef(new Map<number, string>());
+
+  const applyRemoteTokens = useCallback((patch: TokensPatch) => {
+    const current = (sliceValuesRef.current.mapTokens as MapToken[] | undefined) ?? [];
+    const currentById = new Map(current.map((t) => [t.combatantId, t]));
+    for (const t of patch.upserts) {
+      const before = currentById.get(t.combatantId);
+      if (!before || tokenSig(before) !== tokenSig(t)) expectedRemoteTokensRef.current.set(t.combatantId, tokenSig(t));
+    }
+    for (const id of patch.removed) if (currentById.has(id)) expectedRemoteTokensRef.current.set(id, REMOVED);
+    setMapTokens((prev) => applyTokensPatch(prev, patch));
+  }, []);
+
+  const applyRemoteFog = useCallback((patch: FogPatch) => {
+    const current = stampsToStrokes((sliceValuesRef.current.fogReveals as FogRevealStamp[] | undefined) ?? []);
+    const currentSigs = new Map(current.map((st) => [st.id, strokeSig(st)]));
+    const upsertIds = new Set(patch.upserts.map((st) => st.id));
+    const removedIds = patch.reset ? current.map((st) => st.id).filter((id) => !upsertIds.has(id)) : patch.removed;
+    for (const st of patch.upserts) {
+      if (currentSigs.get(st.id) !== strokeSig(st)) expectedRemoteFogRef.current.set(st.id, strokeSig(st));
+    }
+    for (const id of removedIds) if (currentSigs.has(id)) expectedRemoteFogRef.current.set(id, REMOVED);
+    setFogReveals((prev) => applyFogPatch(prev, patch));
+  }, []);
+
+  // Positions des jetons que l'autre MJ est en train de glisser (null = aucun glissement).
+  const [remoteDragPreview, setRemoteDragPreview] = useState<Record<string, { x: number; y: number }> | null>(null);
+
+  // Dernier ping reçu d'un autre MJ.
+  const [remotePing, setRemotePing] = useState<{ id: number; x: number; y: number } | null>(null);
+
+  const applyRemoteEvent = useCallback((event: CombatSessionEvent, data: unknown) => {
+    if (event === "ping") setRemotePing(data as { id: number; x: number; y: number });
+    if (event === "combatants-patch") applyCombatantsPatch(data as { upserts?: Combatant[]; removed?: string[] });
+    if (event === "drag-preview") setRemoteDragPreview((data as Record<string, { x: number; y: number }> | null) ?? null);
+    if (event === "tokens-patch") applyRemoteTokens(data as TokensPatch);
+    if (event === "fog-patch") applyRemoteFog(data as FogPatch);
+  }, [applyCombatantsPatch, applyRemoteTokens, applyRemoteFog]);
+
+  const applyRemoteSlice = useCallback((slice: CombatSlice, value: unknown) => {
+    if (slice === "combatants") {
+      if (Array.isArray(value)) applyRemoteCombatants(value as Combatant[]);
+      return;
+    }
+    remoteSliceValuesRef.current[slice] = value;
+    switch (slice) {
+      case "activeCombatantId": setActiveCombatantId(value as string | null); break;
+      case "round": setRound(value as number); break;
+      case "mapTokens": {
+        // État complet : la liste reçue remplace la liste locale.
+        const incoming = value as MapToken[];
+        const current = (sliceValuesRef.current.mapTokens as MapToken[] | undefined) ?? [];
+        applyRemoteTokens({ upserts: incoming, removed: diffTokens(current, incoming).removed });
+        break;
+      }
+      case "encounters": setEncounters(value as EncounterEntry[]); break;
+      case "fogEnabled": setFogEnabled(value as boolean); break;
+      case "fogReveals": setFogReveals(value as FogRevealStamp[]); break;
+      case "combatNote": setCombatNote(value as string); break;
+      case "roundTriggers": setRoundTriggers(value as RoundTriggerEvent[]); break;
+      case "battlemapUrl": setBattlemapUrl(value as string | null); break;
+    }
+  }, [applyRemoteCombatants, applyRemoteTokens]);
+
+  const applyRemoteSnapshot = useCallback((snapshot: CombatSnapshot) => {
+    receivedSnapshotRef.current = true;
+    for (const [slice, value] of Object.entries(snapshot)) {
+      applyRemoteSlice(slice as CombatSlice, value);
+    }
+  }, [applyRemoteSlice]);
+
+  const getSessionSnapshot = useCallback((): CombatSnapshot => {
+    const { fogReveals: _fog, ...current } = sliceValuesRef.current;
+    void _fog;
+    const list = (current.combatants as Combatant[] | undefined) ?? [];
+    return { ...current, combatants: list.map(withoutVoies) };
+  }, []);
+
+  // Le brouillard peut dépasser la taille max d'un message : envoyé en morceaux après l'état complet.
+  const getSnapshotFollowUps = useCallback(() => {
+    const strokes = stampsToStrokes((sliceValuesRef.current.fogReveals as FogRevealStamp[] | undefined) ?? []);
+    return chunkFogForTransfer(strokes).map((data) => ({ event: "fog-patch" as const, data }));
+  }, []);
+
+  const combatSession = useCombatSession({
+    chapitreId,
+    enabled: isHydrated,
+    userId: authUser?.id ?? null,
+    name: (authUser?.user_metadata?.pseudo as string | undefined) ?? authUser?.email ?? "MJ",
+    role: sessionRole,
+    getSnapshot: getSessionSnapshot,
+    getSnapshotFollowUps,
+    onRemoteSlice: applyRemoteSlice,
+    onRemoteSnapshot: applyRemoteSnapshot,
+    onRemoteEvent: applyRemoteEvent,
+  });
+  const { publishSlice, publishEvent, isPrimaryWriter } = combatSession;
+  useEffect(() => {
+    isPrimaryWriterRef.current = isPrimaryWriter;
+  }, [isPrimaryWriter]);
+
+  // Publie les combattants ajoutés/modifiés/retirés localement depuis le dernier rendu.
+  const prevCombatantsRef = useRef(combatants);
+  useEffect(() => {
+    const prev = prevCombatantsRef.current;
+    if (prev === combatants) return;
+    prevCombatantsRef.current = combatants;
+
+    const prevById = new Map(prev.map((c) => [c.id, c]));
+    const nextIds = new Set(combatants.map((c) => c.id));
+    const upserts = combatants.filter((c) => prevById.get(c.id) !== c && !remoteCombatantObjsRef.current.has(c));
+    const removed: string[] = [];
+    for (const c of prev) {
+      if (nextIds.has(c.id)) continue;
+      if (remoteRemovedIdsRef.current.delete(c.id)) continue;
+      removed.push(c.id);
+    }
+    if (upserts.length === 0 && removed.length === 0) return;
+    publishEvent("combatants-patch", { upserts: upserts.map(withoutVoies), removed });
+  }, [combatants, publishEvent]);
+
+  // Jetons ajoutés/déplacés/retirés localement (ceux reçus du réseau sont filtrés).
+  const prevTokensRef = useRef(mapTokens);
+  useEffect(() => {
+    const prev = prevTokensRef.current;
+    if (prev === mapTokens) return;
+    prevTokensRef.current = mapTokens;
+    const expected = expectedRemoteTokensRef.current;
+    const diff = diffTokens(prev, mapTokens);
+    const upserts = diff.upserts.filter((t) => {
+      if (expected.get(t.combatantId) !== tokenSig(t)) return true;
+      expected.delete(t.combatantId);
+      return false;
+    });
+    const removed = diff.removed.filter((id) => {
+      if (expected.get(id) !== REMOVED) return true;
+      expected.delete(id);
+      return false;
+    });
+    if (upserts.length === 0 && removed.length === 0) return;
+    publishEvent("tokens-patch", { upserts, removed });
+  }, [mapTokens, publishEvent]);
+
+  // Brouillard : coups de pinceau ajoutés/prolongés/retirés localement, ~16 envois/s max pendant
+  // que l'on peint (ceux reçus du réseau sont filtrés).
+  const lastPublishedFogRef = useRef<FogStroke[] | null>(null);
+  const fogFlushTimerRef = useRef<number | null>(null);
+  const flushFog = useCallback(() => {
+    fogFlushTimerRef.current = null;
+    const next = stampsToStrokes((sliceValuesRef.current.fogReveals as FogRevealStamp[] | undefined) ?? []);
+    const prev = lastPublishedFogRef.current ?? next;
+    lastPublishedFogRef.current = next;
+    const expected = expectedRemoteFogRef.current;
+    const diff = diffFogStrokes(prev, next);
+    const upserts = diff.upserts.filter((st) => {
+      if (expected.get(st.id) !== strokeSig(st)) return true;
+      expected.delete(st.id);
+      return false;
+    });
+    const removed = diff.removed.filter((id) => {
+      if (expected.get(id) !== REMOVED) return true;
+      expected.delete(id);
+      return false;
+    });
+    if (upserts.length === 0 && removed.length === 0) return;
+    // Brouillard entièrement effacé localement : un seul « reset » plutôt que la liste des coups.
+    const reset = next.length === 0 && removed.length > 0;
+    publishEvent("fog-patch", { reset, upserts: upserts.map(compactStroke), removed: reset ? [] : removed });
+  }, [publishEvent]);
+  useEffect(() => {
+    if (lastPublishedFogRef.current === null) {
+      lastPublishedFogRef.current = stampsToStrokes(fogReveals);
+      return;
+    }
+    if (fogFlushTimerRef.current === null) fogFlushTimerRef.current = window.setTimeout(flushFog, 60);
+  }, [fogReveals, flushFog]);
+  useEffect(() => () => {
+    if (fogFlushTimerRef.current !== null) window.clearTimeout(fogFlushTimerRef.current);
+  }, []);
+
+  // Glissement de jetons en direct : ~16 envois/s max pendant le glissement, puis null au lâcher.
+  const dragThrottleRef = useRef<{ last: number; timer: number | null; pending: Record<string, { x: number; y: number }> | null }>({ last: 0, timer: null, pending: null });
+  const handleLocalDragPreview = useCallback((positions: Record<string, { x: number; y: number }> | null) => {
+    const t = dragThrottleRef.current;
+    if (positions === null) {
+      if (t.timer !== null) window.clearTimeout(t.timer);
+      t.timer = null;
+      t.pending = null;
+      t.last = 0;
+      publishEvent("drag-preview", null);
+      return;
+    }
+    const now = Date.now();
+    const elapsed = now - t.last;
+    if (elapsed >= 60) {
+      t.last = now;
+      publishEvent("drag-preview", positions);
+      return;
+    }
+    t.pending = positions;
+    if (t.timer === null) {
+      t.timer = window.setTimeout(() => {
+        t.timer = null;
+        t.last = Date.now();
+        if (t.pending) publishEvent("drag-preview", t.pending);
+        t.pending = null;
+      }, 60 - elapsed);
+    }
+  }, [publishEvent]);
+
+  const handleLocalPing = useCallback((ping: { id: number; x: number; y: number }) => {
+    publishEvent("ping", ping);
+  }, [publishEvent]);
+  usePublishSlice("activeCombatantId", activeCombatantId, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("round", round, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("encounters", encounters, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("fogEnabled", fogEnabled, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("combatNote", combatNote, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("roundTriggers", roundTriggers, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("battlemapUrl", battlemapUrl, publishSlice, remoteSliceValuesRef);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -646,7 +833,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         const famsByPJ = new Map<string, CombatFamilier[]>();
         for (const f of pjFamData ?? []) {
           const list = famsByPJ.get(f.pj_id) ?? [];
-          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null });
+          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null, monster_id: f.monster_id ?? null });
           famsByPJ.set(f.pj_id, list);
         }
         if (data?.length) {
@@ -680,7 +867,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         const famsByNPC = new Map<string, CombatFamilier[]>();
         for (const f of npcFamData ?? []) {
           const list = famsByNPC.get(f.pnj_id) ?? [];
-          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null });
+          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null, monster_id: f.monster_id ?? null });
           famsByNPC.set(f.pnj_id, list);
         }
         if (data?.length) {
@@ -704,8 +891,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     };
 
     void run().then(() => {
-      // Après hydratation, repart du premier combatant (initiative la plus haute)
-      setActiveCombatantId(null);
+      // Après hydratation, repart du premier combatant (initiative la plus haute),
+      // sauf si on a rejoint un combat en cours : le tour reçu de l'autre session fait foi.
+      if (!receivedSnapshotRef.current) setActiveCombatantId(null);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHydrated]);
@@ -728,6 +916,42 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         .filter((r) => r > 0),
     }));
   }, [combatData]);
+
+  // Combattants PJ/PNJ reçus sans voies (elles ne voyagent pas sur le réseau) : rechargées depuis la base.
+  const voiesLoadingRef = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = combatants.filter((c) =>
+      (c.type === "pj" || c.type === "npc") && c.entityId && c.voies === undefined && !voiesLoadingRef.current.has(c.id));
+    if (missing.length === 0) return;
+    for (const c of missing) voiesLoadingRef.current.add(c.id);
+
+    const loadVoies = async (type: "pj" | "npc") => {
+      const targets = missing.filter((c) => c.type === type);
+      if (targets.length === 0) return;
+      const rows = type === "pj"
+        ? await combatData.fetchPjRows(targets.map((c) => c.entityId!))
+        : await combatData.fetchPnjRows(targets.map((c) => c.entityId!));
+      const voiesByEntity = new Map<string, VoieEntry[]>();
+      await Promise.all((rows ?? []).map(async (row) => {
+        voiesByEntity.set(row.id, await fetchVoiesForPathways(row.pathways));
+      }));
+      const targetIds = new Set(targets.map((c) => c.id));
+      setCombatants((prev) => prev.map((c) => {
+        if (!targetIds.has(c.id) || c.voies !== undefined || !c.entityId) return c;
+        // Fiche introuvable : [] évite de relancer la requête à chaque changement.
+        const filled = { ...c, voies: voiesByEntity.get(c.entityId) ?? [] };
+        // Seules les voies ont changé, et elles ne sont pas partagées : rien à renvoyer.
+        remoteCombatantObjsRef.current.add(filled);
+        return filled;
+      }));
+    };
+
+    void Promise.all([loadVoies("pj"), loadVoies("npc")])
+      .catch((error) => console.error("Impossible de charger les voies des combattants reçus:", error))
+      .finally(() => {
+        for (const c of missing) voiesLoadingRef.current.delete(c.id);
+      });
+  }, [combatants, combatData, fetchVoiesForPathways]);
 
   const importEngagedEnemies = useCallback(async () => {
     setImportingEngaged(true);
@@ -911,31 +1135,48 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     if (pjIds.length > 0) {
       const fams = await combatData.fetchFamiliersByPjIds(pjIds);
       for (const f of fams ?? []) {
-        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pjMap.get(f.pj_id) ?? "PJ", data: f.data });
+        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pjMap.get(f.pj_id) ?? "PJ", data: f.data, monster_id: f.monster_id ?? null });
       }
     }
     if (pnjIds.length > 0) {
       const fams = await combatData.fetchFamiliersByPnjIds(pnjIds);
       for (const f of fams ?? []) {
-        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pnjMap.get(f.pnj_id) ?? "PNJ", data: f.data });
+        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pnjMap.get(f.pnj_id) ?? "PNJ", data: f.data, monster_id: f.monster_id ?? null });
       }
     }
     setFamilierResults(results);
   };
 
-  const addFamilierToCombat = (f: typeof familierResults[number]) => {
+  // pj_familiers.data est une copie figée à la création du familier : l'image et le
+  // cadrage du jeton sont relus sur la fiche source actuelle (bestiaire ou PNJ allié).
+  const buildFamilierCombatant = async (f: CombatFamilier): Promise<Combatant> => {
     const d = f.data as any;
-    const pvMax = f.pv_max;
-    const tokenFace = getTokenFaceFromStats(d?.stats ?? d ?? null);
-    const newEntry: Combatant = {
+    let imageUrl = f.image_url ?? undefined;
+    let tokenFace = getTokenFaceFromStats(d?.stats ?? d ?? null);
+    if (f.monster_id) {
+      try {
+        const isPnj = d?.type_creature === "PNJ";
+        const [source] = isPnj
+          ? await combatData.fetchNpcsByIds([f.monster_id])
+          : await combatData.fetchBestiaireByIds([f.monster_id]);
+        if (source) {
+          imageUrl = source.image_url ?? imageUrl;
+          tokenFace = getTokenFaceFromStats(source.stats);
+        }
+      } catch (error) {
+        console.error("Impossible de charger la fiche source du familier:", error);
+      }
+    }
+    return {
       id: makeCombatantId(),
       entityId: f.id,
+      sourceEntityId: f.monster_id ?? undefined,
       type: "familier",
       name: f.name,
-      imageUrl: f.image_url ?? undefined,
+      imageUrl,
       initiative: toNumber(d?.combat?.initiative, 0),
       pv: f.pv,
-      pvMax,
+      pvMax: f.pv_max,
       defense: toNumber(d?.combat?.defense, 0),
       conditions: [],
       details: {
@@ -946,8 +1187,12 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       },
       ...tokenFace,
     };
-    setCombatants((prev) => [...prev, newEntry]);
+  };
+
+  const addFamilierToCombat = async (f: typeof familierResults[number]) => {
     setIsMenuOpen(false);
+    const newEntry = await buildFamilierCombatant(f);
+    setCombatants((prev) => [...prev, newEntry]);
   };
 
   const importCompany = useCallback(async () => {
@@ -1161,13 +1406,32 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   return (
     <div className="relative w-full h-full overflow-hidden font-sans bg-transparent">
 
-      {/* Bouton Menu MJ (gauche) */}
-      <CombatTabButton
-        onClick={() => { setIsMenuOpen(true); void fetchFamiliersForMenu(); }}
-        label="Menu MJ"
-        aria-label="Ouvrir le menu MJ"
-        className="absolute top-0 left-4 z-40"
-      />
+      {/* Bouton Menu MJ (gauche) + session partagée MJ / co-MJ */}
+      <div className="absolute top-0 left-4 z-40 flex items-center gap-2">
+        <CombatTabButton
+          onClick={() => { setIsMenuOpen(true); void fetchFamiliersForMenu(); }}
+          label="Menu MJ"
+          aria-label="Ouvrir le menu MJ"
+        />
+        {combatSession.status !== "idle" && (
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#E3CCCD]/20 bg-[#1E1941]/80 text-[11px] text-white/70"
+            title={combatSession.status === "ready" ? "Session de combat partagée" : combatSession.status === "error" ? "Session de combat indisponible (voir la console)" : "Connexion à la session..."}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${combatSession.status === "ready" ? "bg-emerald-400" : combatSession.status === "error" ? "bg-red-400" : "bg-amber-300 animate-pulse"}`} />
+            <Users className="w-3 h-3" />
+            {combatSession.peers.length > 0
+              ? combatSession.peers.map((p) => (
+                <span key={p.clientId} className="flex items-center gap-1" title={p.active ? `${p.name} est en train d'agir` : undefined}>
+                  {p.active && <span className="w-1.5 h-1.5 rounded-full bg-sky-300 animate-ping" />}
+                  {p.name}
+                  <span className="text-white/40">({p.role})</span>
+                </span>
+              ))
+              : "Seul sur ce combat"}
+          </div>
+        )}
+      </div>
 
       {/* Boutons droite */}
       <CombatTopActions
@@ -1229,7 +1493,6 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             chapitreId={chapitreId}
             imageUrl={battlemapUrl}
             onChange={(url) => {
-              pendingBattlemapUrlRef.current = { url, at: Date.now() };
               setBattlemapUrl(url);
               void persistBattlemapUrl(url);
               if (url) {
@@ -1243,12 +1506,16 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             combatants={orderedCombatants}
             encounters={encounters}
             mapTokens={mapTokens}
-            onUpdateTokens={handleMapTokensChange}
+            onUpdateTokens={setMapTokens}
             activeCombatantId={activeCombatantId}
             fogEnabled={fogEnabled}
             fogReveals={fogReveals}
             onFogEnabledChange={setFogEnabled}
             onFogRevealsChange={setFogReveals}
+            onDragPreviewChange={handleLocalDragPreview}
+            remoteDragPreview={remoteDragPreview}
+            onPing={handleLocalPing}
+            remotePing={remotePing}
           />
         ) : (
           <div className="h-full w-full rounded-xl border border-white/12 bg-black/20 flex items-center justify-center">
@@ -1266,8 +1533,8 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
               combatant={combatant}
               isActive={combatant.id === activeCombatantId}
               isSelected={combatant.id === selectedCombatantId}
-              canMoveUp={idx > 0}
-              canMoveDown={idx < orderedCombatants.length - 1}
+              canMoveUp={idx > 0 && hasSameInitiative(combatant, orderedCombatants[idx - 1])}
+              canMoveDown={idx < orderedCombatants.length - 1 && hasSameInitiative(combatant, orderedCombatants[idx + 1])}
               onSelect={() => setSelectedCombatantId(combatant.id)}
               onRemove={() => removeCombatant(combatant.id)}
               onMoveUp={() => moveBy(combatant.id, -1)}
@@ -1311,17 +1578,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
                 )
               }
               onSummonFamilier={(f) => {
-                const d = f.data as any;
-                const newEntry: Combatant = {
-                  id: makeCombatantId(), entityId: f.id, type: "familier", name: f.name,
-                  imageUrl: f.image_url ?? undefined,
-                  initiative: toNumber(d?.combat?.initiative, 0),
-                  pv: f.pv, pvMax: f.pv_max,
-                  defense: toNumber(d?.combat?.defense, 0),
-                  conditions: [],
-                  details: { stats: d?.stats, combat: d?.combat, attaques: d?.attaques ?? [], capacites: d?.capacites ?? [] },
-                };
-                setCombatants((prev) => [...prev, newEntry]);
+                void buildFamilierCombatant(f).then((newEntry) => {
+                  setCombatants((prev) => [...prev, newEntry]);
+                });
               }}
             />
           </div>

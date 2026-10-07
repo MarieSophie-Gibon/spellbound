@@ -65,6 +65,8 @@ export interface CombatFamilier {
   pv: number;
   pv_max: number;
   data: Record<string, unknown> | null;
+  // Fiche source du familier : id bestiaire, ou id PNJ si data.type_creature === "PNJ"
+  monster_id?: string | null;
 }
 
 export interface Combatant {
@@ -85,6 +87,8 @@ export interface Combatant {
   pjStats?: PJStats;
   voies?: VoieEntry[];
   familiers?: CombatFamilier[];
+  // Familier : id de sa fiche source (bestiaire ou PNJ), pour suivre son apparence
+  sourceEntityId?: string;
   tokenFaceZoom?: number;
   tokenFaceOffsetX?: number;
   tokenFaceOffsetY?: number;
