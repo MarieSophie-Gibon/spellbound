@@ -45,9 +45,20 @@ function getStorageKey(chapitreId: string): string {
   return `${STORAGE_PREFIX}${chapitreId}`;
 }
 
-function sortCombatants(combatants: Combatant[]): Combatant[] {
+function hasSameInitiative(a: Combatant, b: Combatant | undefined): boolean {
+  return !!b && toNumber(a.initiative, 0) === toNumber(b.initiative, 0);
+}
+
+// Initiative décroissante. À égalité : ordre manuel choisi par le MJ (flèches), puis nom.
+function sortCombatants(combatants: Combatant[], manualOrder: string[] | null): Combatant[] {
+  const manualRank = new Map((manualOrder ?? []).map((id, i) => [id, i]));
   return [...combatants].sort((a, b) => {
-    if (b.initiative !== a.initiative) return b.initiative - a.initiative;
+    const initA = toNumber(a.initiative, 0);
+    const initB = toNumber(b.initiative, 0);
+    if (initB !== initA) return initB - initA;
+    const rankA = manualRank.get(a.id);
+    const rankB = manualRank.get(b.id);
+    if (rankA !== undefined && rankB !== undefined && rankA !== rankB) return rankA - rankB;
     return a.name.localeCompare(b.name);
   });
 }
@@ -91,7 +102,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const [, setLoadingSearch] = useState(false);
   const [importingCompany, setImportingCompany] = useState(false);
   const [importingEngaged, setImportingEngaged] = useState(false);
-  const [familierResults, setFamilierResults] = useState<Array<{ id: string; name: string; image_url: string | null; pv_max: number; pv: number; owner: string; data: Record<string, unknown> | null }>>([]);
+  const [familierResults, setFamilierResults] = useState<Array<{ id: string; name: string; image_url: string | null; pv_max: number; pv: number; owner: string; data: Record<string, unknown> | null; monster_id: string | null }>>([]);
   const [cardPositions, setCardPositions] = useState<Record<string, FloatingCardPosition>>({});
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -118,16 +129,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const currentOrderRef = useRef<string[]>([]);
 
   const orderedCombatants = useMemo(() => {
-    let result: Combatant[];
-    if (manualOrder) {
-      const byId = new Map(combatants.map((c) => [c.id, c]));
-      const ordered = manualOrder.map((id) => byId.get(id)).filter(Boolean) as Combatant[];
-      const inOrder = new Set(manualOrder);
-      const rest = combatants.filter((c) => !inOrder.has(c.id));
-      result = [...ordered, ...rest];
-    } else {
-      result = sortCombatants(combatants);
-    }
+    const result = sortCombatants(combatants, manualOrder);
     currentOrderRef.current = result.map((c) => c.id);
     return result;
   }, [combatants, manualOrder]);
@@ -360,6 +362,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       (row) => {
         const m = row as { id: string; image_url?: string | null; combat?: any; stats?: any; attaques?: any; capacites?: any };
         setCombatants((prev) => prev.map((c) => {
+          if (c.type === "familier" && c.sourceEntityId === m.id) {
+            return { ...c, imageUrl: m.image_url ?? c.imageUrl, ...getTokenFaceFromStats(m.stats) };
+          }
           if (c.type !== "monster" || c.entityId !== m.id) return c;
           return {
             ...c,
@@ -373,6 +378,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       (row) => {
         const n = row as { id: string; image_url?: string | null; stats?: any };
         setCombatants((prev) => prev.map((c) => {
+          if (c.type === "familier" && c.sourceEntityId === n.id) {
+            return { ...c, imageUrl: n.image_url ?? c.imageUrl, ...getTokenFaceFromStats(n.stats) };
+          }
           if (c.type !== "npc" || c.entityId !== n.id) return c;
           return {
             ...c,
@@ -513,7 +521,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         const famsByPJ = new Map<string, CombatFamilier[]>();
         for (const f of pjFamData ?? []) {
           const list = famsByPJ.get(f.pj_id) ?? [];
-          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null });
+          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null, monster_id: f.monster_id ?? null });
           famsByPJ.set(f.pj_id, list);
         }
         if (data?.length) {
@@ -547,7 +555,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         const famsByNPC = new Map<string, CombatFamilier[]>();
         for (const f of npcFamData ?? []) {
           const list = famsByNPC.get(f.pnj_id) ?? [];
-          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null });
+          list.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv: f.pv, pv_max: f.pv_max, data: f.data ?? null, monster_id: f.monster_id ?? null });
           famsByNPC.set(f.pnj_id, list);
         }
         if (data?.length) {
@@ -778,31 +786,48 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     if (pjIds.length > 0) {
       const fams = await combatData.fetchFamiliersByPjIds(pjIds);
       for (const f of fams ?? []) {
-        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pjMap.get(f.pj_id) ?? "PJ", data: f.data });
+        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pjMap.get(f.pj_id) ?? "PJ", data: f.data, monster_id: f.monster_id ?? null });
       }
     }
     if (pnjIds.length > 0) {
       const fams = await combatData.fetchFamiliersByPnjIds(pnjIds);
       for (const f of fams ?? []) {
-        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pnjMap.get(f.pnj_id) ?? "PNJ", data: f.data });
+        results.push({ id: f.id, name: f.custom_name || f.monster_nom, image_url: f.monster_image_url, pv_max: f.pv_max, pv: f.pv, owner: pnjMap.get(f.pnj_id) ?? "PNJ", data: f.data, monster_id: f.monster_id ?? null });
       }
     }
     setFamilierResults(results);
   };
 
-  const addFamilierToCombat = (f: typeof familierResults[number]) => {
+  // pj_familiers.data est une copie figée à la création du familier : l'image et le
+  // cadrage du jeton sont relus sur la fiche source actuelle (bestiaire ou PNJ allié).
+  const buildFamilierCombatant = async (f: CombatFamilier): Promise<Combatant> => {
     const d = f.data as any;
-    const pvMax = f.pv_max;
-    const tokenFace = getTokenFaceFromStats(d?.stats ?? d ?? null);
-    const newEntry: Combatant = {
+    let imageUrl = f.image_url ?? undefined;
+    let tokenFace = getTokenFaceFromStats(d?.stats ?? d ?? null);
+    if (f.monster_id) {
+      try {
+        const isPnj = d?.type_creature === "PNJ";
+        const [source] = isPnj
+          ? await combatData.fetchNpcsByIds([f.monster_id])
+          : await combatData.fetchBestiaireByIds([f.monster_id]);
+        if (source) {
+          imageUrl = source.image_url ?? imageUrl;
+          tokenFace = getTokenFaceFromStats(source.stats);
+        }
+      } catch (error) {
+        console.error("Impossible de charger la fiche source du familier:", error);
+      }
+    }
+    return {
       id: makeCombatantId(),
       entityId: f.id,
+      sourceEntityId: f.monster_id ?? undefined,
       type: "familier",
       name: f.name,
-      imageUrl: f.image_url ?? undefined,
+      imageUrl,
       initiative: toNumber(d?.combat?.initiative, 0),
       pv: f.pv,
-      pvMax,
+      pvMax: f.pv_max,
       defense: toNumber(d?.combat?.defense, 0),
       conditions: [],
       details: {
@@ -813,8 +838,12 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       },
       ...tokenFace,
     };
-    setCombatants((prev) => [...prev, newEntry]);
+  };
+
+  const addFamilierToCombat = async (f: typeof familierResults[number]) => {
     setIsMenuOpen(false);
+    const newEntry = await buildFamilierCombatant(f);
+    setCombatants((prev) => [...prev, newEntry]);
   };
 
   const importCompany = useCallback(async () => {
@@ -1132,8 +1161,8 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
               combatant={combatant}
               isActive={combatant.id === activeCombatantId}
               isSelected={combatant.id === selectedCombatantId}
-              canMoveUp={idx > 0}
-              canMoveDown={idx < orderedCombatants.length - 1}
+              canMoveUp={idx > 0 && hasSameInitiative(combatant, orderedCombatants[idx - 1])}
+              canMoveDown={idx < orderedCombatants.length - 1 && hasSameInitiative(combatant, orderedCombatants[idx + 1])}
               onSelect={() => setSelectedCombatantId(combatant.id)}
               onRemove={() => removeCombatant(combatant.id)}
               onMoveUp={() => moveBy(combatant.id, -1)}
@@ -1177,17 +1206,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
                 )
               }
               onSummonFamilier={(f) => {
-                const d = f.data as any;
-                const newEntry: Combatant = {
-                  id: makeCombatantId(), entityId: f.id, type: "familier", name: f.name,
-                  imageUrl: f.image_url ?? undefined,
-                  initiative: toNumber(d?.combat?.initiative, 0),
-                  pv: f.pv, pvMax: f.pv_max,
-                  defense: toNumber(d?.combat?.defense, 0),
-                  conditions: [],
-                  details: { stats: d?.stats, combat: d?.combat, attaques: d?.attaques ?? [], capacites: d?.capacites ?? [] },
-                };
-                setCombatants((prev) => [...prev, newEntry]);
+                void buildFamilierCombatant(f).then((newEntry) => {
+                  setCombatants((prev) => [...prev, newEntry]);
+                });
               }}
             />
           </div>
