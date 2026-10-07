@@ -10,6 +10,8 @@ const mockChannel = vi.hoisted(() => {
     presenceSync: null as null | (() => void),
     sent: [] as Array<{ event: string; payload: Record<string, unknown> }>,
     tracked: null as unknown,
+    subscribeCb: null as null | ((status: string) => void),
+    presence: {} as Record<string, Array<Record<string, unknown>>>,
   };
   const channel = {
     on(type: string, filter: { event: string }, cb: Handler & (() => void)) {
@@ -18,6 +20,7 @@ const mockChannel = vi.hoisted(() => {
       return channel;
     },
     subscribe(cb: (status: string) => void) {
+      state.subscribeCb = cb;
       cb("SUBSCRIBED");
       return channel;
     },
@@ -29,7 +32,7 @@ const mockChannel = vi.hoisted(() => {
       state.tracked = payload;
       return "ok";
     }),
-    presenceState: () => ({}),
+    presenceState: () => state.presence,
   };
   return { state, channel };
 });
@@ -39,6 +42,7 @@ vi.mock("@/lib/supabase", () => ({
     channel: vi.fn(() => mockChannel.channel),
     removeChannel: vi.fn(async () => "ok"),
     getChannels: vi.fn(() => []),
+    realtime: { setAuth: vi.fn(async () => {}) },
   },
 }));
 
@@ -66,7 +70,10 @@ async function renderSession(overrides: Partial<Parameters<typeof useCombatSessi
     }),
   );
   // La connexion est différée (minuteur puis promesse) : on la laisse se faire.
-  await act(async () => { vi.advanceTimersByTime(0); await Promise.resolve(); });
+  await act(async () => {
+    vi.advanceTimersByTime(0);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+  });
   return { hook, onRemoteSlice, onRemoteSnapshot, getSnapshot };
 }
 
@@ -75,6 +82,7 @@ describe("useCombatSession", () => {
     vi.useFakeTimers();
     mockChannel.state.broadcastHandlers.clear();
     mockChannel.state.sent.length = 0;
+    mockChannel.state.presence = {};
   });
 
   afterEach(() => {
@@ -92,7 +100,10 @@ describe("useCombatSession", () => {
       }),
     );
     hook.unmount();
-    await act(async () => { vi.advanceTimersByTime(0); await Promise.resolve(); });
+    await act(async () => {
+      vi.advanceTimersByTime(0);
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
     expect(channelSpy).not.toHaveBeenCalled();
   });
 
@@ -162,6 +173,7 @@ describe("useCombatSession events", () => {
     vi.useFakeTimers();
     mockChannel.state.broadcastHandlers.clear();
     mockChannel.state.sent.length = 0;
+    mockChannel.state.presence = {};
   });
 
   afterEach(() => {
@@ -181,7 +193,90 @@ describe("useCombatSession events", () => {
     expect(onRemoteEvent).not.toHaveBeenCalled();
 
     emit("event", { from: "other", event: "combatants-patch", data: { removed: ["x"] } });
-    expect(onRemoteEvent).toHaveBeenCalledWith("combatants-patch", { removed: ["x"] });
+    expect(onRemoteEvent).toHaveBeenCalledWith("combatants-patch", { upserts: [], removed: ["x"] });
+
+    emit("event", { from: "other", event: "combatants-patch", data: { removed: [42] } });
+    expect(onRemoteEvent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useCombatSession security and robustness", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockChannel.state.broadcastHandlers.clear();
+    mockChannel.state.sent.length = 0;
+    mockChannel.state.presence = {};
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("joins the channel as private after refreshing realtime auth", async () => {
+    const { supabase } = await import("@/lib/supabase");
+    vi.mocked(supabase.channel).mockClear();
+    await renderSession();
+    expect(supabase.realtime.setAuth).toHaveBeenCalled();
+    expect(vi.mocked(supabase.channel).mock.calls[0][1]).toMatchObject({ config: { private: true } });
+  });
+
+  it("ignores invalid slices and keeps only valid slices of a snapshot", async () => {
+    const { onRemoteSlice, onRemoteSnapshot } = await renderSession();
+    const me = mockChannel.state.sent[0].payload.from as string;
+
+    emit("slice", { from: "other", slice: "round", value: "boom" });
+    emit("slice", { from: "other", slice: "battlemapUrl", value: "javascript:alert(1)" });
+    emit("slice", { from: "other", slice: "unknown", value: 1 });
+    expect(onRemoteSlice).not.toHaveBeenCalled();
+
+    emit("sync-snapshot", { from: "other", to: me, snapshot: { round: 2, mapTokens: "nope", combatNote: "ok" } });
+    expect(onRemoteSnapshot).toHaveBeenCalledWith({ round: 2, combatNote: "ok" });
+  });
+
+  it("asks again for the current state after a reconnection and accepts it", async () => {
+    const { hook, onRemoteSnapshot } = await renderSession();
+    const me = mockChannel.state.sent[0].payload.from as string;
+    act(() => { vi.advanceTimersByTime(1600); });
+    expect(hook.result.current.isReady).toBe(true);
+
+    // Une session prête ignore un état complet non sollicité…
+    emit("sync-snapshot", { from: "other", to: me, snapshot: { round: 7 } });
+    expect(onRemoteSnapshot).not.toHaveBeenCalled();
+
+    // …mais après une coupure, elle redemande l'état et l'accepte.
+    act(() => mockChannel.state.subscribeCb?.("CHANNEL_ERROR"));
+    expect(hook.result.current.status).toBe("error");
+    mockChannel.state.sent.length = 0;
+    act(() => mockChannel.state.subscribeCb?.("SUBSCRIBED"));
+    expect(mockChannel.state.sent[0]).toMatchObject({ event: "sync-request" });
+
+    // Pendant sa resynchronisation, elle ne répond pas aux demandes des autres.
+    emit("sync-request", { from: "late" });
+    expect(mockChannel.state.sent.some((m) => m.event === "sync-snapshot")).toBe(false);
+
+    emit("sync-snapshot", { from: "other", to: me, snapshot: { round: 8 } });
+    expect(onRemoteSnapshot).toHaveBeenCalledWith({ round: 8 });
+    expect(hook.result.current.status).toBe("ready");
+  });
+
+  it("elects the earliest session present as the only database writer", async () => {
+    const { hook } = await renderSession();
+    act(() => { vi.advanceTimersByTime(1600); });
+    expect(hook.result.current.isPrimaryWriter).toBe(true);
+
+    const tracked = mockChannel.state.tracked as { joinedAt: number };
+    mockChannel.state.presence = {
+      older: [{ clientId: "older", userId: "u2", name: "Co-MJ", joinedAt: tracked.joinedAt - 1000, presence_ref: "a" }],
+    };
+    act(() => mockChannel.state.presenceSync?.());
+    expect(hook.result.current.peers.map((p) => p.name)).toEqual(["Co-MJ"]);
+    expect(hook.result.current.isPrimaryWriter).toBe(false);
+
+    mockChannel.state.presence = {
+      newer: [{ clientId: "newer", userId: "u2", name: "Co-MJ", joinedAt: tracked.joinedAt + 1000, presence_ref: "b" }],
+    };
+    act(() => mockChannel.state.presenceSync?.());
+    expect(hook.result.current.isPrimaryWriter).toBe(true);
   });
 });
 

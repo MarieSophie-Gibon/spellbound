@@ -47,6 +47,14 @@ function getStorageKey(chapitreId: string): string {
   return `${STORAGE_PREFIX}${chapitreId}`;
 }
 
+// Les voies (descriptions complètes des capacités) ne sont pas envoyées sur la session partagée.
+function withoutVoies(c: Combatant): Combatant {
+  if (c.voies === undefined) return c;
+  const { voies: _voies, ...rest } = c;
+  void _voies;
+  return rest;
+}
+
 function hasSameInitiative(a: Combatant, b: Combatant | undefined): boolean {
   return !!b && toNumber(a.initiative, 0) === toNumber(b.initiative, 0);
 }
@@ -430,6 +438,8 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     const timer = setTimeout(() => {
+      // En session partagée, une seule session écrit en base (voir isPrimaryWriter).
+      if (!isPrimaryWriterRef.current) return;
       void persistCombatState(payload);
     }, 400);
     return () => clearTimeout(timer);
@@ -438,6 +448,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   // --- Session partagée MJ / co-MJ (WebSocket) ---
   // La position de la note reste propre à chaque écran : seul son texte est partagé.
   const authUser = useAuthStore((s) => s.user);
+  const isPrimaryWriterRef = useRef(true);
+  // Vrai dès qu'un état complet a été reçu d'une autre session : il fait foi sur l'état local.
+  const receivedSnapshotRef = useRef(false);
   const remoteSliceValuesRef = useRef<CombatSnapshot>({});
   const sliceValuesRef = useRef<CombatSnapshot>({});
   useEffect(() => {
@@ -453,30 +466,41 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const remoteCombatantObjsRef = useRef(new WeakSet<Combatant>());
   const remoteRemovedIdsRef = useRef(new Set<string>());
 
+  // Les voies ne voyagent pas sur le réseau (trop volumineuses) : on reprend celles déjà connues
+  // localement pour le même combattant, sinon elles sont rechargées depuis la base (voir plus bas).
+  // L'objet fusionné est marqué comme reçu pour ne pas être renvoyé.
+  const mergeRemoteCombatant = useCallback((incoming: Combatant, local: Combatant | undefined): Combatant => {
+    const merged = incoming.voies === undefined && local?.voies !== undefined ? { ...incoming, voies: local.voies } : incoming;
+    remoteCombatantObjsRef.current.add(merged);
+    return merged;
+  }, []);
+
   const applyRemoteCombatants = useCallback((list: Combatant[]) => {
     const nextIds = new Set(list.map((c) => c.id));
-    for (const c of list) remoteCombatantObjsRef.current.add(c);
     setCombatants((prev) => {
+      const prevById = new Map(prev.map((c) => [c.id, c]));
       for (const c of prev) if (!nextIds.has(c.id)) remoteRemovedIdsRef.current.add(c.id);
-      return list;
+      return list.map((c) => mergeRemoteCombatant(c, prevById.get(c.id)));
     });
-  }, []);
+  }, [mergeRemoteCombatant]);
 
   const applyCombatantsPatch = useCallback((patch: { upserts?: Combatant[]; removed?: string[] }) => {
     const upserts = Array.isArray(patch?.upserts) ? patch.upserts : [];
     const removed = new Set(Array.isArray(patch?.removed) ? patch.removed : []);
-    for (const c of upserts) remoteCombatantObjsRef.current.add(c);
     for (const id of removed) remoteRemovedIdsRef.current.add(id);
     setCombatants((prev) => {
       const byId = new Map(upserts.map((c) => [c.id, c]));
       const next = prev
         .filter((c) => !removed.has(c.id))
-        .map((c) => byId.get(c.id) ?? c);
+        .map((c) => {
+          const incoming = byId.get(c.id);
+          return incoming ? mergeRemoteCombatant(incoming, c) : c;
+        });
       const known = new Set(prev.map((c) => c.id));
-      for (const c of upserts) if (!known.has(c.id) && !removed.has(c.id)) next.push(c);
+      for (const c of upserts) if (!known.has(c.id) && !removed.has(c.id)) next.push(mergeRemoteCombatant(c, undefined));
       return next;
     });
-  }, []);
+  }, [mergeRemoteCombatant]);
 
   // Positions des jetons que l'autre MJ est en train de glisser (null = aucun glissement).
   const [remoteDragPreview, setRemoteDragPreview] = useState<Record<string, { x: number; y: number }> | null>(null);
@@ -506,12 +530,17 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   }, [applyRemoteCombatants]);
 
   const applyRemoteSnapshot = useCallback((snapshot: CombatSnapshot) => {
+    receivedSnapshotRef.current = true;
     for (const [slice, value] of Object.entries(snapshot)) {
       applyRemoteSlice(slice as CombatSlice, value);
     }
   }, [applyRemoteSlice]);
 
-  const getSessionSnapshot = useCallback(() => sliceValuesRef.current, []);
+  const getSessionSnapshot = useCallback((): CombatSnapshot => {
+    const current = sliceValuesRef.current;
+    const list = (current.combatants as Combatant[] | undefined) ?? [];
+    return { ...current, combatants: list.map(withoutVoies) };
+  }, []);
 
   const combatSession = useCombatSession({
     chapitreId,
@@ -523,7 +552,10 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     onRemoteSnapshot: applyRemoteSnapshot,
     onRemoteEvent: applyRemoteEvent,
   });
-  const { isReady: isSessionReady, publishSlice, publishEvent } = combatSession;
+  const { isReady: isSessionReady, publishSlice, publishEvent, isPrimaryWriter } = combatSession;
+  useEffect(() => {
+    isPrimaryWriterRef.current = isPrimaryWriter;
+  }, [isPrimaryWriter]);
 
   // Publie les combattants ajoutés/modifiés/retirés localement depuis le dernier rendu.
   const prevCombatantsRef = useRef(combatants);
@@ -542,7 +574,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       removed.push(c.id);
     }
     if (!isSessionReady || (upserts.length === 0 && removed.length === 0)) return;
-    publishEvent("combatants-patch", { upserts, removed });
+    publishEvent("combatants-patch", { upserts: upserts.map(withoutVoies), removed });
   }, [combatants, isSessionReady, publishEvent]);
 
   // Glissement de jetons en direct : ~16 envois/s max pendant le glissement, puis null au lâcher.
@@ -730,8 +762,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     };
 
     void run().then(() => {
-      // Après hydratation, repart du premier combatant (initiative la plus haute)
-      setActiveCombatantId(null);
+      // Après hydratation, repart du premier combatant (initiative la plus haute),
+      // sauf si on a rejoint un combat en cours : le tour reçu de l'autre session fait foi.
+      if (!receivedSnapshotRef.current) setActiveCombatantId(null);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isHydrated]);
@@ -754,6 +787,42 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         .filter((r) => r > 0),
     }));
   }, [combatData]);
+
+  // Combattants PJ/PNJ reçus sans voies (elles ne voyagent pas sur le réseau) : rechargées depuis la base.
+  const voiesLoadingRef = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = combatants.filter((c) =>
+      (c.type === "pj" || c.type === "npc") && c.entityId && c.voies === undefined && !voiesLoadingRef.current.has(c.id));
+    if (missing.length === 0) return;
+    for (const c of missing) voiesLoadingRef.current.add(c.id);
+
+    const loadVoies = async (type: "pj" | "npc") => {
+      const targets = missing.filter((c) => c.type === type);
+      if (targets.length === 0) return;
+      const rows = type === "pj"
+        ? await combatData.fetchPjRows(targets.map((c) => c.entityId!))
+        : await combatData.fetchPnjRows(targets.map((c) => c.entityId!));
+      const voiesByEntity = new Map<string, VoieEntry[]>();
+      await Promise.all((rows ?? []).map(async (row) => {
+        voiesByEntity.set(row.id, await fetchVoiesForPathways(row.pathways));
+      }));
+      const targetIds = new Set(targets.map((c) => c.id));
+      setCombatants((prev) => prev.map((c) => {
+        if (!targetIds.has(c.id) || c.voies !== undefined || !c.entityId) return c;
+        // Fiche introuvable : [] évite de relancer la requête à chaque changement.
+        const filled = { ...c, voies: voiesByEntity.get(c.entityId) ?? [] };
+        // Seules les voies ont changé, et elles ne sont pas partagées : rien à renvoyer.
+        remoteCombatantObjsRef.current.add(filled);
+        return filled;
+      }));
+    };
+
+    void Promise.all([loadVoies("pj"), loadVoies("npc")])
+      .catch((error) => console.error("Impossible de charger les voies des combattants reçus:", error))
+      .finally(() => {
+        for (const c of missing) voiesLoadingRef.current.delete(c.id);
+      });
+  }, [combatants, combatData, fetchVoiesForPathways]);
 
   const importEngagedEnemies = useCallback(async () => {
     setImportingEngaged(true);
