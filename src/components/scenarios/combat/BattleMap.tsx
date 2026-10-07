@@ -270,10 +270,28 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     fogPathsRef.current = fogPaths;
   }, [fogPaths]);
 
+  // Brouillard reçu du parent (ex. dessiné par un co-MJ) : on l'adopte localement,
+  // sauf pendant un coup de pinceau en cours.
+  const lastFogPropSigRef = useRef(JSON.stringify(fogRevealsProp ?? []));
+  const lastLocalFogSigRef = useRef(JSON.stringify(fogReveals));
+  useEffect(() => {
+    const propSig = JSON.stringify(fogRevealsProp ?? []);
+    if (propSig === lastFogPropSigRef.current) return;
+    lastFogPropSigRef.current = propSig;
+    if (isFogPaintingRef.current) return;
+    // Écho de notre propre valeur remontée : rien à faire.
+    if (propSig === lastLocalFogSigRef.current) return;
+    const incoming = fogRevealsProp ?? [];
+    requestAnimationFrame(() => setFogPaths(fogRevealsToPaths(incoming)));
+  }, [fogRevealsProp, fogRevealsToPaths]);
+
+  // Brouillard modifié localement : remonté au parent, uniquement quand c'est le local qui change
+  // (sinon une valeur reçue du parent serait aussitôt écrasée par l'ancienne valeur locale).
   useEffect(() => {
     const localSig = JSON.stringify(fogReveals);
-    const incomingSig = JSON.stringify(fogRevealsProp ?? []);
-    if (localSig === incomingSig) return;
+    if (localSig === lastLocalFogSigRef.current) return;
+    lastLocalFogSigRef.current = localSig;
+    if (localSig === JSON.stringify(fogRevealsProp ?? [])) return;
     onFogRevealsChange(fogReveals);
   }, [fogReveals, fogRevealsProp, onFogRevealsChange]);
 

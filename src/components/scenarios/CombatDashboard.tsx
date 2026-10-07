@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Users } from "lucide-react";
 import { useCombatDashboardData } from "@/hooks/scenarios/useCombatDashboardData";
 import {
   type Combatant,
@@ -28,6 +28,8 @@ import { RoundTriggerPanel } from "./combat/RoundTriggerPanel";
 import { CombatTriggerNotification } from "./combat/CombatTriggerNotification";
 import { CombatStickyNote } from "./combat/CombatStickyNote";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { type CombatSlice, type CombatSnapshot, useCombatSession, usePublishSlice } from "@/hooks/scenarios/useCombatSession";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface CombatDashboardProps {
@@ -432,6 +434,63 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     }, 400);
     return () => clearTimeout(timer);
   }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
+
+  // --- Session partagée MJ / co-MJ (WebSocket) ---
+  // La position de la note reste propre à chaque écran : seul son texte est partagé.
+  const authUser = useAuthStore((s) => s.user);
+  const remoteSliceValuesRef = useRef<CombatSnapshot>({});
+  const sliceValuesRef = useRef<CombatSnapshot>({});
+  useEffect(() => {
+    sliceValuesRef.current = {
+      combatants, activeCombatantId, round, mapTokens, encounters,
+      fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl,
+    };
+  }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl]);
+
+  const applyRemoteSlice = useCallback((slice: CombatSlice, value: unknown) => {
+    remoteSliceValuesRef.current[slice] = value;
+    switch (slice) {
+      case "combatants": setCombatants(value as Combatant[]); break;
+      case "activeCombatantId": setActiveCombatantId(value as string | null); break;
+      case "round": setRound(value as number); break;
+      case "mapTokens": setMapTokens(value as MapToken[]); break;
+      case "encounters": setEncounters(value as EncounterEntry[]); break;
+      case "fogEnabled": setFogEnabled(value as boolean); break;
+      case "fogReveals": setFogReveals(value as FogRevealStamp[]); break;
+      case "combatNote": setCombatNote(value as string); break;
+      case "roundTriggers": setRoundTriggers(value as RoundTriggerEvent[]); break;
+      case "battlemapUrl": setBattlemapUrl(value as string | null); break;
+    }
+  }, []);
+
+  const applyRemoteSnapshot = useCallback((snapshot: CombatSnapshot) => {
+    for (const [slice, value] of Object.entries(snapshot)) {
+      applyRemoteSlice(slice as CombatSlice, value);
+    }
+  }, [applyRemoteSlice]);
+
+  const getSessionSnapshot = useCallback(() => sliceValuesRef.current, []);
+
+  const combatSession = useCombatSession({
+    chapitreId,
+    enabled: isHydrated,
+    userId: authUser?.id ?? null,
+    name: (authUser?.user_metadata?.pseudo as string | undefined) ?? authUser?.email ?? "MJ",
+    getSnapshot: getSessionSnapshot,
+    onRemoteSlice: applyRemoteSlice,
+    onRemoteSnapshot: applyRemoteSnapshot,
+  });
+  const { isReady: isSessionReady, publishSlice } = combatSession;
+  usePublishSlice("combatants", combatants, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("activeCombatantId", activeCombatantId, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("round", round, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("mapTokens", mapTokens, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("encounters", encounters, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("fogEnabled", fogEnabled, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("fogReveals", fogReveals, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("combatNote", combatNote, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("roundTriggers", roundTriggers, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("battlemapUrl", battlemapUrl, isSessionReady, publishSlice, remoteSliceValuesRef);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -1057,13 +1116,26 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   return (
     <div className="relative w-full h-full overflow-hidden font-sans bg-transparent">
 
-      {/* Bouton Menu MJ (gauche) */}
-      <CombatTabButton
-        onClick={() => { setIsMenuOpen(true); void fetchFamiliersForMenu(); }}
-        label="Menu MJ"
-        aria-label="Ouvrir le menu MJ"
-        className="absolute top-0 left-4 z-40"
-      />
+      {/* Bouton Menu MJ (gauche) + session partagée MJ / co-MJ */}
+      <div className="absolute top-0 left-4 z-40 flex items-center gap-2">
+        <CombatTabButton
+          onClick={() => { setIsMenuOpen(true); void fetchFamiliersForMenu(); }}
+          label="Menu MJ"
+          aria-label="Ouvrir le menu MJ"
+        />
+        {combatSession.status !== "idle" && (
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#E3CCCD]/20 bg-[#1E1941]/80 text-[11px] text-white/70"
+            title={combatSession.status === "ready" ? "Session de combat partagée" : "Connexion à la session..."}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${combatSession.status === "ready" ? "bg-emerald-400" : "bg-amber-300 animate-pulse"}`} />
+            <Users className="w-3 h-3" />
+            {combatSession.peers.length > 0
+              ? combatSession.peers.map((p) => p.name).join(", ")
+              : "Seul sur ce combat"}
+          </div>
+        )}
+      </div>
 
       {/* Boutons droite */}
       <CombatTopActions
