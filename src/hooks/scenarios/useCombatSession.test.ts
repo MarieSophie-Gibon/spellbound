@@ -197,6 +197,9 @@ describe("useCombatSession events", () => {
 
     emit("event", { from: "other", event: "combatants-patch", data: { removed: [42] } });
     expect(onRemoteEvent).toHaveBeenCalledTimes(1);
+
+    emit("event", { from: "other", event: "ping", data: { id: 5, x: 30, y: 40 } });
+    expect(onRemoteEvent).toHaveBeenLastCalledWith("ping", { id: 5, x: 30, y: 40 });
   });
 });
 

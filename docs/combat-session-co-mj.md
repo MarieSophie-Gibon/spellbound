@@ -10,6 +10,7 @@ Dès que deux personnes ouvrent `/campaign/combat?chapitreId=<id>` sur le même 
 - le combattant actif et le round ;
 - les jetons sur la battle map, y compris pendant le glissement (le mouvement se voit en direct, environ 16 positions par seconde au maximum) ;
 - l'image de la battle map ;
+- le ping (point signalé sur la map), affiché aussi sur l'écran de streaming de l'autre MJ ;
 - le brouillard : activation et zones révélées ;
 - le texte de la note de combat (sa position reste propre à chaque écran) ;
 - les déclencheurs de round ;
@@ -35,13 +36,14 @@ Principes :
 
 1. **Envoi par tranches.** L'état est découpé en tranches indépendantes (`activeCombatantId`, `round`, `mapTokens`, `encounters`, `fogEnabled`, `fogReveals`, `combatNote`, `roundTriggers`, `battlemapUrl`). Un changement local n'envoie que sa tranche. Le MJ peut donc déplacer un jeton pendant que le co-MJ modifie des PV, sans que l'un écrase l'autre.
 2. **Combattants par modifications.** Les combattants ne sont jamais envoyés en liste complète, qui dépasse vite la taille maximale d'un message Supabase. Seuls les combattants ajoutés, modifiés ou retirés partent, dans un événement `combatants-patch`. Deux MJ peuvent donc modifier deux combattants différents en même temps. Les **voies** des PJ et PNJ ne voyagent jamais (ni dans les modifications, ni dans l'état complet) : la session qui reçoit garde celles qu'elle connaît déjà, ou les recharge depuis la base.
-3. **Glissement en direct.** Les positions des jetons en cours de glissement partent dans un événement `drag-preview`, limité à environ 16 envois par seconde, puis `null` au lâcher. L'autre dashboard les affiche comme un aperçu, et son `/battlemap` aussi.
-4. **Arrivée dans une session.** La session qui rejoint le combat charge d'abord son état depuis la base, puis demande l'état complet aux autres (`sync-request`). Seules les sessions déjà synchronisées répondent (`sync-snapshot`), ce qui évite que deux arrivées simultanées s'échangent leurs états, sans comparer les horloges des machines. Sans réponse au bout de 1,5 s, la session se considère seule. Rien n'est envoyé avant la fin de cette synchro, pour ne pas diffuser un état local périmé. Une session qui rejoint un combat en cours garde le tour reçu (le tour n'est remis au premier combattant qu'en l'absence d'autre session).
+3. **Ping.** Un ping émis sur la map part dans un événement `ping` (identifiant et position). L'autre dashboard l'affiche et le relaie à son `/battlemap`. La sélection au lasso reste locale ; le déplacement groupé qui suit passe par l'aperçu de glissement.
+4. **Glissement en direct.** Les positions des jetons en cours de glissement partent dans un événement `drag-preview`, limité à environ 16 envois par seconde, puis `null` au lâcher. L'autre dashboard les affiche comme un aperçu, et son `/battlemap` aussi.
+5. **Arrivée dans une session.** La session qui rejoint le combat charge d'abord son état depuis la base, puis demande l'état complet aux autres (`sync-request`). Seules les sessions déjà synchronisées répondent (`sync-snapshot`), ce qui évite que deux arrivées simultanées s'échangent leurs états, sans comparer les horloges des machines. Sans réponse au bout de 1,5 s, la session se considère seule. Rien n'est envoyé avant la fin de cette synchro, pour ne pas diffuser un état local périmé. Une session qui rejoint un combat en cours garde le tour reçu (le tour n'est remis au premier combattant qu'en l'absence d'autre session).
    **Reconnexion :** quand le canal se rétablit après une coupure, la session redemande l'état courant et l'adopte. Pendant cette resynchronisation, elle ne répond pas aux demandes des autres.
-5. **Création différée du canal.** Le canal est créé un tour après le montage : un montage aussitôt démonté (React StrictMode en développement) n'en crée aucun. Deux canaux du même nom ouverts coup sur coup sur la même connexion se gênent (la fermeture de l'ancien efface la présence du nouveau).
-6. **Pas d'écho.** Une valeur reçue est mémorisée par tranche et n'est pas renvoyée. La comparaison se fait par référence.
-7. **Sauvegarde.** Chaque dashboard enregistre son état dans le localStorage. En base (`combat_state`, toutes les 400 ms au plus), **une seule session écrit** : la plus ancienne présente, départagée par son identifiant. Toutes voient les mêmes heures d'arrivée via la présence et désignent donc la même. Une session seule, en connexion ou en erreur écrit elle-même, par sécurité.
-8. **Brouillard.** `BattleMap` adopte maintenant le brouillard reçu en props (`fogReveals`), sauf pendant un coup de pinceau en cours. Il ne remonte au parent que ses propres modifications.
+6. **Création différée du canal.** Le canal est créé un tour après le montage : un montage aussitôt démonté (React StrictMode en développement) n'en crée aucun. Deux canaux du même nom ouverts coup sur coup sur la même connexion se gênent (la fermeture de l'ancien efface la présence du nouveau).
+7. **Pas d'écho.** Une valeur reçue est mémorisée par tranche et n'est pas renvoyée. La comparaison se fait par référence.
+8. **Sauvegarde.** Chaque dashboard enregistre son état dans le localStorage. En base (`combat_state`, toutes les 400 ms au plus), **une seule session écrit** : la plus ancienne présente, départagée par son identifiant. Toutes voient les mêmes heures d'arrivée via la présence et désignent donc la même. Une session seule, en connexion ou en erreur écrit elle-même, par sécurité.
+9. **Brouillard.** `BattleMap` adopte maintenant le brouillard reçu en props (`fogReveals`), sauf pendant un coup de pinceau en cours. Il ne remonte au parent que ses propres modifications.
 
 ## Sécurité
 
@@ -70,7 +72,6 @@ Les deux sessions doivent tourner sur **la même version** de l'application. Par
 ### Limites connues
 
 - **Modifications simultanées d'une même tranche ou d'un même combattant.** La dernière modification reçue gagne. Exemple : deux MJ qui modifient au même instant les PV du même combattant, ou qui déplacent deux jetons différents au même instant (`mapTokens` est une seule tranche). Piste : envoyer aussi les jetons par modifications.
-- **Ping et lasso non partagés.** Ils ne passent que par le `BroadcastChannel` local. Piste : relayer l'événement `ping` de `BattleMap` sur le canal de session. Le code de réception côté joueur existe dans l'historique (`git show f58280b:src/pages/PlayerCombat.tsx`, autour des lignes 337 et 794).
 - **Brouillard pendant un coup de pinceau.** Une mise à jour reçue pendant que l'on peint est ignorée, puis écrasée par le coup de pinceau local.
 
 ### Robustesse

@@ -59,5 +59,8 @@ describe("combatSessionSchema", () => {
     expect(sanitizeEvent("drag-preview", null)).toEqual({ ok: true, value: null });
     expect(sanitizeEvent("drag-preview", { c1: { x: 5, y: 6 } }).ok).toBe(true);
     expect(sanitizeEvent("drag-preview", { c1: { x: "5", y: 6 } }).ok).toBe(false);
+    expect(sanitizeEvent("ping", { id: 1, x: 10, y: 20, extra: "x" })).toEqual({ ok: true, value: { id: 1, x: 10, y: 20 } });
+    expect(sanitizeEvent("ping", { id: "1", x: 10, y: 20 }).ok).toBe(false);
+    expect(sanitizeEvent("ping", { id: 1, x: 500, y: 20 }).ok).toBe(false);
   });
 });

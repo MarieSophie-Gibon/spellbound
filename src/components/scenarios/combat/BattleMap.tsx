@@ -21,6 +21,9 @@ interface BattleMapProps {
   onDragPreviewChange?: (positions: Record<string, { x: number; y: number }> | null) => void;
   // …et positions des jetons glissés par un autre MJ.
   remoteDragPreview?: Record<string, { x: number; y: number }> | null;
+  // Session partagée : ping émis localement, et ping reçu d'un autre MJ.
+  onPing?: (ping: { id: number; x: number; y: number }) => void;
+  remotePing?: { id: number; x: number; y: number } | null;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -156,7 +159,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, onDragPreviewChange, remoteDragPreview }: BattleMapProps) {
+function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, onDragPreviewChange, remoteDragPreview, onPing, remotePing }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -407,6 +410,21 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     };
   }, []);
 
+  const onPingRef = useRef(onPing);
+  useEffect(() => {
+    onPingRef.current = onPing;
+  }, [onPing]);
+
+  // Ping d'un autre MJ : affiché ici et relayé à l'écran de streaming de ce navigateur.
+  useEffect(() => {
+    if (!remotePing) return;
+    channelRef.current?.postMessage({ type: "ping", ...remotePing } satisfies BattleMapPing);
+    const frame = requestAnimationFrame(() => setMapPing(remotePing));
+    if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
+    pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
+    return () => cancelAnimationFrame(frame);
+  }, [remotePing]);
+
   const emitMapPing = useCallback((clientX: number, clientY: number) => {
     const pos = screenToMapPct(clientX, clientY);
     if (!pos) return;
@@ -415,6 +433,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     if (pingTimerRef.current !== null) window.clearTimeout(pingTimerRef.current);
     pingTimerRef.current = window.setTimeout(() => setMapPing(null), 1200);
     channelRef.current?.postMessage(ping);
+    onPingRef.current?.({ id: ping.id, x: ping.x, y: ping.y });
   }, [screenToMapPct]);
 
   const clampZoom = (z: number) => Math.min(4, Math.max(0.4, z));
@@ -1120,7 +1139,9 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.onFogEnabledChange === next.onFogEnabledChange &&
     prev.onFogRevealsChange === next.onFogRevealsChange &&
     prev.onDragPreviewChange === next.onDragPreviewChange &&
-    prev.remoteDragPreview === next.remoteDragPreview
+    prev.remoteDragPreview === next.remoteDragPreview &&
+    prev.onPing === next.onPing &&
+    prev.remotePing === next.remotePing
   );
 }
 

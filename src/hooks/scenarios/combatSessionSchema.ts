@@ -139,5 +139,9 @@ export function sanitizeEvent(event: CombatSessionEvent, data: unknown): Sanitiz
     if (entries.length > MAX_TOKENS || !entries.every(([id, pos]) => isId(id) && isPosition(pos))) return INVALID;
     return valid(data);
   }
+  if (event === "ping") {
+    if (!isObject(data) || !isFiniteNumber(data.id) || !isPosition(data)) return INVALID;
+    return valid({ id: data.id, x: data.x, y: data.y });
+  }
   return INVALID;
 }

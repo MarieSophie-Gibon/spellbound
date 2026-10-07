@@ -505,7 +505,11 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   // Positions des jetons que l'autre MJ est en train de glisser (null = aucun glissement).
   const [remoteDragPreview, setRemoteDragPreview] = useState<Record<string, { x: number; y: number }> | null>(null);
 
+  // Dernier ping reçu d'un autre MJ.
+  const [remotePing, setRemotePing] = useState<{ id: number; x: number; y: number } | null>(null);
+
   const applyRemoteEvent = useCallback((event: CombatSessionEvent, data: unknown) => {
+    if (event === "ping") setRemotePing(data as { id: number; x: number; y: number });
     if (event === "combatants-patch") applyCombatantsPatch(data as { upserts?: Combatant[]; removed?: string[] });
     if (event === "drag-preview") setRemoteDragPreview((data as Record<string, { x: number; y: number }> | null) ?? null);
   }, [applyCombatantsPatch]);
@@ -605,6 +609,10 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         t.pending = null;
       }, 60 - elapsed);
     }
+  }, [publishEvent]);
+
+  const handleLocalPing = useCallback((ping: { id: number; x: number; y: number }) => {
+    publishEvent("ping", ping);
   }, [publishEvent]);
   usePublishSlice("activeCombatantId", activeCombatantId, isSessionReady, publishSlice, remoteSliceValuesRef);
   usePublishSlice("round", round, isSessionReady, publishSlice, remoteSliceValuesRef);
@@ -1379,6 +1387,8 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             onFogRevealsChange={setFogReveals}
             onDragPreviewChange={handleLocalDragPreview}
             remoteDragPreview={remoteDragPreview}
+            onPing={handleLocalPing}
+            remotePing={remotePing}
           />
         ) : (
           <div className="h-full w-full rounded-xl border border-white/12 bg-black/20 flex items-center justify-center">

@@ -34,8 +34,9 @@ export type CombatSessionStatus = "idle" | "connecting" | "syncing" | "ready" | 
 // Événements ponctuels, hors tranches d'état :
 // - "combatants-patch" : combattants ajoutés/modifiés/retirés (la liste complète dépasse vite
 //   la taille max d'un message Broadcast, surtout avec les voies des PJ) ;
-// - "drag-preview" : positions des jetons en cours de glissement (null = fin du glissement).
-export type CombatSessionEvent = "combatants-patch" | "drag-preview";
+// - "drag-preview" : positions des jetons en cours de glissement (null = fin du glissement) ;
+// - "ping" : point signalé sur la battle map.
+export type CombatSessionEvent = "combatants-patch" | "drag-preview" | "ping";
 
 interface UseCombatSessionOptions {
   chapitreId: string;
@@ -164,7 +165,7 @@ export function useCombatSession({
         .on("broadcast", { event: "event" }, ({ payload }) => {
           const msg = payload as { from?: unknown; event?: unknown; data?: unknown } | null;
           if (!msg || msg.from === clientId) return;
-          if (msg.event !== "combatants-patch" && msg.event !== "drag-preview") return;
+          if (msg.event !== "combatants-patch" && msg.event !== "drag-preview" && msg.event !== "ping") return;
           const checked = sanitizeEvent(msg.event, msg.data);
           if (!checked.ok) {
             console.warn(`[combat-session] événement "${msg.event}" invalide ignoré`);
