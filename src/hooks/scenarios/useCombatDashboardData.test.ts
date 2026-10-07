@@ -23,6 +23,5 @@ describe("useCombatDashboardData", () => {
     expect(typeof result.current.updateChapitreCombatState).toBe("function");
     expect(typeof result.current.searchMonsters).toBe("function");
     expect(typeof result.current.searchNpcs).toBe("function");
-    expect(typeof result.current.subscribeChapitreCombatState).toBe("function");
   });
 });

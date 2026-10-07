@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { useCombatDashboardData } from "@/hooks/scenarios/useCombatDashboardData";
 import {
@@ -50,26 +50,6 @@ function sortCombatants(combatants: Combatant[]): Combatant[] {
     if (b.initiative !== a.initiative) return b.initiative - a.initiative;
     return a.name.localeCompare(b.name);
   });
-}
-
-// Sérialisation à clés triées : jsonb (Postgres) réordonne les clés des objets,
-// un JSON.stringify brut ne reconnaîtrait jamais l'écho de notre propre écriture.
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  if (value && typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
-}
-
-// Signature d'un état de combat, hors battlemapUrl (stocké dans sa propre colonne)
-function combatStateSig(state: PersistedCombatState): string {
-  const { battlemapUrl: _battlemapUrl, ...rest } = state;
-  void _battlemapUrl;
-  return stableStringify(rest);
 }
 
 function normalizeCombatState(
@@ -132,27 +112,6 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
 
   const [isHydrated, setIsHydrated] = useState(false);
   const hasAutoImportedRef = useRef(false);
-  const latestPayloadRef = useRef<PersistedCombatState | null>(null);
-  const pendingMapTokensRef = useRef<MapToken[] | null>(null);
-  // Dernier état local pas encore confirmé par le realtime : tant qu'il est en vol,
-  // les échos d'écritures plus anciennes sont ignorés (sinon ex. le brouillard
-  // se désactive puis se réactive tout seul).
-  const pendingLocalWriteRef = useRef<{ sig: string; at: number } | null>(null);
-  // Signature du dernier état reçu du realtime : inutile de le réécrire en base.
-  const lastRemoteSigRef = useRef<string | null>(null);
-  // Valeurs courantes du brouillard, lues par l'abonnement realtime (MJ = seule source de vérité).
-  const fogEnabledRef = useRef(false);
-  const fogRevealsRef = useRef<PersistedCombatState["fogReveals"]>([]);
-  useLayoutEffect(() => {
-    fogEnabledRef.current = fogEnabled;
-    fogRevealsRef.current = fogReveals;
-  }, [fogEnabled, fogReveals]);
-  const pendingBattlemapUrlRef = useRef<{ url: string | null; at: number } | null>(null);
-
-  const handleMapTokensChange = useCallback((tokens: MapToken[]) => {
-    pendingMapTokensRef.current = tokens;
-    setMapTokens(tokens);
-  }, []);
 
   // Drag-and-drop manual ordering
   const [manualOrder, setManualOrder] = useState<string[] | null>(null);
@@ -393,89 +352,6 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     void bootstrap();
   }, [chapitreId, combatData]);
 
-  useEffect(() => {
-    const unsubscribe = combatData.subscribeChapitreCombatState(chapitreId, (incomingRaw, incomingBattlemapUrl) => {
-      const pendingBattlemapUrl = pendingBattlemapUrlRef.current;
-      if (pendingBattlemapUrl) {
-        if (incomingBattlemapUrl === pendingBattlemapUrl.url) {
-          pendingBattlemapUrlRef.current = null;
-        } else if (Date.now() - pendingBattlemapUrl.at < 5000) {
-          // Keep the locally selected map while an older realtime row is in flight.
-        } else {
-          pendingBattlemapUrlRef.current = null;
-          setBattlemapUrl(incomingBattlemapUrl);
-        }
-      } else {
-        setBattlemapUrl(incomingBattlemapUrl);
-      }
-
-      if (!incomingRaw || typeof incomingRaw !== "object") return;
-
-      const normalized = normalizeCombatState(
-        incomingRaw as Partial<PersistedCombatState>,
-        { x: 32, y: 110 },
-      );
-
-      const pendingMapTokens = pendingMapTokensRef.current;
-      if (pendingMapTokens) {
-        if (JSON.stringify(normalized.mapTokens) === JSON.stringify(pendingMapTokens)) {
-          pendingMapTokensRef.current = null;
-        } else {
-          return;
-        }
-      }
-
-      const incomingSig = combatStateSig(normalized);
-
-      const pendingWrite = pendingLocalWriteRef.current;
-      if (pendingWrite) {
-        if (incomingSig === pendingWrite.sig) {
-          pendingLocalWriteRef.current = null;
-          return;
-        }
-        // Écho d'une écriture antérieure à notre dernier changement local : on l'ignore.
-        if (Date.now() - pendingWrite.at < 5000) return;
-        pendingLocalWriteRef.current = null;
-      }
-
-      // Le brouillard est piloté par le MJ : on garde toujours la valeur locale,
-      // un client distant (vue joueur, écho tardif) ne peut pas la modifier.
-      const merged: PersistedCombatState = {
-        ...normalized,
-        fogEnabled: fogEnabledRef.current,
-        fogReveals: fogRevealsRef.current,
-      };
-      const mergedSig = combatStateSig(merged);
-      const remoteFogIsStale = mergedSig !== incomingSig;
-
-      const localSig = latestPayloadRef.current ? combatStateSig(latestPayloadRef.current) : null;
-      if (localSig && localSig === mergedSig) {
-        // Seul le brouillard diffère : la base contient un brouillard obsolète, on le corrige.
-        if (remoteFogIsStale && latestPayloadRef.current) {
-          pendingLocalWriteRef.current = { sig: mergedSig, at: Date.now() };
-          void combatData.updateChapitreCombatState(chapitreId, latestPayloadRef.current).catch((error) => {
-            console.error("Impossible de corriger le brouillard en base:", error);
-          });
-        }
-        return;
-      }
-
-      setCombatants(normalized.combatants);
-      setActiveCombatantId(normalized.activeCombatantId);
-      setRound(normalized.round);
-      setMapTokens(normalized.mapTokens ?? []);
-      setEncounters(normalized.encounters ?? []);
-      setCombatNote(normalized.combatNote ?? "");
-      setNotePosition(normalized.combatNotePosition ?? { x: 32, y: 110 });
-      setRoundTriggers(normalized.roundTriggers ?? []);
-      latestPayloadRef.current = merged;
-      // Si le brouillard distant était obsolète, on laisse l'effet de sauvegarde réécrire l'état corrigé.
-      lastRemoteSigRef.current = remoteFogIsStale ? null : incomingSig;
-    });
-
-    return unsubscribe;
-  }, [chapitreId, combatData]);
-
   // Rafra\u00eechit en direct l'apparence (image, cadrage du jeton) des combattants d\u00e9j\u00e0
   // plac\u00e9s quand leur fiche bestiaire/pnj est \u00e9dit\u00e9e pendant que le combat est en cours.
   useEffect(() => {
@@ -542,16 +418,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       combatNotePosition: notePosition,
       roundTriggers,
     };
-    latestPayloadRef.current = payload;
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
-    const sig = combatStateSig(normalizeCombatState(payload, notePosition));
-    // État tout juste reçu du realtime : déjà en base, pas de réécriture.
-    if (sig === lastRemoteSigRef.current) return;
-    const pendingWrite = pendingLocalWriteRef.current;
-    // Un état identique à celui déjà en vol ne repousse pas le délai.
-    if (!pendingWrite || pendingWrite.sig !== sig) {
-      pendingLocalWriteRef.current = { sig, at: Date.now() };
-    }
     const timer = setTimeout(() => {
       void persistCombatState(payload);
     }, 400);
@@ -1229,7 +1096,6 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             chapitreId={chapitreId}
             imageUrl={battlemapUrl}
             onChange={(url) => {
-              pendingBattlemapUrlRef.current = { url, at: Date.now() };
               setBattlemapUrl(url);
               void persistBattlemapUrl(url);
               if (url) {
@@ -1243,7 +1109,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             combatants={orderedCombatants}
             encounters={encounters}
             mapTokens={mapTokens}
-            onUpdateTokens={handleMapTokensChange}
+            onUpdateTokens={setMapTokens}
             activeCombatantId={activeCombatantId}
             fogEnabled={fogEnabled}
             fogReveals={fogReveals}
