@@ -14,6 +14,7 @@ const mockChannel = vi.hoisted(() => {
     presence: {} as Record<string, Array<Record<string, unknown>>>,
   };
   const channel = {
+    state: "joined",
     on(type: string, filter: { event: string }, cb: Handler & (() => void)) {
       if (type === "broadcast") state.broadcastHandlers.set(filter.event, cb);
       if (type === "presence") state.presenceSync = cb;
@@ -21,6 +22,7 @@ const mockChannel = vi.hoisted(() => {
     },
     subscribe(cb: (status: string) => void) {
       state.subscribeCb = cb;
+      channel.state = "joined";
       cb("SUBSCRIBED");
       return channel;
     },
@@ -63,6 +65,7 @@ async function renderSession(overrides: Partial<Parameters<typeof useCombatSessi
       enabled: true,
       userId: "user-1",
       name: "MJ",
+      role: "MJ",
       getSnapshot,
       onRemoteSlice,
       onRemoteSnapshot,
@@ -95,7 +98,7 @@ describe("useCombatSession", () => {
     channelSpy.mockClear();
     const hook = renderHook(() =>
       useCombatSession({
-        chapitreId: "chap-1", enabled: true, userId: "u", name: "MJ",
+        chapitreId: "chap-1", enabled: true, userId: "u", name: "MJ", role: "MJ",
         getSnapshot: () => ({}), onRemoteSlice: vi.fn(), onRemoteSnapshot: vi.fn(),
       }),
     );
@@ -262,6 +265,77 @@ describe("useCombatSession security and robustness", () => {
     expect(hook.result.current.status).toBe("ready");
   });
 
+  it("queues changes made during an outage, then reapplies and sends them after the resync", async () => {
+    const onRemoteEvent = vi.fn();
+    const { hook, onRemoteSlice } = await renderSession({ onRemoteEvent });
+    const me = mockChannel.state.sent[0].payload.from as string;
+    act(() => { vi.advanceTimersByTime(1600); });
+
+    // Coupure : le canal n'est plus rejoint.
+    mockChannel.channel.state = "errored";
+    act(() => mockChannel.state.subscribeCb?.("CHANNEL_ERROR"));
+    mockChannel.state.sent.length = 0;
+    act(() => {
+      hook.result.current.publishSlice("round", 4);
+      hook.result.current.publishSlice("round", 5);
+      hook.result.current.publishEvent("tokens-patch", { upserts: [{ combatantId: "a", x: 1, y: 2 }], removed: [] });
+      hook.result.current.publishEvent("drag-preview", { a: { x: 1, y: 2 } });
+    });
+    expect(mockChannel.state.sent).toHaveLength(0);
+
+    // Reconnexion : demande d'état, puis l'état reçu est appliqué avant les modifications mises de côté.
+    act(() => mockChannel.state.subscribeCb?.("SUBSCRIBED"));
+    expect(mockChannel.state.sent.map((m) => m.event)).toEqual(["sync-request"]);
+    emit("sync-snapshot", { from: "other", to: me, snapshot: { round: 9 } });
+
+    expect(onRemoteSlice).toHaveBeenCalledWith("round", 5);
+    expect(onRemoteEvent).toHaveBeenCalledWith("tokens-patch", { upserts: [{ combatantId: "a", x: 1, y: 2 }], removed: [] });
+    expect(mockChannel.state.sent.map((m) => m.event)).toEqual(["sync-request", "slice", "event"]);
+    expect(mockChannel.state.sent[1].payload).toMatchObject({ slice: "round", value: 5 });
+  });
+
+  it("sends follow-up messages only to the joining session, after the snapshot", async () => {
+    const getSnapshotFollowUps = () => [{ event: "fog-patch" as const, data: { reset: true, upserts: [], removed: [] } }];
+    await renderSession({ getSnapshotFollowUps });
+    act(() => { vi.advanceTimersByTime(1600); });
+    mockChannel.state.sent.length = 0;
+
+    emit("sync-request", { from: "late" });
+    expect(mockChannel.state.sent.map((m) => m.event)).toEqual(["sync-snapshot", "event"]);
+    expect(mockChannel.state.sent[1].payload).toMatchObject({ to: "late", event: "fog-patch" });
+  });
+
+  it("ignores events addressed to another session", async () => {
+    const onRemoteEvent = vi.fn();
+    const { hook } = await renderSession({ onRemoteEvent });
+    const me = mockChannel.state.sent[0].payload.from as string;
+    act(() => { vi.advanceTimersByTime(1600); });
+    expect(hook.result.current.isReady).toBe(true);
+
+    const data = { reset: true, upserts: [], removed: [] };
+    emit("event", { from: "other", to: "someone-else", event: "fog-patch", data });
+    expect(onRemoteEvent).not.toHaveBeenCalled();
+    emit("event", { from: "other", to: me, event: "fog-patch", data });
+    expect(onRemoteEvent).toHaveBeenCalledWith("fog-patch", data);
+  });
+
+  it("shows the role of other sessions and who is acting", async () => {
+    const { hook } = await renderSession();
+    act(() => { vi.advanceTimersByTime(1600); });
+    mockChannel.state.presence = {
+      other: [{ clientId: "other", userId: "u2", name: "Alex", role: "co-MJ", joinedAt: 1, presence_ref: "a" }],
+    };
+    act(() => mockChannel.state.presenceSync?.());
+    expect(hook.result.current.peers[0]).toMatchObject({ name: "Alex", role: "co-MJ", active: false });
+
+    emit("slice", { from: "other", slice: "round", value: 2 });
+    act(() => { vi.advanceTimersByTime(500); });
+    expect(hook.result.current.peers[0].active).toBe(true);
+
+    act(() => { vi.advanceTimersByTime(2500); });
+    expect(hook.result.current.peers[0].active).toBe(false);
+  });
+
   it("elects the earliest session present as the only database writer", async () => {
     const { hook } = await renderSession();
     act(() => { vi.advanceTimersByTime(1600); });
@@ -289,7 +363,7 @@ describe("usePublishSlice", () => {
     const { result, rerender } = renderHook(
       ({ value }: { value: unknown }) => {
         const remoteRef = useRef<CombatSnapshot>({});
-        usePublishSlice("combatants", value, true, publish, remoteRef);
+        usePublishSlice("combatants", value, publish, remoteRef);
         return remoteRef;
       },
       { initialProps: { value: [] as unknown } },

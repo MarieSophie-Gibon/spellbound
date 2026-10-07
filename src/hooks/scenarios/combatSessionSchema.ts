@@ -12,6 +12,8 @@ const valid = <T>(value: T): Sanitized<T> => ({ ok: true, value });
 const MAX_COMBATANTS = 500;
 const MAX_TOKENS = 500;
 const MAX_FOG_STAMPS = 50_000;
+const MAX_FOG_STROKES = 5_000;
+const MAX_FOG_STROKE_POINTS = 20_000;
 const MAX_TRIGGERS = 200;
 const MAX_ENCOUNTERS = 1_000;
 const MAX_TEXT = 20_000;
@@ -66,6 +68,11 @@ const isMapToken = (v: unknown) => isObject(v) && isId(v.combatantId) && isPerce
 const isFogStamp = (v: unknown) =>
   isObject(v) && isPercent(v.x) && isPercent(v.y) && isFiniteNumber(v.r) && v.r >= 0 && v.r <= 100 &&
   (v.strokeId === undefined || isFiniteNumber(v.strokeId));
+
+// Coup de pinceau du brouillard : { id, r, points: [{ x, y }] }.
+const isFogStroke = (v: unknown) =>
+  isObject(v) && isFiniteNumber(v.id) && isFiniteNumber(v.r) && v.r >= 0 && v.r <= 100 &&
+  Array.isArray(v.points) && v.points.length <= MAX_FOG_STROKE_POINTS && v.points.every(isPosition);
 
 const isTrigger = (v: unknown) =>
   isObject(v) && isId(v.id) && isText(v.label, 1_000) && isFiniteNumber(v.roundsLeft) && isFiniteNumber(v.createdAt) &&
@@ -138,6 +145,24 @@ export function sanitizeEvent(event: CombatSessionEvent, data: unknown): Sanitiz
     const entries = Object.entries(data);
     if (entries.length > MAX_TOKENS || !entries.every(([id, pos]) => isId(id) && isPosition(pos))) return INVALID;
     return valid(data);
+  }
+  if (event === "tokens-patch") {
+    if (!isObject(data)) return INVALID;
+    const upserts = data.upserts ?? [];
+    const removed = data.removed ?? [];
+    if (!Array.isArray(upserts) || upserts.length > MAX_TOKENS || !upserts.every(isMapToken)) return INVALID;
+    if (!Array.isArray(removed) || removed.length > MAX_TOKENS || !removed.every(isId)) return INVALID;
+    return valid({ upserts, removed });
+  }
+  if (event === "fog-patch") {
+    if (!isObject(data)) return INVALID;
+    const upserts = data.upserts ?? [];
+    const removed = data.removed ?? [];
+    const reset = data.reset ?? false;
+    if (typeof reset !== "boolean") return INVALID;
+    if (!Array.isArray(upserts) || upserts.length > MAX_FOG_STROKES || !upserts.every(isFogStroke)) return INVALID;
+    if (!Array.isArray(removed) || removed.length > MAX_FOG_STROKES || !removed.every(isFiniteNumber)) return INVALID;
+    return valid({ reset, upserts, removed });
   }
   if (event === "ping") {
     if (!isObject(data) || !isFiniteNumber(data.id) || !isPosition(data)) return INVALID;

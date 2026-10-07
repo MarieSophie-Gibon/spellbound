@@ -374,7 +374,11 @@ const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(() => {
                   !activeCampaign ? <Navigate to="/" /> :
                   isMobile ? <Navigate to="/campaign" /> :
                   !canManageActiveCampaign ? <Navigate to="/campaign" /> : (
-                    <Combat campaignId={activeCampaign.id} campaignSystem={activeCampaign.system ?? 'COF'} />
+                    <Combat
+                      campaignId={activeCampaign.id}
+                      campaignSystem={activeCampaign.system ?? 'COF'}
+                      sessionRole={activeCampaign.owner_id === session?.user?.id ? "MJ" : "co-MJ"}
+                    />
                   )
                 }
               />

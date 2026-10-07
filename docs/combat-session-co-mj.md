@@ -16,7 +16,7 @@ Dès que deux personnes ouvrent `/campaign/combat?chapitreId=<id>` sur le même 
 - les déclencheurs de round ;
 - les rencontres.
 
-Un badge à droite du bouton « Menu MJ » affiche « Seul sur ce combat » ou le nom des autres personnes connectées. La pastille est verte quand la session est synchronisée, orange pendant la connexion.
+Un badge à droite du bouton « Menu MJ » affiche « Seul sur ce combat » ou les autres personnes connectées avec leur rôle (MJ ou co-MJ). Un point bleu clignote à côté d'une personne pendant deux secondes après chacune de ses actions. La pastille est verte quand la session est synchronisée, orange pendant la connexion, rouge en cas d'erreur.
 
 Chaque MJ garde son propre affichage `/battlemap` pour son écran de streaming. Cet affichage suit le dashboard du même navigateur, via `BroadcastChannel`.
 
@@ -28,22 +28,25 @@ Code :
 
 - `src/hooks/scenarios/useCombatSession.ts` : gestion du canal, de la présence, de la synchro initiale et de la reconnexion, avec `usePublishSlice` pour l'envoi par tranche ;
 - `src/hooks/scenarios/combatSessionSchema.ts` : validation des messages reçus ;
+- `src/components/scenarios/combat/sessionPatches.ts` : différences et fusions des jetons et du brouillard ;
 - `src/components/scenarios/CombatDashboard.tsx`, section « Session partagée MJ / co-MJ » : branchement sur l'état du dashboard ;
 - `supabase/migrations/20261007000000_combat_session_private_channel.sql` : règles d'accès au canal ;
-- `src/hooks/scenarios/useCombatSession.test.ts` et `combatSessionSchema.test.ts` : tests.
+- `useCombatSession.test.ts`, `combatSessionSchema.test.ts` et `sessionPatches.test.ts` : tests.
 
 Principes :
 
-1. **Envoi par tranches.** L'état est découpé en tranches indépendantes (`activeCombatantId`, `round`, `mapTokens`, `encounters`, `fogEnabled`, `fogReveals`, `combatNote`, `roundTriggers`, `battlemapUrl`). Un changement local n'envoie que sa tranche. Le MJ peut donc déplacer un jeton pendant que le co-MJ modifie des PV, sans que l'un écrase l'autre.
+1. **Envoi par tranches.** Les valeurs simples sont des tranches indépendantes (`activeCombatantId`, `round`, `encounters`, `fogEnabled`, `combatNote`, `roundTriggers`, `battlemapUrl`). Un changement local n'envoie que sa tranche.
 2. **Combattants par modifications.** Les combattants ne sont jamais envoyés en liste complète, qui dépasse vite la taille maximale d'un message Supabase. Seuls les combattants ajoutés, modifiés ou retirés partent, dans un événement `combatants-patch`. Deux MJ peuvent donc modifier deux combattants différents en même temps. Les **voies** des PJ et PNJ ne voyagent jamais (ni dans les modifications, ni dans l'état complet) : la session qui reçoit garde celles qu'elle connaît déjà, ou les recharge depuis la base.
-3. **Ping.** Un ping émis sur la map part dans un événement `ping` (identifiant et position). L'autre dashboard l'affiche et le relaie à son `/battlemap`. La sélection au lasso reste locale ; le déplacement groupé qui suit passe par l'aperçu de glissement.
-4. **Glissement en direct.** Les positions des jetons en cours de glissement partent dans un événement `drag-preview`, limité à environ 16 envois par seconde, puis `null` au lâcher. L'autre dashboard les affiche comme un aperçu, et son `/battlemap` aussi.
-5. **Arrivée dans une session.** La session qui rejoint le combat charge d'abord son état depuis la base, puis demande l'état complet aux autres (`sync-request`). Seules les sessions déjà synchronisées répondent (`sync-snapshot`), ce qui évite que deux arrivées simultanées s'échangent leurs états, sans comparer les horloges des machines. Sans réponse au bout de 1,5 s, la session se considère seule. Rien n'est envoyé avant la fin de cette synchro, pour ne pas diffuser un état local périmé. Une session qui rejoint un combat en cours garde le tour reçu (le tour n'est remis au premier combattant qu'en l'absence d'autre session).
-   **Reconnexion :** quand le canal se rétablit après une coupure, la session redemande l'état courant et l'adopte. Pendant cette resynchronisation, elle ne répond pas aux demandes des autres.
-6. **Création différée du canal.** Le canal est créé un tour après le montage : un montage aussitôt démonté (React StrictMode en développement) n'en crée aucun. Deux canaux du même nom ouverts coup sur coup sur la même connexion se gênent (la fermeture de l'ancien efface la présence du nouveau).
-7. **Pas d'écho.** Une valeur reçue est mémorisée par tranche et n'est pas renvoyée. La comparaison se fait par référence.
-8. **Sauvegarde.** Chaque dashboard enregistre son état dans le localStorage. En base (`combat_state`, toutes les 400 ms au plus), **une seule session écrit** : la plus ancienne présente, départagée par son identifiant. Toutes voient les mêmes heures d'arrivée via la présence et désignent donc la même. Une session seule, en connexion ou en erreur écrit elle-même, par sécurité.
-9. **Brouillard.** `BattleMap` adopte maintenant le brouillard reçu en props (`fogReveals`), sauf pendant un coup de pinceau en cours. Il ne remonte au parent que ses propres modifications.
+3. **Jetons par modifications.** Seuls les jetons ajoutés, déplacés ou retirés partent (`tokens-patch`). Deux MJ qui déplacent deux jetons différents au même instant ne s'écrasent plus.
+4. **Brouillard par coups de pinceau.** Seuls les coups ajoutés, prolongés ou retirés partent (`fog-patch`), au plus ~16 fois par seconde pendant que l'on peint, coordonnées arrondies au centième. Chaque coup a un identifiant unique, donc deux MJ peuvent peindre en même temps. Un coup reçu pendant que l'on peint est intégré (le coup en cours garde sa version locale). L'annulation (Ctrl+Z) ne retire que ses propres coups. Effacer tout le brouillard envoie un seul `reset`.
+5. **Ping.** Un ping émis sur la map part dans un événement `ping` (identifiant et position). L'autre dashboard l'affiche et le relaie à son `/battlemap`. La sélection au lasso reste locale ; le déplacement groupé qui suit passe par l'aperçu de glissement.
+6. **Glissement en direct.** Les positions des jetons en cours de glissement partent dans un événement `drag-preview`, limité à environ 16 envois par seconde, puis `null` au lâcher. L'autre dashboard les affiche comme un aperçu, et son `/battlemap` aussi.
+7. **Arrivée dans une session.** La session qui rejoint le combat charge d'abord son état depuis la base, puis demande l'état complet aux autres (`sync-request`). L'état complet ne contient ni les voies ni le brouillard ; le brouillard suit en plusieurs morceaux (`fog-patch`, le premier avec `reset`) adressés à la seule session qui arrive. Seules les sessions déjà synchronisées répondent (`sync-snapshot`), ce qui évite que deux arrivées simultanées s'échangent leurs états, sans comparer les horloges des machines. Sans réponse au bout de 1,5 s, la session se considère seule. Rien n'est envoyé avant la fin de cette synchro, pour ne pas diffuser un état local périmé. Une session qui rejoint un combat en cours garde le tour reçu (le tour n'est remis au premier combattant qu'en l'absence d'autre session).
+   **Reconnexion :** quand le canal se rétablit après une coupure, la session redemande l'état courant et l'adopte. Pendant cette resynchronisation, elle ne répond pas aux demandes des autres. Les modifications faites pendant la coupure (tranches, combattants, jetons, brouillard) sont mises de côté, puis réappliquées par-dessus l'état reçu et envoyées. Les aperçus (glissement, ping) ne sont pas conservés.
+8. **Création différée du canal.** Le canal est créé un tour après le montage : un montage aussitôt démonté (React StrictMode en développement) n'en crée aucun. Deux canaux du même nom ouverts coup sur coup sur la même connexion se gênent (la fermeture de l'ancien efface la présence du nouveau).
+9. **Pas d'écho.** Ce qui vient du réseau n'est pas renvoyé : par référence pour les tranches et les combattants, par contenu pour les jetons (position attendue) et le brouillard (signature attendue de chaque coup).
+10. **Sauvegarde.** Chaque dashboard enregistre son état dans le localStorage. En base (`combat_state`, toutes les 400 ms au plus), **une seule session écrit** : la plus ancienne présente, départagée par son identifiant. Toutes voient les mêmes heures d'arrivée via la présence et désignent donc la même. Une session seule, en connexion ou en erreur écrit elle-même, par sécurité.
+11. **Brouillard.** `BattleMap` adopte maintenant le brouillard reçu en props (`fogReveals`), sauf pendant un coup de pinceau en cours. Il ne remonte au parent que ses propres modifications.
 
 ## Sécurité
 
@@ -71,15 +74,14 @@ Les deux sessions doivent tourner sur **la même version** de l'application. Par
 
 ### Limites connues
 
-- **Modifications simultanées d'une même tranche ou d'un même combattant.** La dernière modification reçue gagne. Exemple : deux MJ qui modifient au même instant les PV du même combattant, ou qui déplacent deux jetons différents au même instant (`mapTokens` est une seule tranche). Piste : envoyer aussi les jetons par modifications.
-- **Brouillard pendant un coup de pinceau.** Une mise à jour reçue pendant que l'on peint est ignorée, puis écrasée par le coup de pinceau local.
+- **Modifications simultanées d'un même élément.** La dernière modification reçue gagne : deux MJ qui modifient au même instant les PV du même combattant, ou déplacent le même jeton.
+- **Coupure des deux côtés.** Si les deux sessions modifient le même élément pendant une coupure, la dernière renvoyée gagne.
 
 ### Robustesse
 
-- **Taille des messages.** Supabase refuse les messages trop gros (vérifié : 300 Ko refusé, 200 Ko accepté). Les voies ne voyagent plus, mais un brouillard très détaillé (`fogReveals`) peut encore dépasser la limite. Si l'état complet est refusé, la session qui arrive garde l'état chargé depuis la base. Piste : compresser le brouillard ou n'envoyer que les nouveaux coups de pinceau.
-- **Modifications faites pendant une coupure.** À la reconnexion, l'état de l'autre session fait foi : les changements faits localement pendant la coupure peuvent être perdus.
+- **Taille des messages.** Supabase refuse les messages au-delà d'environ 256 Ko. Les voies et le brouillard ne font plus partie de l'état complet ; un seul coup de pinceau démesuré (plusieurs milliers de points) pourrait encore dépasser la limite.
 
 ### Suite de la feature
 
-- Rendre l'indicateur de présence plus riche : avatar, rôle (MJ ou co-MJ), et qui est en train d'agir.
+- Indicateur de présence : ajouter un avatar.
 - Ouvrir la session aux joueurs, en lecture seule, ou avec le droit de déplacer leurs propres jetons, une fois le canal sécurisé.

@@ -26,7 +26,11 @@ export interface CombatSessionPeer {
   clientId: string;
   userId: string | null;
   name: string;
+  // Rôle affiché ("MJ" ou "co-MJ").
+  role: string;
   joinedAt: number;
+  // Vrai si cette session a envoyé une action dans les dernières secondes.
+  active?: boolean;
 }
 
 export type CombatSessionStatus = "idle" | "connecting" | "syncing" | "ready" | "error";
@@ -35,8 +39,29 @@ export type CombatSessionStatus = "idle" | "connecting" | "syncing" | "ready" | 
 // - "combatants-patch" : combattants ajoutés/modifiés/retirés (la liste complète dépasse vite
 //   la taille max d'un message Broadcast, surtout avec les voies des PJ) ;
 // - "drag-preview" : positions des jetons en cours de glissement (null = fin du glissement) ;
-// - "ping" : point signalé sur la battle map.
-export type CombatSessionEvent = "combatants-patch" | "drag-preview" | "ping";
+// - "ping" : point signalé sur la battle map ;
+// - "tokens-patch" : jetons ajoutés/déplacés/retirés ;
+// - "fog-patch" : coups de pinceau du brouillard ajoutés/prolongés/retirés (reset = tout effacer).
+export type CombatSessionEvent = "combatants-patch" | "drag-preview" | "ping" | "tokens-patch" | "fog-patch";
+
+const SESSION_EVENTS: readonly CombatSessionEvent[] = ["combatants-patch", "drag-preview", "ping", "tokens-patch", "fog-patch"];
+
+// Événements qui modifient l'état : mis de côté pendant une coupure puis réappliqués et renvoyés.
+const DURABLE_EVENTS = new Set<CombatSessionEvent>(["combatants-patch", "tokens-patch", "fog-patch"]);
+
+// Message envoyé à une seule session (ex. brouillard découpé envoyé à une session qui arrive).
+export interface CombatSessionFollowUp {
+  event: CombatSessionEvent;
+  data: unknown;
+}
+
+type OutboxEntry =
+  | { kind: "slice"; slice: CombatSlice; value: unknown }
+  | { kind: "event"; event: CombatSessionEvent; data: unknown };
+
+const OUTBOX_LIMIT = 500;
+// Durée pendant laquelle une session est montrée « en train d'agir » après une action.
+const ACTIVITY_WINDOW_MS = 2000;
 
 interface UseCombatSessionOptions {
   chapitreId: string;
@@ -44,7 +69,10 @@ interface UseCombatSessionOptions {
   enabled: boolean;
   userId: string | null;
   name: string;
+  role: string;
   getSnapshot: () => CombatSnapshot;
+  // Messages envoyés à la session qui arrive, juste après l'état complet (ex. brouillard découpé).
+  getSnapshotFollowUps?: () => CombatSessionFollowUp[];
   onRemoteSlice: (slice: CombatSlice, value: unknown) => void;
   onRemoteSnapshot: (snapshot: CombatSnapshot) => void;
   onRemoteEvent?: (event: CombatSessionEvent, payload: unknown) => void;
@@ -76,7 +104,9 @@ export function useCombatSession({
   enabled,
   userId,
   name,
+  role,
   getSnapshot,
+  getSnapshotFollowUps,
   onRemoteSlice,
   onRemoteSnapshot,
   onRemoteEvent,
@@ -90,47 +120,91 @@ export function useCombatSession({
   const [selfJoinedAt, setSelfJoinedAt] = useState(0);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const readyRef = useRef(false);
+  // Vrai entre une reconnexion et la réception de l'état à jour (ou le délai d'attente).
+  const resyncingRef = useRef(false);
+  // Modifications locales faites pendant une coupure ou une resynchronisation.
+  const outboxRef = useRef<OutboxEntry[]>([]);
+  // Dernière action reçue de chaque session, pour l'indicateur « en train d'agir ».
+  const activityRef = useRef(new Map<string, number>());
+  const [activeClientIds, setActiveClientIds] = useState<string[]>([]);
 
   // Les callbacks changent à chaque rendu : on les lit via des refs pour ne pas recréer le canal.
   const getSnapshotRef = useRef(getSnapshot);
+  const getSnapshotFollowUpsRef = useRef(getSnapshotFollowUps);
   const onRemoteSliceRef = useRef(onRemoteSlice);
   const onRemoteSnapshotRef = useRef(onRemoteSnapshot);
   const onRemoteEventRef = useRef(onRemoteEvent);
   useEffect(() => {
     getSnapshotRef.current = getSnapshot;
+    getSnapshotFollowUpsRef.current = getSnapshotFollowUps;
     onRemoteSliceRef.current = onRemoteSlice;
     onRemoteSnapshotRef.current = onRemoteSnapshot;
     onRemoteEventRef.current = onRemoteEvent;
-  }, [getSnapshot, onRemoteSlice, onRemoteSnapshot, onRemoteEvent]);
+  }, [getSnapshot, getSnapshotFollowUps, onRemoteSlice, onRemoteSnapshot, onRemoteEvent]);
 
-  const identityRef = useRef({ userId, name });
+  const identityRef = useRef({ userId, name, role });
   useEffect(() => {
-    identityRef.current = { userId, name };
-  }, [userId, name]);
+    identityRef.current = { userId, name, role };
+  }, [userId, name, role]);
+
+  // Indicateur « en train d'agir » : recalculé deux fois par seconde, pas à chaque message.
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      const active = [...activityRef.current.entries()]
+        .filter(([, at]) => now - at < ACTIVITY_WINDOW_MS)
+        .map(([id]) => id)
+        .sort();
+      setActiveClientIds((prev) => (prev.join("|") === active.join("|") ? prev : active));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled || !chapitreId) return;
 
     const clientId = clientIdRef.current;
+    const activity = activityRef.current;
     const joinedAt = Date.now();
     let syncTimer: number | null = null;
-    // Vrai entre une reconnexion et la réception de l'état à jour (ou le délai d'attente).
-    let resyncing = false;
     let hasSubscribed = false;
     readyRef.current = false;
+    resyncingRef.current = false;
+    outboxRef.current = [];
 
     const clearSyncTimer = () => {
       if (syncTimer !== null) window.clearTimeout(syncTimer);
       syncTimer = null;
     };
 
+    // Après une resynchronisation : les modifications locales faites pendant la coupure sont
+    // réappliquées par-dessus l'état reçu, puis envoyées aux autres sessions.
+    const flushOutbox = (ch: RealtimeChannel) => {
+      const pending = outboxRef.current;
+      outboxRef.current = [];
+      if (pending.length === 0) return;
+      console.info(`[combat-session] ${pending.length} modification(s) faite(s) pendant la coupure renvoyée(s)`);
+      for (const entry of pending) {
+        if (entry.kind === "slice") {
+          onRemoteSliceRef.current(entry.slice, entry.value);
+          void sendLogged(ch, "slice", { from: clientId, slice: entry.slice, value: entry.value });
+        } else {
+          onRemoteEventRef.current?.(entry.event, entry.data);
+          void sendLogged(ch, "event", { from: clientId, event: entry.event, data: entry.data });
+        }
+      }
+    };
+
     const markReady = () => {
+      const wasResyncing = resyncingRef.current;
       if (!readyRef.current) console.info("[combat-session] session prête");
-      else if (resyncing) console.info("[combat-session] resynchronisation terminée");
+      else if (wasResyncing) console.info("[combat-session] resynchronisation terminée");
       clearSyncTimer();
-      resyncing = false;
+      resyncingRef.current = false;
       readyRef.current = true;
       setStatus("ready");
+      if (wasResyncing && channel) flushOutbox(channel);
     };
 
     const topic = `combat-session:${chapitreId}`;
@@ -155,6 +229,7 @@ export function useCombatSession({
         .on("broadcast", { event: "slice" }, ({ payload }) => {
           const msg = payload as { from?: unknown; slice?: unknown; value?: unknown } | null;
           if (!msg || msg.from === clientId || !isCombatSlice(msg.slice)) return;
+          if (typeof msg.from === "string") activityRef.current.set(msg.from, Date.now());
           const checked = sanitizeSlice(msg.slice, msg.value);
           if (!checked.ok) {
             console.warn(`[combat-session] tranche "${msg.slice}" invalide ignorée`);
@@ -163,30 +238,37 @@ export function useCombatSession({
           onRemoteSliceRef.current(msg.slice, checked.value);
         })
         .on("broadcast", { event: "event" }, ({ payload }) => {
-          const msg = payload as { from?: unknown; event?: unknown; data?: unknown } | null;
+          const msg = payload as { from?: unknown; to?: unknown; event?: unknown; data?: unknown } | null;
           if (!msg || msg.from === clientId) return;
-          if (msg.event !== "combatants-patch" && msg.event !== "drag-preview" && msg.event !== "ping") return;
-          const checked = sanitizeEvent(msg.event, msg.data);
+          // Message adressé à une autre session.
+          if (msg.to !== undefined && msg.to !== clientId) return;
+          if (!SESSION_EVENTS.includes(msg.event as CombatSessionEvent)) return;
+          const event = msg.event as CombatSessionEvent;
+          if (typeof msg.from === "string" && msg.to === undefined) activityRef.current.set(msg.from, Date.now());
+          const checked = sanitizeEvent(event, msg.data);
           if (!checked.ok) {
-            console.warn(`[combat-session] événement "${msg.event}" invalide ignoré`);
+            console.warn(`[combat-session] événement "${event}" invalide ignoré`);
             return;
           }
-          onRemoteEventRef.current?.(msg.event, checked.value);
+          onRemoteEventRef.current?.(event, checked.value);
         })
         .on("broadcast", { event: "sync-request" }, ({ payload }) => {
           const msg = payload as { from?: unknown } | null;
           if (!msg || typeof msg.from !== "string" || msg.from === clientId) return;
           // Seules les sessions synchronisées (et pas en train de se resynchroniser) répondent :
           // deux sessions qui arrivent ou se reconnectent en même temps ne s'échangent pas leurs états.
-          const canAnswer = readyRef.current && !resyncing;
+          const canAnswer = readyRef.current && !resyncingRef.current;
           console.info(`[combat-session] demande d'état reçue de ${msg.from}${canAnswer ? ", envoi de l'état" : " (pas synchronisée, ignorée)"}`);
           if (!canAnswer) return;
           void sendLogged(ch, "sync-snapshot", { from: clientId, to: msg.from, snapshot: getSnapshotRef.current() });
+          for (const followUp of getSnapshotFollowUpsRef.current?.() ?? []) {
+            void sendLogged(ch, "event", { from: clientId, to: msg.from, event: followUp.event, data: followUp.data });
+          }
         })
         .on("broadcast", { event: "sync-snapshot" }, ({ payload }) => {
           const msg = payload as { from?: unknown; to?: unknown; snapshot?: unknown } | null;
           if (!msg || msg.to !== clientId) return;
-          if (readyRef.current && !resyncing) return;
+          if (readyRef.current && !resyncingRef.current) return;
           console.info("[combat-session] état complet reçu de", msg.from);
           onRemoteSnapshotRef.current(sanitizeSnapshot(msg.snapshot));
           markReady();
@@ -197,10 +279,11 @@ export function useCombatSession({
             .map((entries) => entries[0])
             .filter((p): p is CombatSessionPeer & { presence_ref: string } =>
               !!p && typeof p.clientId === "string" && p.clientId !== clientId && Number.isFinite(p.joinedAt))
-            .map(({ clientId: id, userId: uid, name: peerName, joinedAt: at }) => ({
+            .map(({ clientId: id, userId: uid, name: peerName, role: peerRole, joinedAt: at }) => ({
               clientId: id,
               userId: typeof uid === "string" ? uid : null,
               name: typeof peerName === "string" ? peerName.slice(0, 100) : "MJ",
+              role: typeof peerRole === "string" ? peerRole.slice(0, 20) : "MJ",
               joinedAt: at,
             }))
             .sort((a, b) => a.joinedAt - b.joinedAt);
@@ -220,13 +303,14 @@ export function useCombatSession({
             clientId,
             userId: identityRef.current.userId,
             name: identityRef.current.name,
+            role: identityRef.current.role,
             joinedAt,
           });
           setStatus("syncing");
           if (hasSubscribed) {
             // Reconnexion après une coupure : des changements ont pu être manqués,
             // on redemande l'état courant aux autres sessions.
-            resyncing = true;
+            resyncingRef.current = true;
             console.info("[combat-session] reconnecté, demande de resynchronisation");
           } else {
             console.info(`[combat-session] je suis ${clientId} (${identityRef.current.name}), demande d'état envoyée`);
@@ -256,6 +340,9 @@ export function useCombatSession({
       window.clearTimeout(startTimer);
       clearSyncTimer();
       readyRef.current = false;
+      resyncingRef.current = false;
+      outboxRef.current = [];
+      activity.clear();
       channelRef.current = null;
       setPeers([]);
       setStatus("idle");
@@ -265,15 +352,34 @@ export function useCombatSession({
 
   // Envoie une tranche modifiée localement. Ignoré tant que la synchro initiale n'est pas faite,
   // pour ne pas pousser un état local potentiellement obsolète aux autres sessions.
+  // Pendant une coupure (canal non rejoint) ou une resynchronisation, les modifications sont mises
+  // de côté (la dernière valeur par tranche, les modifications dans l'ordre) pour être renvoyées ensuite.
+  const shouldQueue = (channel: RealtimeChannel) => channel.state !== "joined" || resyncingRef.current;
+  const queue = (entry: OutboxEntry) => {
+    const outbox = entry.kind === "slice"
+      ? outboxRef.current.filter((e) => !(e.kind === "slice" && e.slice === entry.slice))
+      : outboxRef.current;
+    outboxRef.current = [...outbox, entry].slice(-OUTBOX_LIMIT);
+  };
+
   const publishSlice = useCallback((slice: CombatSlice, value: unknown) => {
     const channel = channelRef.current;
     if (!channel || !readyRef.current) return;
+    if (shouldQueue(channel)) {
+      queue({ kind: "slice", slice, value });
+      return;
+    }
     void sendLogged(channel, "slice", { from: clientIdRef.current, slice, value });
   }, []);
 
   const publishEvent = useCallback((event: CombatSessionEvent, data: unknown) => {
     const channel = channelRef.current;
     if (!channel || !readyRef.current) return;
+    if (shouldQueue(channel)) {
+      // Les aperçus (glissement, ping) n'ont plus de sens après coup : seuls les changements d'état sont gardés.
+      if (DURABLE_EVENTS.has(event)) queue({ kind: "event", event, data });
+      return;
+    }
     void sendLogged(channel, "event", { from: clientIdRef.current, event, data });
   }, []);
 
@@ -286,7 +392,9 @@ export function useCombatSession({
   const isPrimaryWriter = effectiveStatus !== "ready" || peers.every((p) =>
     p.joinedAt > selfJoinedAt || (p.joinedAt === selfJoinedAt && p.clientId > clientId));
 
-  return { status: effectiveStatus, peers, publishSlice, publishEvent, isReady: effectiveStatus === "ready", isPrimaryWriter };
+  const peersWithActivity = peers.map((p) => ({ ...p, active: activeClientIds.includes(p.clientId) }));
+
+  return { status: effectiveStatus, peers: peersWithActivity, publishSlice, publishEvent, isReady: effectiveStatus === "ready", isPrimaryWriter };
 }
 
 // Publie une tranche à chaque changement local de sa valeur.
@@ -295,7 +403,6 @@ export function useCombatSession({
 export function usePublishSlice(
   slice: CombatSlice,
   value: unknown,
-  isReady: boolean,
   publishSlice: (slice: CombatSlice, value: unknown) => void,
   remoteValuesRef: React.MutableRefObject<CombatSnapshot>,
 ) {
@@ -308,7 +415,7 @@ export function usePublishSlice(
       delete remote[slice];
       return;
     }
-    if (!isReady) return;
+    // La session décide : envoi, mise de côté (coupure) ou rien (avant la synchro initiale).
     publishSlice(slice, value);
-  }, [slice, value, isReady, publishSlice, remoteValuesRef]);
+  }, [slice, value, publishSlice, remoteValuesRef]);
 }

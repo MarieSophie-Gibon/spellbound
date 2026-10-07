@@ -27,6 +27,20 @@ import { CombatTopActions } from "./combat/CombatTopActions";
 import { RoundTriggerPanel } from "./combat/RoundTriggerPanel";
 import { CombatTriggerNotification } from "./combat/CombatTriggerNotification";
 import { CombatStickyNote } from "./combat/CombatStickyNote";
+import {
+  type FogPatch,
+  type FogStroke,
+  type TokensPatch,
+  applyFogPatch,
+  applyTokensPatch,
+  chunkFogForTransfer,
+  compactStroke,
+  diffFogStrokes,
+  diffTokens,
+  stampsToStrokes,
+  strokeSig,
+  tokenSig,
+} from "./combat/sessionPatches";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { type CombatSessionEvent, type CombatSlice, type CombatSnapshot, useCombatSession, usePublishSlice } from "@/hooks/scenarios/useCombatSession";
@@ -37,6 +51,8 @@ interface CombatDashboardProps {
   campaignId: string;
   campaignSystem: RpgSystem;
   onBackToScenario?: () => void;
+  // Rôle affiché aux autres MJ dans la session partagée ("MJ" ou "co-MJ").
+  sessionRole?: string;
 }
 
 type FloatingCardPosition = { x: number; y: number };
@@ -46,6 +62,9 @@ const STORAGE_PREFIX = "spellbound:combat-dashboard:";
 function getStorageKey(chapitreId: string): string {
   return `${STORAGE_PREFIX}${chapitreId}`;
 }
+
+// Marqueur « retiré à distance » pour l'anti-écho des jetons et du brouillard.
+const REMOVED = "removed";
 
 // Les voies (descriptions complètes des capacités) ne sont pas envoyées sur la session partagée.
 function withoutVoies(c: Combatant): Combatant {
@@ -92,7 +111,7 @@ function normalizeCombatState(
   };
 }
 
-export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBackToScenario }: CombatDashboardProps) {
+export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBackToScenario, sessionRole = "MJ" }: CombatDashboardProps) {
   const combatData = useCombatDashboardData();
   const { openPopup } = useGrimoirePopup();
   const [combatants, setCombatants] = useState<Combatant[]>([]);
@@ -502,6 +521,34 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     });
   }, [mergeRemoteCombatant]);
 
+  // Jetons et brouillard : échangés par modifications. On note ce qui vient du réseau (par contenu)
+  // pour ne pas le renvoyer : position attendue par jeton, signature attendue par coup de pinceau.
+  const expectedRemoteTokensRef = useRef(new Map<string, string>());
+  const expectedRemoteFogRef = useRef(new Map<number, string>());
+
+  const applyRemoteTokens = useCallback((patch: TokensPatch) => {
+    const current = (sliceValuesRef.current.mapTokens as MapToken[] | undefined) ?? [];
+    const currentById = new Map(current.map((t) => [t.combatantId, t]));
+    for (const t of patch.upserts) {
+      const before = currentById.get(t.combatantId);
+      if (!before || tokenSig(before) !== tokenSig(t)) expectedRemoteTokensRef.current.set(t.combatantId, tokenSig(t));
+    }
+    for (const id of patch.removed) if (currentById.has(id)) expectedRemoteTokensRef.current.set(id, REMOVED);
+    setMapTokens((prev) => applyTokensPatch(prev, patch));
+  }, []);
+
+  const applyRemoteFog = useCallback((patch: FogPatch) => {
+    const current = stampsToStrokes((sliceValuesRef.current.fogReveals as FogRevealStamp[] | undefined) ?? []);
+    const currentSigs = new Map(current.map((st) => [st.id, strokeSig(st)]));
+    const upsertIds = new Set(patch.upserts.map((st) => st.id));
+    const removedIds = patch.reset ? current.map((st) => st.id).filter((id) => !upsertIds.has(id)) : patch.removed;
+    for (const st of patch.upserts) {
+      if (currentSigs.get(st.id) !== strokeSig(st)) expectedRemoteFogRef.current.set(st.id, strokeSig(st));
+    }
+    for (const id of removedIds) if (currentSigs.has(id)) expectedRemoteFogRef.current.set(id, REMOVED);
+    setFogReveals((prev) => applyFogPatch(prev, patch));
+  }, []);
+
   // Positions des jetons que l'autre MJ est en train de glisser (null = aucun glissement).
   const [remoteDragPreview, setRemoteDragPreview] = useState<Record<string, { x: number; y: number }> | null>(null);
 
@@ -512,7 +559,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     if (event === "ping") setRemotePing(data as { id: number; x: number; y: number });
     if (event === "combatants-patch") applyCombatantsPatch(data as { upserts?: Combatant[]; removed?: string[] });
     if (event === "drag-preview") setRemoteDragPreview((data as Record<string, { x: number; y: number }> | null) ?? null);
-  }, [applyCombatantsPatch]);
+    if (event === "tokens-patch") applyRemoteTokens(data as TokensPatch);
+    if (event === "fog-patch") applyRemoteFog(data as FogPatch);
+  }, [applyCombatantsPatch, applyRemoteTokens, applyRemoteFog]);
 
   const applyRemoteSlice = useCallback((slice: CombatSlice, value: unknown) => {
     if (slice === "combatants") {
@@ -523,7 +572,13 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     switch (slice) {
       case "activeCombatantId": setActiveCombatantId(value as string | null); break;
       case "round": setRound(value as number); break;
-      case "mapTokens": setMapTokens(value as MapToken[]); break;
+      case "mapTokens": {
+        // État complet : la liste reçue remplace la liste locale.
+        const incoming = value as MapToken[];
+        const current = (sliceValuesRef.current.mapTokens as MapToken[] | undefined) ?? [];
+        applyRemoteTokens({ upserts: incoming, removed: diffTokens(current, incoming).removed });
+        break;
+      }
       case "encounters": setEncounters(value as EncounterEntry[]); break;
       case "fogEnabled": setFogEnabled(value as boolean); break;
       case "fogReveals": setFogReveals(value as FogRevealStamp[]); break;
@@ -531,7 +586,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       case "roundTriggers": setRoundTriggers(value as RoundTriggerEvent[]); break;
       case "battlemapUrl": setBattlemapUrl(value as string | null); break;
     }
-  }, [applyRemoteCombatants]);
+  }, [applyRemoteCombatants, applyRemoteTokens]);
 
   const applyRemoteSnapshot = useCallback((snapshot: CombatSnapshot) => {
     receivedSnapshotRef.current = true;
@@ -541,9 +596,16 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   }, [applyRemoteSlice]);
 
   const getSessionSnapshot = useCallback((): CombatSnapshot => {
-    const current = sliceValuesRef.current;
+    const { fogReveals: _fog, ...current } = sliceValuesRef.current;
+    void _fog;
     const list = (current.combatants as Combatant[] | undefined) ?? [];
     return { ...current, combatants: list.map(withoutVoies) };
+  }, []);
+
+  // Le brouillard peut dépasser la taille max d'un message : envoyé en morceaux après l'état complet.
+  const getSnapshotFollowUps = useCallback(() => {
+    const strokes = stampsToStrokes((sliceValuesRef.current.fogReveals as FogRevealStamp[] | undefined) ?? []);
+    return chunkFogForTransfer(strokes).map((data) => ({ event: "fog-patch" as const, data }));
   }, []);
 
   const combatSession = useCombatSession({
@@ -551,12 +613,14 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     enabled: isHydrated,
     userId: authUser?.id ?? null,
     name: (authUser?.user_metadata?.pseudo as string | undefined) ?? authUser?.email ?? "MJ",
+    role: sessionRole,
     getSnapshot: getSessionSnapshot,
+    getSnapshotFollowUps,
     onRemoteSlice: applyRemoteSlice,
     onRemoteSnapshot: applyRemoteSnapshot,
     onRemoteEvent: applyRemoteEvent,
   });
-  const { isReady: isSessionReady, publishSlice, publishEvent, isPrimaryWriter } = combatSession;
+  const { publishSlice, publishEvent, isPrimaryWriter } = combatSession;
   useEffect(() => {
     isPrimaryWriterRef.current = isPrimaryWriter;
   }, [isPrimaryWriter]);
@@ -577,9 +641,68 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       if (remoteRemovedIdsRef.current.delete(c.id)) continue;
       removed.push(c.id);
     }
-    if (!isSessionReady || (upserts.length === 0 && removed.length === 0)) return;
+    if (upserts.length === 0 && removed.length === 0) return;
     publishEvent("combatants-patch", { upserts: upserts.map(withoutVoies), removed });
-  }, [combatants, isSessionReady, publishEvent]);
+  }, [combatants, publishEvent]);
+
+  // Jetons ajoutés/déplacés/retirés localement (ceux reçus du réseau sont filtrés).
+  const prevTokensRef = useRef(mapTokens);
+  useEffect(() => {
+    const prev = prevTokensRef.current;
+    if (prev === mapTokens) return;
+    prevTokensRef.current = mapTokens;
+    const expected = expectedRemoteTokensRef.current;
+    const diff = diffTokens(prev, mapTokens);
+    const upserts = diff.upserts.filter((t) => {
+      if (expected.get(t.combatantId) !== tokenSig(t)) return true;
+      expected.delete(t.combatantId);
+      return false;
+    });
+    const removed = diff.removed.filter((id) => {
+      if (expected.get(id) !== REMOVED) return true;
+      expected.delete(id);
+      return false;
+    });
+    if (upserts.length === 0 && removed.length === 0) return;
+    publishEvent("tokens-patch", { upserts, removed });
+  }, [mapTokens, publishEvent]);
+
+  // Brouillard : coups de pinceau ajoutés/prolongés/retirés localement, ~16 envois/s max pendant
+  // que l'on peint (ceux reçus du réseau sont filtrés).
+  const lastPublishedFogRef = useRef<FogStroke[] | null>(null);
+  const fogFlushTimerRef = useRef<number | null>(null);
+  const flushFog = useCallback(() => {
+    fogFlushTimerRef.current = null;
+    const next = stampsToStrokes((sliceValuesRef.current.fogReveals as FogRevealStamp[] | undefined) ?? []);
+    const prev = lastPublishedFogRef.current ?? next;
+    lastPublishedFogRef.current = next;
+    const expected = expectedRemoteFogRef.current;
+    const diff = diffFogStrokes(prev, next);
+    const upserts = diff.upserts.filter((st) => {
+      if (expected.get(st.id) !== strokeSig(st)) return true;
+      expected.delete(st.id);
+      return false;
+    });
+    const removed = diff.removed.filter((id) => {
+      if (expected.get(id) !== REMOVED) return true;
+      expected.delete(id);
+      return false;
+    });
+    if (upserts.length === 0 && removed.length === 0) return;
+    // Brouillard entièrement effacé localement : un seul « reset » plutôt que la liste des coups.
+    const reset = next.length === 0 && removed.length > 0;
+    publishEvent("fog-patch", { reset, upserts: upserts.map(compactStroke), removed: reset ? [] : removed });
+  }, [publishEvent]);
+  useEffect(() => {
+    if (lastPublishedFogRef.current === null) {
+      lastPublishedFogRef.current = stampsToStrokes(fogReveals);
+      return;
+    }
+    if (fogFlushTimerRef.current === null) fogFlushTimerRef.current = window.setTimeout(flushFog, 60);
+  }, [fogReveals, flushFog]);
+  useEffect(() => () => {
+    if (fogFlushTimerRef.current !== null) window.clearTimeout(fogFlushTimerRef.current);
+  }, []);
 
   // Glissement de jetons en direct : ~16 envois/s max pendant le glissement, puis null au lâcher.
   const dragThrottleRef = useRef<{ last: number; timer: number | null; pending: Record<string, { x: number; y: number }> | null }>({ last: 0, timer: null, pending: null });
@@ -614,15 +737,13 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const handleLocalPing = useCallback((ping: { id: number; x: number; y: number }) => {
     publishEvent("ping", ping);
   }, [publishEvent]);
-  usePublishSlice("activeCombatantId", activeCombatantId, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("round", round, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("mapTokens", mapTokens, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("encounters", encounters, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("fogEnabled", fogEnabled, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("fogReveals", fogReveals, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("combatNote", combatNote, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("roundTriggers", roundTriggers, isSessionReady, publishSlice, remoteSliceValuesRef);
-  usePublishSlice("battlemapUrl", battlemapUrl, isSessionReady, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("activeCombatantId", activeCombatantId, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("round", round, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("encounters", encounters, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("fogEnabled", fogEnabled, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("combatNote", combatNote, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("roundTriggers", roundTriggers, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("battlemapUrl", battlemapUrl, publishSlice, remoteSliceValuesRef);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -1300,7 +1421,13 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             <span className={`w-1.5 h-1.5 rounded-full ${combatSession.status === "ready" ? "bg-emerald-400" : combatSession.status === "error" ? "bg-red-400" : "bg-amber-300 animate-pulse"}`} />
             <Users className="w-3 h-3" />
             {combatSession.peers.length > 0
-              ? combatSession.peers.map((p) => p.name).join(", ")
+              ? combatSession.peers.map((p) => (
+                <span key={p.clientId} className="flex items-center gap-1" title={p.active ? `${p.name} est en train d'agir` : undefined}>
+                  {p.active && <span className="w-1.5 h-1.5 rounded-full bg-sky-300 animate-ping" />}
+                  {p.name}
+                  <span className="text-white/40">({p.role})</span>
+                </span>
+              ))
               : "Seul sur ce combat"}
           </div>
         )}

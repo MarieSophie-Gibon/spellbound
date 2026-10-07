@@ -62,5 +62,11 @@ describe("combatSessionSchema", () => {
     expect(sanitizeEvent("ping", { id: 1, x: 10, y: 20, extra: "x" })).toEqual({ ok: true, value: { id: 1, x: 10, y: 20 } });
     expect(sanitizeEvent("ping", { id: "1", x: 10, y: 20 }).ok).toBe(false);
     expect(sanitizeEvent("ping", { id: 1, x: 500, y: 20 }).ok).toBe(false);
+    expect(sanitizeEvent("tokens-patch", { upserts: [{ combatantId: "c1", x: 5, y: 6 }] })).toEqual({ ok: true, value: { upserts: [{ combatantId: "c1", x: 5, y: 6 }], removed: [] } });
+    expect(sanitizeEvent("tokens-patch", { upserts: [{ combatantId: "c1", x: "5", y: 6 }] }).ok).toBe(false);
+    expect(sanitizeEvent("fog-patch", { reset: true })).toEqual({ ok: true, value: { reset: true, upserts: [], removed: [] } });
+    expect(sanitizeEvent("fog-patch", { upserts: [{ id: 1, r: 4, points: [{ x: 1, y: 2 }] }], removed: [2] }).ok).toBe(true);
+    expect(sanitizeEvent("fog-patch", { upserts: [{ id: "1", r: 4, points: [] }] }).ok).toBe(false);
+    expect(sanitizeEvent("fog-patch", { reset: "yes" }).ok).toBe(false);
   });
 });

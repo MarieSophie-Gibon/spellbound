@@ -7,9 +7,11 @@ import type { RpgSystem } from "@/lib/types/rpgSystem";
 interface CombatPageProps {
   campaignId: string;
   campaignSystem: RpgSystem;
+  // Rôle affiché aux autres MJ dans la session partagée.
+  sessionRole?: string;
 }
 
-export function Combat({ campaignId, campaignSystem }: CombatPageProps) {
+export function Combat({ campaignId, campaignSystem, sessionRole }: CombatPageProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -43,6 +45,7 @@ export function Combat({ campaignId, campaignSystem }: CombatPageProps) {
           chapitreId={chapitreId}
           campaignId={campaignId}
           campaignSystem={campaignSystem}
+          sessionRole={sessionRole}
           onBackToScenario={() => navigate(`/campaign/scenarios?chapitreId=${chapitreId}`)}
         />
       </div>

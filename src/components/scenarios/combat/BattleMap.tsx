@@ -218,7 +218,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const isFogPaintingRef = useRef(false);
   const fogPathsRef = useRef<FogRevealPath[]>([]);
   const lastFogPointRef = useRef<{ x: number; y: number; strokeId: number } | null>(null);
-  const fogStrokeSeqRef = useRef(0);
+  // Coups de pinceau peints dans cette session : l'annulation ne retire que ceux-là.
+  const ownFogStrokeIdsRef = useRef(new Set<number>());
   const currentFogStrokeIdRef = useRef<number | null>(null);
   const [fogActionNotice, setFogActionNotice] = useState<string | null>(null);
   const fogNoticeTimerRef = useRef<number | null>(null);
@@ -285,11 +286,15 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     const propSig = JSON.stringify(fogRevealsProp ?? []);
     if (propSig === lastFogPropSigRef.current) return;
     lastFogPropSigRef.current = propSig;
-    if (isFogPaintingRef.current) return;
     // Écho de notre propre valeur remontée : rien à faire.
     if (propSig === lastLocalFogSigRef.current) return;
-    const incoming = fogRevealsProp ?? [];
-    requestAnimationFrame(() => setFogPaths(fogRevealsToPaths(incoming)));
+    const incoming = fogRevealsToPaths(fogRevealsProp ?? []);
+    requestAnimationFrame(() => setFogPaths((prev) => {
+      const paintingId = isFogPaintingRef.current ? currentFogStrokeIdRef.current : null;
+      const painting = paintingId === null ? undefined : prev.find((path) => path.id === paintingId);
+      if (!painting) return incoming;
+      return [...incoming.filter((path) => path.id !== painting.id), painting];
+    }));
   }, [fogRevealsProp, fogRevealsToPaths]);
 
   // Brouillard modifié localement : remonté au parent, uniquement quand c'est le local qui change
@@ -764,9 +769,11 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
 
   const undoLastFogStroke = useCallback(() => {
     const current = fogPathsRef.current;
-    if (current.length === 0) return false;
-    const next = current.slice(0, -1);
-    setFogPaths(next);
+    let index = current.length - 1;
+    while (index >= 0 && !ownFogStrokeIdsRef.current.has(current[index].id)) index--;
+    if (index < 0) return false;
+    ownFogStrokeIdsRef.current.delete(current[index].id);
+    setFogPaths([...current.slice(0, index), ...current.slice(index + 1)]);
     return true;
   }, []);
 
@@ -804,13 +811,15 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     if (x < 0 || x > 100 || y < 0 || y > 100) return;
 
-    fogStrokeSeqRef.current += 1;
-    currentFogStrokeIdRef.current = fogStrokeSeqRef.current;
+    // Identifiant unique entre sessions : deux MJ peuvent peindre en même temps.
+    const strokeId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+    ownFogStrokeIdsRef.current.add(strokeId);
+    currentFogStrokeIdRef.current = strokeId;
     setFogPaths((prev) => trimFogPaths([
       ...prev,
-      { id: fogStrokeSeqRef.current, r: fogBrushSize, points: [{ x, y }] },
+      { id: strokeId, r: fogBrushSize, points: [{ x, y }] },
     ]));
-    lastFogPointRef.current = { x, y, strokeId: fogStrokeSeqRef.current };
+    lastFogPointRef.current = { x, y, strokeId };
     isFogPaintingRef.current = true;
     (e.currentTarget as HTMLCanvasElement).setPointerCapture(e.pointerId);
   }, [isFogEditMode, fogEnabled, fogBrushSize, trimFogPaths]);
