@@ -29,7 +29,7 @@ import { CombatTriggerNotification } from "./combat/CombatTriggerNotification";
 import { CombatStickyNote } from "./combat/CombatStickyNote";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { type CombatSlice, type CombatSnapshot, useCombatSession, usePublishSlice } from "@/hooks/scenarios/useCombatSession";
+import { type CombatSessionEvent, type CombatSlice, type CombatSnapshot, useCombatSession, usePublishSlice } from "@/hooks/scenarios/useCombatSession";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
 
 interface CombatDashboardProps {
@@ -447,10 +447,52 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     };
   }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl]);
 
+  // Combattants : échangés par modifications (patch) plutôt qu'en liste complète.
+  // On mémorise ce qui vient du réseau pour ne pas le renvoyer (anti-écho) :
+  // les objets combattants reçus (par référence) et les ids retirés à distance.
+  const remoteCombatantObjsRef = useRef(new WeakSet<Combatant>());
+  const remoteRemovedIdsRef = useRef(new Set<string>());
+
+  const applyRemoteCombatants = useCallback((list: Combatant[]) => {
+    const nextIds = new Set(list.map((c) => c.id));
+    for (const c of list) remoteCombatantObjsRef.current.add(c);
+    setCombatants((prev) => {
+      for (const c of prev) if (!nextIds.has(c.id)) remoteRemovedIdsRef.current.add(c.id);
+      return list;
+    });
+  }, []);
+
+  const applyCombatantsPatch = useCallback((patch: { upserts?: Combatant[]; removed?: string[] }) => {
+    const upserts = Array.isArray(patch?.upserts) ? patch.upserts : [];
+    const removed = new Set(Array.isArray(patch?.removed) ? patch.removed : []);
+    for (const c of upserts) remoteCombatantObjsRef.current.add(c);
+    for (const id of removed) remoteRemovedIdsRef.current.add(id);
+    setCombatants((prev) => {
+      const byId = new Map(upserts.map((c) => [c.id, c]));
+      const next = prev
+        .filter((c) => !removed.has(c.id))
+        .map((c) => byId.get(c.id) ?? c);
+      const known = new Set(prev.map((c) => c.id));
+      for (const c of upserts) if (!known.has(c.id) && !removed.has(c.id)) next.push(c);
+      return next;
+    });
+  }, []);
+
+  // Positions des jetons que l'autre MJ est en train de glisser (null = aucun glissement).
+  const [remoteDragPreview, setRemoteDragPreview] = useState<Record<string, { x: number; y: number }> | null>(null);
+
+  const applyRemoteEvent = useCallback((event: CombatSessionEvent, data: unknown) => {
+    if (event === "combatants-patch") applyCombatantsPatch(data as { upserts?: Combatant[]; removed?: string[] });
+    if (event === "drag-preview") setRemoteDragPreview((data as Record<string, { x: number; y: number }> | null) ?? null);
+  }, [applyCombatantsPatch]);
+
   const applyRemoteSlice = useCallback((slice: CombatSlice, value: unknown) => {
+    if (slice === "combatants") {
+      if (Array.isArray(value)) applyRemoteCombatants(value as Combatant[]);
+      return;
+    }
     remoteSliceValuesRef.current[slice] = value;
     switch (slice) {
-      case "combatants": setCombatants(value as Combatant[]); break;
       case "activeCombatantId": setActiveCombatantId(value as string | null); break;
       case "round": setRound(value as number); break;
       case "mapTokens": setMapTokens(value as MapToken[]); break;
@@ -461,7 +503,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       case "roundTriggers": setRoundTriggers(value as RoundTriggerEvent[]); break;
       case "battlemapUrl": setBattlemapUrl(value as string | null); break;
     }
-  }, []);
+  }, [applyRemoteCombatants]);
 
   const applyRemoteSnapshot = useCallback((snapshot: CombatSnapshot) => {
     for (const [slice, value] of Object.entries(snapshot)) {
@@ -479,9 +521,59 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     getSnapshot: getSessionSnapshot,
     onRemoteSlice: applyRemoteSlice,
     onRemoteSnapshot: applyRemoteSnapshot,
+    onRemoteEvent: applyRemoteEvent,
   });
-  const { isReady: isSessionReady, publishSlice } = combatSession;
-  usePublishSlice("combatants", combatants, isSessionReady, publishSlice, remoteSliceValuesRef);
+  const { isReady: isSessionReady, publishSlice, publishEvent } = combatSession;
+
+  // Publie les combattants ajoutés/modifiés/retirés localement depuis le dernier rendu.
+  const prevCombatantsRef = useRef(combatants);
+  useEffect(() => {
+    const prev = prevCombatantsRef.current;
+    if (prev === combatants) return;
+    prevCombatantsRef.current = combatants;
+
+    const prevById = new Map(prev.map((c) => [c.id, c]));
+    const nextIds = new Set(combatants.map((c) => c.id));
+    const upserts = combatants.filter((c) => prevById.get(c.id) !== c && !remoteCombatantObjsRef.current.has(c));
+    const removed: string[] = [];
+    for (const c of prev) {
+      if (nextIds.has(c.id)) continue;
+      if (remoteRemovedIdsRef.current.delete(c.id)) continue;
+      removed.push(c.id);
+    }
+    if (!isSessionReady || (upserts.length === 0 && removed.length === 0)) return;
+    publishEvent("combatants-patch", { upserts, removed });
+  }, [combatants, isSessionReady, publishEvent]);
+
+  // Glissement de jetons en direct : ~16 envois/s max pendant le glissement, puis null au lâcher.
+  const dragThrottleRef = useRef<{ last: number; timer: number | null; pending: Record<string, { x: number; y: number }> | null }>({ last: 0, timer: null, pending: null });
+  const handleLocalDragPreview = useCallback((positions: Record<string, { x: number; y: number }> | null) => {
+    const t = dragThrottleRef.current;
+    if (positions === null) {
+      if (t.timer !== null) window.clearTimeout(t.timer);
+      t.timer = null;
+      t.pending = null;
+      t.last = 0;
+      publishEvent("drag-preview", null);
+      return;
+    }
+    const now = Date.now();
+    const elapsed = now - t.last;
+    if (elapsed >= 60) {
+      t.last = now;
+      publishEvent("drag-preview", positions);
+      return;
+    }
+    t.pending = positions;
+    if (t.timer === null) {
+      t.timer = window.setTimeout(() => {
+        t.timer = null;
+        t.last = Date.now();
+        if (t.pending) publishEvent("drag-preview", t.pending);
+        t.pending = null;
+      }, 60 - elapsed);
+    }
+  }, [publishEvent]);
   usePublishSlice("activeCombatantId", activeCombatantId, isSessionReady, publishSlice, remoteSliceValuesRef);
   usePublishSlice("round", round, isSessionReady, publishSlice, remoteSliceValuesRef);
   usePublishSlice("mapTokens", mapTokens, isSessionReady, publishSlice, remoteSliceValuesRef);
@@ -1126,9 +1218,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         {combatSession.status !== "idle" && (
           <div
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[#E3CCCD]/20 bg-[#1E1941]/80 text-[11px] text-white/70"
-            title={combatSession.status === "ready" ? "Session de combat partagée" : "Connexion à la session..."}
+            title={combatSession.status === "ready" ? "Session de combat partagée" : combatSession.status === "error" ? "Session de combat indisponible (voir la console)" : "Connexion à la session..."}
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${combatSession.status === "ready" ? "bg-emerald-400" : "bg-amber-300 animate-pulse"}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${combatSession.status === "ready" ? "bg-emerald-400" : combatSession.status === "error" ? "bg-red-400" : "bg-amber-300 animate-pulse"}`} />
             <Users className="w-3 h-3" />
             {combatSession.peers.length > 0
               ? combatSession.peers.map((p) => p.name).join(", ")
@@ -1216,6 +1308,8 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             fogReveals={fogReveals}
             onFogEnabledChange={setFogEnabled}
             onFogRevealsChange={setFogReveals}
+            onDragPreviewChange={handleLocalDragPreview}
+            remoteDragPreview={remoteDragPreview}
           />
         ) : (
           <div className="h-full w-full rounded-xl border border-white/12 bg-black/20 flex items-center justify-center">

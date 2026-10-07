@@ -38,6 +38,7 @@ vi.mock("@/lib/supabase", () => ({
   supabase: {
     channel: vi.fn(() => mockChannel.channel),
     removeChannel: vi.fn(async () => "ok"),
+    getChannels: vi.fn(() => []),
   },
 }));
 
@@ -48,7 +49,7 @@ function emit(event: string, payload: unknown) {
   act(() => handler?.({ payload }));
 }
 
-function renderSession(overrides: Partial<Parameters<typeof useCombatSession>[0]> = {}) {
+async function renderSession(overrides: Partial<Parameters<typeof useCombatSession>[0]> = {}) {
   const onRemoteSlice = vi.fn();
   const onRemoteSnapshot = vi.fn();
   const getSnapshot = vi.fn(() => ({ round: 3 }) as CombatSnapshot);
@@ -64,6 +65,8 @@ function renderSession(overrides: Partial<Parameters<typeof useCombatSession>[0]
       ...overrides,
     }),
   );
+  // La connexion est différée (minuteur puis promesse) : on la laisse se faire.
+  await act(async () => { vi.advanceTimersByTime(0); await Promise.resolve(); });
   return { hook, onRemoteSlice, onRemoteSnapshot, getSnapshot };
 }
 
@@ -78,8 +81,23 @@ describe("useCombatSession", () => {
     vi.useRealTimers();
   });
 
-  it("asks peers for the current state on join and ignores publishes until synced", () => {
-    const { hook } = renderSession();
+  it("does not open a channel for a mount that is immediately unmounted (StrictMode)", async () => {
+    const { supabase } = await import("@/lib/supabase");
+    const channelSpy = vi.mocked(supabase.channel);
+    channelSpy.mockClear();
+    const hook = renderHook(() =>
+      useCombatSession({
+        chapitreId: "chap-1", enabled: true, userId: "u", name: "MJ",
+        getSnapshot: () => ({}), onRemoteSlice: vi.fn(), onRemoteSnapshot: vi.fn(),
+      }),
+    );
+    hook.unmount();
+    await act(async () => { vi.advanceTimersByTime(0); await Promise.resolve(); });
+    expect(channelSpy).not.toHaveBeenCalled();
+  });
+
+  it("asks peers for the current state on join and ignores publishes until synced", async () => {
+    const { hook } = await renderSession();
 
     expect(mockChannel.state.sent[0]).toMatchObject({ event: "sync-request" });
     expect(hook.result.current.status).toBe("syncing");
@@ -88,8 +106,8 @@ describe("useCombatSession", () => {
     expect(mockChannel.state.sent.filter((m) => m.event === "slice")).toHaveLength(0);
   });
 
-  it("becomes ready alone after the sync timeout, then publishes slices", () => {
-    const { hook } = renderSession();
+  it("becomes ready alone after the sync timeout, then publishes slices", async () => {
+    const { hook } = await renderSession();
 
     act(() => { vi.advanceTimersByTime(1600); });
     expect(hook.result.current.isReady).toBe(true);
@@ -98,8 +116,8 @@ describe("useCombatSession", () => {
     expect(mockChannel.state.sent.at(-1)).toMatchObject({ event: "slice", payload: { slice: "round", value: 2 } });
   });
 
-  it("applies a snapshot addressed to it and becomes ready", () => {
-    const { hook, onRemoteSnapshot } = renderSession();
+  it("applies a snapshot addressed to it and becomes ready", async () => {
+    const { hook, onRemoteSnapshot } = await renderSession();
     const me = mockChannel.state.sent[0].payload.from as string;
 
     emit("sync-snapshot", { from: "other", to: "someone-else", snapshot: { round: 9 } });
@@ -110,8 +128,8 @@ describe("useCombatSession", () => {
     expect(hook.result.current.isReady).toBe(true);
   });
 
-  it("forwards remote slices from other clients only", () => {
-    const { onRemoteSlice } = renderSession();
+  it("forwards remote slices from other clients only", async () => {
+    const { onRemoteSlice } = await renderSession();
     const me = mockChannel.state.sent[0].payload.from as string;
 
     emit("slice", { from: me, slice: "round", value: 5 });
@@ -121,20 +139,49 @@ describe("useCombatSession", () => {
     expect(onRemoteSlice).toHaveBeenCalledWith("round", 5);
   });
 
-  it("answers sync requests only from clients that joined later", () => {
-    const { hook, getSnapshot } = renderSession();
+  it("answers sync requests only once synced itself", async () => {
+    const { hook, getSnapshot } = await renderSession();
+
+    emit("sync-request", { from: "late" });
+    expect(mockChannel.state.sent.some((m) => m.event === "sync-snapshot")).toBe(false);
+
     act(() => { vi.advanceTimersByTime(1600); });
     expect(hook.result.current.isReady).toBe(true);
 
-    emit("sync-request", { from: "early", joinedAt: 0 });
-    expect(mockChannel.state.sent.some((m) => m.event === "sync-snapshot")).toBe(false);
-
-    emit("sync-request", { from: "late", joinedAt: Date.now() + 10_000 });
+    emit("sync-request", { from: "late" });
     expect(getSnapshot).toHaveBeenCalled();
     expect(mockChannel.state.sent.at(-1)).toMatchObject({
       event: "sync-snapshot",
       payload: { to: "late", snapshot: { round: 3 } },
     });
+  });
+});
+
+describe("useCombatSession events", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockChannel.state.broadcastHandlers.clear();
+    mockChannel.state.sent.length = 0;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("publishes and receives events such as combatant patches", async () => {
+    const onRemoteEvent = vi.fn();
+    const { hook } = await renderSession({ onRemoteEvent });
+    const me = mockChannel.state.sent[0].payload.from as string;
+    act(() => { vi.advanceTimersByTime(1600); });
+
+    act(() => hook.result.current.publishEvent("drag-preview", { a: { x: 1, y: 2 } }));
+    expect(mockChannel.state.sent.at(-1)).toMatchObject({ event: "event", payload: { event: "drag-preview", data: { a: { x: 1, y: 2 } } } });
+
+    emit("event", { from: me, event: "combatants-patch", data: {} });
+    expect(onRemoteEvent).not.toHaveBeenCalled();
+
+    emit("event", { from: "other", event: "combatants-patch", data: { removed: ["x"] } });
+    expect(onRemoteEvent).toHaveBeenCalledWith("combatants-patch", { removed: ["x"] });
   });
 });
 

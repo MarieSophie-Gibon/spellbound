@@ -17,6 +17,10 @@ interface BattleMapProps {
   fogReveals: FogRevealStamp[];
   onFogEnabledChange: (enabled: boolean) => void;
   onFogRevealsChange: (reveals: FogRevealStamp[]) => void;
+  // Session partagée : positions des jetons glissés localement (null = fin du glissement)…
+  onDragPreviewChange?: (positions: Record<string, { x: number; y: number }> | null) => void;
+  // …et positions des jetons glissés par un autre MJ.
+  remoteDragPreview?: Record<string, { x: number; y: number }> | null;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -152,7 +156,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange }: BattleMapProps) {
+function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, onDragPreviewChange, remoteDragPreview }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -508,6 +512,44 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const leaveDrag = () => { dragCountRef.current--; if (dragCountRef.current <= 0) { dragCountRef.current = 0; setIsDragOver(false); } };
 
   // ── Drag DOM-direct ──────────────────────────────────────────────────────────
+  const onDragPreviewChangeRef = useRef(onDragPreviewChange);
+  useEffect(() => {
+    onDragPreviewChangeRef.current = onDragPreviewChange;
+  }, [onDragPreviewChange]);
+
+  // Glissement d'un autre MJ : affiché comme un aperçu. Au lâcher (null), on garde la dernière
+  // position jusqu'à ce que les jetons définitifs arrivent (même logique que le lâcher local).
+  const lastRemotePreviewRef = useRef<Record<string, { x: number; y: number }> | null>(null);
+  useEffect(() => {
+    if (isDraggingTokenRef.current) return;
+    if (remoteDragPreview) {
+      lastRemotePreviewRef.current = remoteDragPreview;
+      const frame = requestAnimationFrame(() => setDragPreviewTokens(remoteDragPreview));
+      return () => cancelAnimationFrame(frame);
+    }
+    const last = lastRemotePreviewRef.current;
+    lastRemotePreviewRef.current = null;
+    if (!last) return;
+    const isApplied = Object.entries(last).every(([combatantId, position]) => {
+      const token = mapTokens.find((item) => item.combatantId === combatantId);
+      return token?.x === position.x && token.y === position.y;
+    });
+    if (isApplied) {
+      const frame = requestAnimationFrame(() => setDragPreviewTokens(null));
+      return () => cancelAnimationFrame(frame);
+    }
+    pendingCommittedPositionsRef.current = last;
+    // Filet de sécurité si les jetons définitifs n'arrivent jamais.
+    const timer = window.setTimeout(() => {
+      if (pendingCommittedPositionsRef.current === last) {
+        pendingCommittedPositionsRef.current = null;
+        setDragPreviewTokens(null);
+      }
+    }, 2000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- réagit uniquement aux aperçus distants
+  }, [remoteDragPreview]);
+
   const commitTokenDrag = useCallback(() => {
     const d = draggingRef.current;
     const positions = livePositionsRef.current;
@@ -523,6 +565,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       setDragPreviewTokens(null);
     }
     channelRef.current?.postMessage(stateRef.current);
+    onDragPreviewChangeRef.current?.(null);
     localCommitAtRef.current = Date.now();
     draggingRef.current = null;
     livePositionsRef.current = null;
@@ -551,6 +594,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       }
       livePositionsRef.current = nextPositions;
       setDragPreviewTokens(nextPositions);
+      onDragPreviewChangeRef.current?.(nextPositions);
       channelRef.current?.postMessage({
         ...stateRef.current,
         dragPreviewTokens: nextPositions,
@@ -1074,7 +1118,9 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.fogEnabled === next.fogEnabled &&
     prev.fogReveals === next.fogReveals &&
     prev.onFogEnabledChange === next.onFogEnabledChange &&
-    prev.onFogRevealsChange === next.onFogRevealsChange
+    prev.onFogRevealsChange === next.onFogRevealsChange &&
+    prev.onDragPreviewChange === next.onDragPreviewChange &&
+    prev.remoteDragPreview === next.remoteDragPreview
   );
 }
 
