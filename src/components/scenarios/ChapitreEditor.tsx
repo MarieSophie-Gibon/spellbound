@@ -57,6 +57,7 @@ import { EnemyBlock } from "./blocks/EnemyBlock";
 import { MJBlock } from "./blocks/MJBlock";
 import { ClueBlock } from "./blocks/ClueBlock";
 import { LinkBlock } from "./blocks/LinkBlock";
+import { TableBlock } from "./blocks/TableBlock";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -1053,154 +1054,14 @@ export function ChapitreEditor({
         );
       }
 
-      case "table": {
-        const headers: string[] = block.data.headers ?? ["", ""];
-        const rows: string[][] = block.data.rows ?? [["", ""]];
-        const colCount = headers.length;
-
-        const updateHeader = (ci: number, value: string) =>
-          updateBlock(block.id, {
-            headers: headers.map((h, i) => (i === ci ? value : h)),
-          });
-
-        const updateCell = (ri: number, ci: number, value: string) =>
-          updateBlock(block.id, {
-            rows: rows.map((row, rIdx) =>
-              rIdx === ri
-                ? row.map((cell, cIdx) => (cIdx === ci ? value : cell))
-                : row,
-            ),
-          });
-
-        const addRow = () =>
-          updateBlock(block.id, { rows: [...rows, Array(colCount).fill("")] });
-
-        const removeRow = (ri: number) => {
-          if (rows.length <= 1) return;
-          updateBlock(block.id, { rows: rows.filter((_, i) => i !== ri) });
-        };
-
-        const addCol = () =>
-          updateBlock(block.id, {
-            headers: [...headers, ""],
-            rows: rows.map((row) => [...row, ""]),
-          });
-
-        const removeCol = () => {
-          if (headers.length <= 1) return;
-          updateBlock(block.id, {
-            headers: headers.slice(0, -1),
-            rows: rows.map((row) => row.slice(0, -1)),
-          });
-        };
-
-        return isEditing ? (
-          <div className="space-y-2">
-            <div className="overflow-x-auto rounded-xl border border-white/10">
-              <table className="w-full border-collapse text-[13px]">
-                <thead>
-                  <tr className="bg-white/5">
-                    {headers.map((h, ci) => (
-                      <th
-                        key={ci}
-                        className="border border-white/10 px-2 py-1 min-w-28"
-                      >
-                        <input
-                          value={h}
-                          onChange={(e) => updateHeader(ci, e.target.value)}
-                          placeholder={`En-tête ${ci + 1}`}
-                          className="w-full bg-transparent text-white/80 font-semibold text-center outline-none placeholder:text-white/20 text-[12px]"
-                        />
-                      </th>
-                    ))}
-                    <th className="border border-white/10 w-7" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, ri) => (
-                    <tr key={ri}>
-                      {row.map((cell, ci) => (
-                        <td
-                          key={ci}
-                          className="border border-white/10 px-2 py-1"
-                        >
-                          <input
-                            value={cell}
-                            onChange={(e) => updateCell(ri, ci, e.target.value)}
-                            placeholder="—"
-                            className="w-full bg-transparent text-white/70 outline-none placeholder:text-white/15 text-[12px]"
-                          />
-                        </td>
-                      ))}
-                      <td className="border border-white/10 w-7 text-center">
-                        <button
-                          onClick={() => removeRow(ri)}
-                          disabled={rows.length <= 1}
-                          className="p-1 text-white/20 hover:text-red-400 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={addRow}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors"
-              >
-                <Plus className="w-3 h-3" /> Ligne
-              </button>
-              <button
-                onClick={addCol}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-white/50 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors"
-              >
-                <Plus className="w-3 h-3" /> Colonne
-              </button>
-              <button
-                onClick={removeCol}
-                disabled={headers.length <= 1}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-white/30 hover:text-red-400 border border-white/10 hover:border-red-400/20 rounded-lg transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="w-3 h-3" /> Col
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-white/10">
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr className="bg-white/5">
-                  {headers.map((h, ci) => (
-                    <th
-                      key={ci}
-                      className="border border-white/10 px-3 py-2 text-white/80 font-semibold text-left whitespace-nowrap"
-                    >
-                      {h || <span className="text-white/20 italic">—</span>}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, ri) => (
-                  <tr key={ri} className="hover:bg-white/3 transition-colors">
-                    {row.map((cell, ci) => (
-                      <td
-                        key={ci}
-                        className="border border-white/10 px-3 py-2 text-white/70"
-                      >
-                        {cell || <span className="text-white/15">—</span>}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      case "table":
+        return (
+          <TableBlock
+            data={block.data}
+            isEditing={isEditing}
+            onChange={(newData) => updateBlock(block.id, newData)}
+          />
         );
-      }
 
       default:
         return (
