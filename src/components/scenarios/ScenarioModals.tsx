@@ -4,6 +4,14 @@ import { X, Save, FolderPlus, FileText } from "lucide-react";
 import { useScenariosData } from "@/hooks/scenarios/useScenariosData";
 import { validateScenarioForm, validateChapitreForm } from "@/lib/validation/scenarioForms";
 
+// Supabase errors (PostgrestError) are plain objects, not Error instances.
+function getErrorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "message" in err && typeof err.message === "string" && err.message) {
+    return err.message;
+  }
+  return "inconnue";
+}
+
 // ─────────────────────────────────────────────
 // MODALE SCÉNARIO
 // ─────────────────────────────────────────────
@@ -42,11 +50,7 @@ export function ScenarioModal({
       });
       onSuccess();
     } catch (err) {
-      if (err instanceof Error) {
-        alert("Erreur : " + err.message);
-      } else {
-        alert("Erreur inconnue");
-      }
+      alert("Erreur : " + getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -133,11 +137,7 @@ export function ChapitreModal({
       });
       onSuccess(chapitreId);
     } catch (err) {
-      if (err instanceof Error) {
-        alert("Erreur : " + err.message);
-      } else {
-        alert("Erreur inconnue");
-      }
+      alert("Erreur : " + getErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
