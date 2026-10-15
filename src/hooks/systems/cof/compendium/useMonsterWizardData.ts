@@ -1,11 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import type { MonstreAttaque, MonstreCapacite, MonstreCombat, MonstreStats } from "@/types/compendium";
+import { fetchOwnedCampaigns } from "./ownedCampaigns";
 
-export interface ImportCampaign {
-  id: string;
-  nom: string;
-}
+export type { ImportCampaign } from "./ownedCampaigns";
 
 export interface ImportMonstre {
   id: string;
@@ -22,20 +20,6 @@ export interface ImportMonstre {
 }
 
 export function useMonsterWizardData() {
-  const fetchOwnedCampaigns = useCallback(async (excludeCampaignId?: string): Promise<ImportCampaign[]> => {
-    const { data: authData, error: authError } = await supabase.auth.getUser();
-    if (authError || !authData.user) return [];
-
-    const { data: campaigns, error } = await supabase
-      .from("campagnes")
-      .select("id, nom")
-      .eq("owner_id", authData.user.id)
-      .order("nom");
-
-    if (error || !campaigns) return [];
-    return (campaigns as ImportCampaign[]).filter((campaign) => campaign.id !== excludeCampaignId);
-  }, []);
-
   const fetchMonstresForCampaign = useCallback(async (campaignId: string): Promise<ImportMonstre[]> => {
     const { data, error } = await supabase
       .from("bestiaire")
@@ -87,6 +71,6 @@ export function useMonsterWizardData() {
       uploadMonsterImage,
       saveMonster,
     }),
-    [fetchOwnedCampaigns, fetchMonstresForCampaign, uploadMonsterImage, saveMonster]
+    [fetchMonstresForCampaign, uploadMonsterImage, saveMonster]
   );
 }

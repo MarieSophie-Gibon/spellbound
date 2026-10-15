@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ModalLayout } from "@/components/ui/ModalLayout";
 import {
   X,
@@ -8,8 +8,11 @@ import {
   Save,
   Image as ImageIcon,
   UploadCloud,
+  Copy,
+  ChevronDown,
+  Loader2,
 } from "lucide-react";
-import { usePeupleData } from "@/hooks/systems/cof/compendium/usePeupleData";
+import { usePeupleData, type ImportCampaign, type ImportPeuple } from "@/hooks/systems/cof/compendium/usePeupleData";
 import { RangEditorCard } from "@/components/ui/RangEditorCard";
 import { EMPTY_RANGS, type RangsState, type VoieRang } from "@/types/compendium";
 import { cleanupRangsForSave, normalizeRangsState } from "@/lib/voieRanks";
@@ -89,6 +92,49 @@ export function PeupleWizard({
     initialData?.voie?.capacites ? normalizeRangsState(initialData.voie.capacites) : structuredClone(EMPTY_RANGS),
   );
 
+  // ── Import depuis une autre campagne ───────────────────────────────────────
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importCampaigns, setImportCampaigns] = useState<ImportCampaign[]>([]);
+  const [importSelectedCampaignId, setImportSelectedCampaignId] = useState('');
+  const [importPeuples, setImportPeuples] = useState<ImportPeuple[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importSearch, setImportSearch] = useState('');
+  // Champs copiés tels quels depuis le peuple importé (non éditables dans le wizard)
+  const [importedImageUrl, setImportedImageUrl] = useState<string | null>(null);
+  const [importedMulti, setImportedMulti] = useState(false);
+
+  useEffect(() => {
+    if (isEditing || !campaignId) return;
+    peupleData.fetchOwnedCampaigns(campaignId).then(setImportCampaigns);
+  }, [isEditing, campaignId, peupleData]);
+
+  useEffect(() => {
+    if (!importSelectedCampaignId) { setImportPeuples([]); return; }
+    setImportLoading(true);
+    peupleData
+      .fetchPeuplesForCampaign(importSelectedCampaignId)
+      .then(setImportPeuples)
+      .catch(() => setImportPeuples([]))
+      .finally(() => setImportLoading(false));
+  }, [importSelectedCampaignId, peupleData]);
+
+  const applyImportedPeuple = (p: ImportPeuple) => {
+    setNom(p.nom);
+    setDescription(p.description ?? "");
+    setLore(p.lore ?? "");
+    setImageFile(null);
+    setImagePreview(p.image_url ?? null);
+    setImportedImageUrl(p.image_url ?? null);
+    setImportedMulti(!!p.multi);
+    setData((prev) => ({ ...prev, ...(p.data as Partial<PeupleData> | null) }));
+    setVoieNom(p.voie?.nom ?? "");
+    setRangs(p.voie?.capacites ? normalizeRangsState(p.voie.capacites) : structuredClone(EMPTY_RANGS));
+    setShowImportPanel(false);
+    setImportSearch('');
+  };
+
+  const filteredImportPeuples = importPeuples.filter((p) => p.nom.toLowerCase().includes(importSearch.toLowerCase()));
+
   // --- LOGIQUE ---
   const handleDataChange = (field: keyof PeupleData, value: string) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -154,7 +200,7 @@ export function PeupleWizard({
     setIsSubmitting(true);
 
     try {
-      let finalImageUrl = initialData?.image_url ?? null;
+      let finalImageUrl = initialData?.image_url ?? importedImageUrl;
 
       // Upload de l'image sur Supabase Storage (si nouvelle image)
       if (imageFile) {
@@ -189,6 +235,7 @@ export function PeupleWizard({
             lore: lore.trim() || null,
             image_url: finalImageUrl,
             data: data,
+            ...(importedMulti && { multi: true }),
             campaign_id: publicMode ? null : (campaignId || null),
             is_custom: !!(campaignId && isPrivate),
           });
@@ -257,6 +304,72 @@ export function PeupleWizard({
         {/* ETAPE 1: LORE */}
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 fade-in">
+            {/* ── Import depuis une autre campagne ── */}
+            {!isEditing && campaignId && (
+              <div className="rounded-xl border border-sky-400/20 overflow-hidden">
+                <button
+                  onClick={() => setShowImportPanel(v => !v)}
+                  className="flex items-center gap-2 w-full px-4 py-2.5 text-sky-300/70 hover:text-sky-200 text-[12px] transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5 shrink-0" />
+                  <span>Récupérer depuis une autre campagne</span>
+                  <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${showImportPanel ? 'rotate-180' : ''}`} />
+                </button>
+                {showImportPanel && (
+                  <div className="border-t border-sky-400/15 bg-sky-400/5 px-4 py-3 space-y-3">
+                    {importCampaigns.length === 0 ? (
+                      <p className="text-[11px] text-white/40 italic">Aucune autre campagne disponible.</p>
+                    ) : (
+                      <>
+                        <select
+                          value={importSelectedCampaignId}
+                          onChange={e => { setImportSelectedCampaignId(e.target.value); setImportSearch(''); }}
+                          className="w-full bg-[#1a1540] border border-white/20 rounded-lg px-3 py-2 text-[12px] text-white outline-none"
+                        >
+                          <option value="">Choisir une campagne…</option>
+                          {importCampaigns.map(c => (
+                            <option key={c.id} value={c.id}>{c.nom}</option>
+                          ))}
+                        </select>
+                        {importSelectedCampaignId && (
+                          <>
+                            <input
+                              type="text"
+                              value={importSearch}
+                              onChange={e => setImportSearch(e.target.value)}
+                              placeholder="Rechercher un peuple…"
+                              className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-[12px] text-white outline-none placeholder:text-white/30"
+                            />
+                            {importLoading ? (
+                              <div className="flex items-center gap-2 text-white/40 text-[11px] py-1">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Chargement…
+                              </div>
+                            ) : (
+                              <div className="max-h-44 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 space-y-0.5">
+                                {filteredImportPeuples.map(p => (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => applyImportedPeuple(p)}
+                                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-3 text-[12px]"
+                                  >
+                                    <span className="text-white flex-1">{p.nom}</span>
+                                    {p.voie && <span className="text-white/30 text-[10px] border border-white/15 rounded-full px-2 py-0.5 shrink-0">{p.voie.nom}</span>}
+                                  </button>
+                                ))}
+                                {filteredImportPeuples.length === 0 && (
+                                  <p className="text-[11px] text-white/30 italic py-2 text-center">Aucun peuple privé dans cette campagne</p>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-[0.15em] text-white/60">Nom du Peuple *</label>
               <input
@@ -279,8 +392,8 @@ export function PeupleWizard({
                   Parcourir
                   <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                 </label>
-                {imageFile && (
-                  <button onClick={() => { setImageFile(null); setImagePreview(null); }} className="text-[11px] text-white/50 hover:text-red-400 transition-colors">
+                {(imageFile || importedImageUrl) && (
+                  <button onClick={() => { setImageFile(null); setImagePreview(null); setImportedImageUrl(null); }} className="text-[11px] text-white/50 hover:text-red-400 transition-colors">
                     Retirer
                   </button>
                 )}

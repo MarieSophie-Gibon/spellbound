@@ -101,6 +101,8 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
   const [importMonstres, setImportMonstres] = useState<ImportMonstre[]>([]);
   const [importLoading, setImportLoading] = useState(false);
   const [importSearch, setImportSearch] = useState('');
+  // Image du monstre importé, réutilisée telle quelle à la sauvegarde (avec son cadrage de jeton, copié dans stats)
+  const [importedImageUrl, setImportedImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     monsterData.fetchOwnedCampaigns(campaignId).then((campaigns) => {
@@ -126,6 +128,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
     setTaille(m.taille);
     setDescription(m.description ?? '');
     setImagePreview(m.image_url ?? null);
+    setImportedImageUrl(m.image_url ?? null);
     setImageFile(null);
     setStats(structuredClone(m.stats));
     const importedTokenFace = readTokenFaceFromStats(m.stats);
@@ -240,7 +243,7 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
     if (!nc.trim()) return alert("Le NC est obligatoire.");
     setIsSubmitting(true);
     try {
-      let uploadedImageUrl: string | undefined = initialData?.image_url;
+      let uploadedImageUrl: string | undefined = initialData?.image_url ?? importedImageUrl ?? undefined;
       if (imageFile) {
         uploadedImageUrl = await monsterData.uploadMonsterImage(imageFile);
       }
@@ -496,8 +499,8 @@ export function MonsterWizard({ onClose, onSuccess, campaignId, initialData, onS
                     Parcourir
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                   </label>
-                  {imageFile && (
-                    <button onClick={() => { setImageFile(null); setImagePreview(null); }} className="text-[11px] text-white/50 hover:text-red-400 transition-colors">
+                  {(imageFile || importedImageUrl) && (
+                    <button onClick={() => { setImageFile(null); setImagePreview(null); setImportedImageUrl(null); }} className="text-[11px] text-white/50 hover:text-red-400 transition-colors">
                       Retirer
                     </button>
                   )}
