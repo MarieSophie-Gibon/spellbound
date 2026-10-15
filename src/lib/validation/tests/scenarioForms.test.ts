@@ -24,6 +24,11 @@ describe("scenarioForms validation", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts a long scenario synopsis", () => {
+    const result = validateScenarioForm({ title: "Scenario", description: "x".repeat(5000) });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects empty chapitre title", () => {
     const result = validateChapitreForm({ title: "" });
     expect(result.success).toBe(false);

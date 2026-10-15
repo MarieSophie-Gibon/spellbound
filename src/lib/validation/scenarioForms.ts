@@ -9,7 +9,6 @@ const scenarioSchema = z.object({
   description: z
     .string()
     .trim()
-    .max(1200, "Le synopsis ne peut pas depasser 1200 caracteres")
     .optional()
     .transform((value) => (value && value.length > 0 ? value : null)),
 });
