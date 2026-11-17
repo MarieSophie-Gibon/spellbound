@@ -156,7 +156,7 @@ export function ScenarioSidebar({
                           onDrop={(e) => onChapitreDrop(e, chapitre.id)}
                           onDragEnd={onChapitreDragEnd}
                           onClick={() => onSelectChapitre(chapitre.id)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-all text-[12px] group/item cursor-grab active:cursor-grabbing ${
+                          className={`relative w-full flex items-center px-3 py-2 rounded-lg text-left transition-all text-[12px] group/item cursor-grab active:cursor-grabbing ${
                             draggedChapitreId === chapitre.id ? "opacity-35" : ""
                           } ${
                             dragOverChapitreId === chapitre.id ? "bg-white/6" : ""
@@ -166,22 +166,27 @@ export function ScenarioSidebar({
                               : "text-white/50 hover:bg-white/4 hover:text-white/80"
                           }`}
                         >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <GripVertical className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]/60" : "text-white/20"}`} />
-                            <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
-                            <span className={`wrap-break-word min-w-0 ${chapitre.completed ? "line-through text-white/30" : ""}`}>{chapitre.title}</span>
+                          <div className="flex items-start gap-2 min-w-0 flex-1">
+                            <GripVertical className={`w-3.5 h-3.5 mt-px shrink-0 ${isSelected ? "text-[#E3CCCD]/60" : "text-white/20"}`} />
+                            {chapitre.completed ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 mt-px shrink-0 text-emerald-400" />
+                            ) : (
+                              <FileText className={`w-3.5 h-3.5 mt-px shrink-0 ${isSelected ? "text-[#E3CCCD]" : "text-white/25"}`} />
+                            )}
+                            <span className={`flex-1 min-w-0 break-normal wrap-normal hyphens-none ${chapitre.completed ? "line-through text-white/30" : ""}`}>{chapitre.title}</span>
                           </div>
-                          
-                          <div className="flex items-center gap-0.5 shrink-0">
+
+                          {/* Actions : superposées au titre au survol, sur un fond flouté */}
+                          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 p-0.5 rounded-lg border border-white/10 bg-[#1E1941]/55 backdrop-blur-md shadow-lg opacity-0 pointer-events-none transition-opacity group-hover/item:opacity-100 group-hover/item:pointer-events-auto group-focus-within/item:opacity-100 group-focus-within/item:pointer-events-auto">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onToggleCompleted(chapitre.id, !!chapitre.completed);
                               }}
-                              className={`p-1 rounded-md transition-all ${
+                              className={`p-1 rounded-md transition-all hover:bg-white/10 ${
                                 chapitre.completed
-                                  ? "text-emerald-400 opacity-100"
-                                  : "opacity-0 group-hover/item:opacity-100 text-white/30 hover:text-emerald-400"
+                                  ? "text-emerald-400"
+                                  : "text-white/50 hover:text-emerald-400"
                               }`}
                               title={chapitre.completed ? "Marquer comme non réalisé" : "Marquer comme réalisé"}
                             >
@@ -192,7 +197,7 @@ export function ScenarioSidebar({
                                 e.stopPropagation();
                                 onEditChapitre(chapitre);
                               }}
-                              className="p-1 opacity-0 group-hover/item:opacity-100 text-white/40 hover:text-[#E3CCCD] hover:bg-white/10 rounded-md transition-all shrink-0"
+                              className="p-1 text-white/60 hover:text-[#E3CCCD] hover:bg-white/10 rounded-md transition-all"
                               title="Renommer le chapitre"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -202,7 +207,7 @@ export function ScenarioSidebar({
                                 e.stopPropagation();
                                 onDeleteChapitre(chapitre.id, chapitre.title);
                               }}
-                              className="p-1 opacity-0 group-hover/item:opacity-100 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all shrink-0"
+                              className="p-1 text-white/60 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-all"
                               title="Supprimer le chapitre"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
