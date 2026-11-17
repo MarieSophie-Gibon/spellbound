@@ -76,8 +76,12 @@ export function useScenariosData() {
 
       async deleteNode(type: DeleteTargetType, id: string) {
         const table = type === "scenario" ? "scenarios" : "chapitres";
-        const { error } = await supabase.from(table).delete().eq("id", id);
+        const { data, error } = await supabase.from(table).delete().eq("id", id).select("id");
         if (error) throw error;
+        // RLS rejects unauthorized deletes silently (0 rows, no error).
+        if (!data?.length) {
+          throw new Error("Suppression refusée : vous n'avez pas les droits sur cet élément.");
+        }
       },
 
       async saveScenario(input: {
