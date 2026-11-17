@@ -5,6 +5,7 @@ import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/cof/wizard/PNJWizard";
 import { MonsterWizard } from "@/components/bestiaire/cof/MonsterWizard";
 import type { PersistedCombatState } from "../combat/types";
+import { resizeTextareaPreserveScroll } from "./textareaScroll";
 
 function createEmptyCombatPrep(): PersistedCombatState {
     return {
@@ -365,11 +366,7 @@ export function EnemyBlock({ campaignId, data, onChange, isEditing = true, onOpe
                                 value={data.comportement || ""}
                                 onChange={(e) => onChange({ comportement: e.target.value })}
                                 className="w-full bg-transparent text-white/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 -ml-2 rounded-lg transition-colors"
-                                onInput={(e) => {
-                                    const target = e.target as HTMLTextAreaElement;
-                                    target.style.height = "auto";
-                                    target.style.height = `${target.scrollHeight}px`;
-                                }}
+                                onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
                             />
                         </div>
                     </div>

@@ -3,6 +3,7 @@ import { Users, Search, MessageSquare, Info, X, UserPlus } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { MagicCard } from "@/components/ui/MagicCard";
 import { PNJWizard } from "@/components/personnage/cof/wizard/PNJWizard";
+import { preserveScroll, resizeTextareaPreserveScroll } from "./textareaScroll";
 
 interface NpcBlockProps {
   campaignId: string;
@@ -37,30 +38,13 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
   const informationsRef = useRef<HTMLTextAreaElement>(null);
 
   const preserveScrollAndChange = (patch: Partial<NpcBlockProps["data"]>) => {
-    const scrollContainer = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
-    const containerTop = scrollContainer?.scrollTop ?? null;
-    const windowTop = window.scrollY;
-
-    onChange(patch);
-
-    requestAnimationFrame(() => {
-      if (scrollContainer && containerTop !== null) {
-        scrollContainer.scrollTop = containerTop;
-      }
-      if (window.scrollY !== windowTop) {
-        window.scrollTo({ top: windowTop, behavior: "auto" });
-      }
-    });
+    preserveScroll(() => onChange(patch));
   };
 
   // Initialise les hauteurs des textareas au montage/changement de PNJ.
-  // Evite un recalcul sur chaque frappe qui peut provoquer des sauts de scroll.
   useEffect(() => {
     [contexteRef, informationsRef].forEach(ref => {
-      if (ref.current) {
-        ref.current.style.height = "auto";
-        ref.current.style.height = `${ref.current.scrollHeight}px`;
-      }
+      if (ref.current) resizeTextareaPreserveScroll(ref.current);
     });
   }, [data.npcId]);
 
@@ -200,11 +184,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
                 onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Que fait-il quand les joueurs arrivent ? Quelle est son humeur ?"
                 className="w-full bg-transparent text-white/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 focus:bg-white/5 p-2 -ml-2 rounded-lg transition-colors"
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = "auto";
-                  target.style.height = `${target.scrollHeight}px`;
-                }}
+                onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
               />
             </div>
           </div>
@@ -225,11 +205,7 @@ export function NpcBlock({ campaignId, data, onChange }: NpcBlockProps) {
                 onKeyDown={(e) => e.stopPropagation()}
                 placeholder="Quels secrets détient-il ? Que peut-il révéler aux joueurs ?"
                 className="w-full bg-transparent text-violet-100/90 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-15 placeholder:text-violet-200/30 focus:bg-violet-500/10 p-2 -ml-2 rounded-lg transition-colors"
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = "auto";
-                  target.style.height = `${target.scrollHeight}px`;
-                }}
+                onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
               />
             </div>
           </div>

@@ -10,17 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-function preserveScroll(fn: () => void) {
-  const sc = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
-  const savedTop = sc?.scrollTop ?? null;
-  const savedWindow = window.scrollY;
-  fn();
-  requestAnimationFrame(() => {
-    if (sc && savedTop !== null) sc.scrollTop = savedTop;
-    if (window.scrollY !== savedWindow) window.scrollTo({ top: savedWindow, behavior: "auto" });
-  });
-}
+import { preserveScroll, resizeTextareaPreserveScroll } from "./textareaScroll";
 
 interface CheckTest {
   title?: string;
@@ -138,11 +128,7 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
             onKeyDown={(e) => e.stopPropagation()}
             placeholder="Description ou contexte avant le jet..."
             className="w-full bg-transparent text-white/70 text-[12px] leading-relaxed outline-none resize-none overflow-hidden min-h-9 placeholder:text-white/20 border-b border-sky-500/20 focus:border-sky-400/50 transition-colors"
-            onInput={(e) => {
-              const target = e.target as HTMLTextAreaElement;
-              target.style.height = "auto";
-              target.style.height = `${target.scrollHeight}px`;
-            }}
+            onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
           />
         )}
 
@@ -259,11 +245,7 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
                     onKeyDown={(e) => e.stopPropagation()}
                     placeholder="Ce qu'ils découvrent s'ils réussissent le jet..."
                     className="w-full bg-transparent text-emerald-50/80 text-[12px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-emerald-500/30"
-                    onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      target.style.height = "auto";
-                      target.style.height = `${target.scrollHeight}px`;
-                    }}
+                    onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
                   />
                 </div>
 
@@ -279,11 +261,7 @@ export function InvestigationBlock({ data, onChange, isEditing = true }: Investi
                     onKeyDown={(e) => e.stopPropagation()}
                     placeholder="Conséquences en cas d'échec (indice partiel, fausse piste, coût, menace, etc.)..."
                     className="w-full bg-transparent text-red-50/80 text-[12px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-red-500/30"
-                    onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement;
-                      target.style.height = "auto";
-                      target.style.height = `${target.scrollHeight}px`;
-                    }}
+                    onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
                   />
                 </div>
               </div>
