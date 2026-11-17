@@ -4,6 +4,7 @@ import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { Package, Search, Plus, Minus, Trash2, Loader2, Sword, Shield, Crosshair, Coins, Backpack, Check } from "lucide-react";
 import EquipementWizard from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import { usePJs } from "@/hooks/campaign/usePJs";
+import { resizeTextareaPreserveScroll } from "./textareaScroll";
 
 interface LootItem {
     id: string;
@@ -178,11 +179,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                             onChange={(e) => onChange({ text: e.target.value })}
                             placeholder="Or, gemmes, objets de quête (ex: 50 PO, 1 rubis...)"
                             className="w-full bg-transparent text-white/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 border-b border-white/10 focus:border-amber-400/40 transition-colors"
-                            onInput={(e) => {
-                                const target = e.target as HTMLTextAreaElement;
-                                target.style.height = "auto";
-                                target.style.height = `${target.scrollHeight}px`;
-                            }}
+                            onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
                         />
                     </div>
                 </div>

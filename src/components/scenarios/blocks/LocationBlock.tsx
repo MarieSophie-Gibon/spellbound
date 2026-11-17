@@ -1,17 +1,7 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { MapPin, UploadCloud, Trash2, Loader2 } from "lucide-react";
-
-function preserveScroll(fn: () => void) {
-  const sc = document.querySelector('[data-chapitre-scroll="true"]') as HTMLElement | null;
-  const savedTop = sc?.scrollTop ?? null;
-  const savedWindow = window.scrollY;
-  fn();
-  requestAnimationFrame(() => {
-    if (sc && savedTop !== null) sc.scrollTop = savedTop;
-    if (window.scrollY !== savedWindow) window.scrollTo({ top: savedWindow, behavior: "auto" });
-  });
-}
+import { preserveScroll, resizeTextareaPreserveScroll } from "./textareaScroll";
 
 interface LocationBlockProps {
     data: {
@@ -25,6 +15,12 @@ interface LocationBlockProps {
 export function LocationBlock({ data, onChange }: LocationBlockProps) {
     const scenarioBlocksData = useScenarioBlocksData();
     const [isUploading, setIsUploading] = useState(false);
+    const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+    // Ajuste la hauteur avant le repaint, à chaque changement de contenu.
+    useLayoutEffect(() => {
+        if (descriptionRef.current) resizeTextareaPreserveScroll(descriptionRef.current);
+    }, [data.description]);
 
     const handleImageUpload = async (file: File) => {
         setIsUploading(true);
@@ -91,16 +87,13 @@ export function LocationBlock({ data, onChange }: LocationBlockProps) {
                     </label>
                 </div>
                 <textarea
+                    ref={descriptionRef}
                     value={data.description || ""}
                     onChange={(e) => preserveScroll(() => onChange({ description: e.target.value }))}
                     onKeyDown={(e) => e.stopPropagation()}
                     placeholder="Décrivez l'ambiance, les odeurs, les sons, et ce que les joueurs voient en arrivant..."
                     className="w-full bg-transparent text-emerald-50/70 text-[14px] leading-relaxed outline-none resize-none overflow-hidden min-h-20 placeholder:text-emerald-100/20"
-                    onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement;
-                        target.style.height = "auto";
-                        target.style.height = `${target.scrollHeight}px`;
-                    }}
+                    onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
                 />
             </div>
         </div>
