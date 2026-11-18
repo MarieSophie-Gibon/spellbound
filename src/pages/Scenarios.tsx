@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
 import { BookLayout } from "@/components/layout/BookLayout";
-import { useScenariosData } from "@/hooks/scenarios/useScenariosData";
+import { TRASH_RETENTION_DAYS, useScenariosData } from "@/hooks/scenarios/useScenariosData";
+import { ChapitreTrashModal } from "@/components/scenarios/ChapitreTrashModal";
 import { ScenarioSidebar } from "@/components/scenarios/ScenarioSidebar";
 import { ScenarioModal, ChapitreModal } from "@/components/scenarios/ScenarioModals";
 import { ChapitreEditor } from "@/components/scenarios/ChapitreEditor";
@@ -42,7 +43,9 @@ function DeleteNodeModal({
         <p className="text-white/60 text-[13px] leading-relaxed mb-6">
           Êtes-vous sûr de vouloir supprimer <strong className="text-white">{name}</strong> ? 
           <br /><br />
-          Cette action est irréversible. {type === 'scenario' && "Tous les chapitres contenus dans ce scénario seront également détruits."}
+          {type === 'scenario'
+            ? "Cette action est irréversible. Tous les chapitres contenus dans ce scénario seront également détruits, sans passer par la corbeille."
+            : `Il restera ${TRASH_RETENTION_DAYS} jours dans la corbeille (en bas du sommaire), d'où vous pourrez le restaurer.`}
         </p>
         <div className="flex justify-end gap-3">
           <button
@@ -86,6 +89,7 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
   }>({ isOpen: false, scenarioId: "" });
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'scenario' | 'chapitre'; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
   const [draggedChapitreId, setDraggedChapitreId] = useState<string | null>(null);
   const [dragOverChapitreId, setDragOverChapitreId] = useState<string | null>(null);
   const [pendingFocusBlockId, setPendingFocusBlockId] = useState<string | null>(null);
@@ -293,6 +297,7 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
       onChapitreDragEnd={handleChapitreDragEnd}
       onChapitreDrop={handleChapitreDrop}
       onBack={onBack}
+      onOpenTrash={() => setIsTrashOpen(true)}
     />
   );
 
@@ -439,6 +444,18 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
           isDeleting={isDeleting}
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Corbeille des chapitres */}
+      {isTrashOpen && (
+        <ChapitreTrashModal
+          scenarios={scenarios}
+          onClose={() => setIsTrashOpen(false)}
+          onRestored={(ch) => {
+            fetchData();
+            setExpandedScenarios((prev) => ({ ...prev, [ch.scenario_id]: true }));
+          }}
         />
       )}
     </>

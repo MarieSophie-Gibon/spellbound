@@ -39,6 +39,7 @@ interface ScenarioSidebarProps {
   onChapitreDragEnd: () => void;
   onChapitreDrop: (e: React.DragEvent, targetChapitreId: string) => void;
   onBack: () => void;
+  onOpenTrash: () => void;
 }
 
 export function ScenarioSidebar({
@@ -65,6 +66,7 @@ export function ScenarioSidebar({
   onChapitreDragEnd,
   onChapitreDrop,
   onBack,
+  onOpenTrash,
 }: ScenarioSidebarProps) {
   return (
     <div className="flex flex-col h-full">
@@ -236,6 +238,12 @@ export function ScenarioSidebar({
         >
           <FolderPlus className="w-4 h-4" />
           Nouveau scénario
+        </button>
+        <button
+          onClick={onOpenTrash}
+          className="w-full flex items-center justify-start px-3 gap-3 py-2 text-white/60 hover:text-white text-[13px] transition-colors"
+        >
+          <Trash2 className="w-4 h-4" /> Corbeille
         </button>
         <button
           onClick={onBack}
