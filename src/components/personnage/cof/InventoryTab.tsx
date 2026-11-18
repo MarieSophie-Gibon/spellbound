@@ -5,6 +5,7 @@ import { Coins, Package, Shield, Sword, Target, Backpack, Loader2, Plus, Pencil,
 import { createPortal } from "react-dom";
 import { DeleteConfirmModal } from "@/components/compendium/cof/DeleteConfirmModal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CompendiumItemSelect, CUSTOM_ITEM_VALUE } from "@/components/personnage/cof/CompendiumItemSelect";
 import EquipementWizard from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import { useInventory, type ItemType } from "@/hooks/systems/cof/personnage/useInventory";
@@ -262,23 +263,12 @@ export default function InventoryTab({
                   </div>
                 </div>
 
-                <Select
-                  value={formData.item_id?.toString() || "custom"}
+                <CompendiumItemSelect
+                  value={formData.item_id?.toString() || CUSTOM_ITEM_VALUE}
                   onValueChange={handleCompendiumSelect}
+                  items={compendiumItems}
                   disabled={isFetchingCompendium}
-                >
-                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 disabled:opacity-50">
-                    <SelectValue placeholder="Objet personnalisé..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden">
-                    <SelectItem value="custom" className={selectItemClass}>Objet personnalisé...</SelectItem>
-                    {compendiumItems.map(item => (
-                      <SelectItem key={item.id} value={item.id.toString()} className={selectItemClass}>
-                        {item.nom}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
 
               <div className="flex gap-3">

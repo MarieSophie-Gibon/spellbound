@@ -230,7 +230,7 @@ export function PJWizard({ campaignId, onClose, onSuccess, playerMode = false }:
       }
 
       // Peuples avec leur voie
-      const pData = await personnageData.fetchPeuplesWithVoie();
+      const pData = await personnageData.fetchPeuplesWithVoie(campaignId);
       if (pData) {
         setPeuples(
           pData.map((p: any) => {

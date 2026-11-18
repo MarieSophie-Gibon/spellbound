@@ -265,7 +265,7 @@ export function PNJWizard({ campaignId, onClose, onSuccess }: PNJWizardProps) {
   useEffect(() => {
     async function fetchRef() {
       // Les Peuples sont TOUJOURS chargés, même pour les PNJ non-combattants (pour le Lore)
-      const pData = await personnageData.fetchPeuplesWithVoie();
+      const pData = await personnageData.fetchPeuplesWithVoie(campaignId);
       if (pData) {
         setPeuples(
           pData.map((p: any) => {
