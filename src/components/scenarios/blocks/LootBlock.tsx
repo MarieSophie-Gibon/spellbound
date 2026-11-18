@@ -25,6 +25,8 @@ interface LootBlockProps {
         text?: string;
         items?: LootItem[];
     };
+    // En lecture, seul l'envoi d'un objet à un PJ reste disponible.
+    isEditing?: boolean;
     onChange: (newData: Partial<LootBlockProps["data"]>) => void;
 }
 
@@ -42,7 +44,7 @@ const TABLE_LABEL: Record<string, string> = {
     armures: "Armure",
 };
 
-export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
+export function LootBlock({ campaignId, data, isEditing = true, onChange }: LootBlockProps) {
     const scenarioBlocksData = useScenarioBlocksData();
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<LootItem[]>([]);
@@ -174,13 +176,17 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                     </div>
                     <div className="flex-1">
                         <h3 className="font-serif text-lg text-amber-100/90 mb-1">Trésor & Butin</h3>
-                        <textarea
-                            value={data.text || ""}
-                            onChange={(e) => onChange({ text: e.target.value })}
-                            placeholder="Or, gemmes, objets de quête (ex: 50 PO, 1 rubis...)"
-                            className="w-full bg-transparent text-white/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 border-b border-white/10 focus:border-amber-400/40 transition-colors"
-                            onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
-                        />
+                        {isEditing ? (
+                            <textarea
+                                value={data.text || ""}
+                                onChange={(e) => onChange({ text: e.target.value })}
+                                placeholder="Or, gemmes, objets de quête (ex: 50 PO, 1 rubis...)"
+                                className="w-full bg-transparent text-white/80 text-[13px] leading-relaxed outline-none resize-none overflow-hidden min-h-10 placeholder:text-white/20 border-b border-white/10 focus:border-amber-400/40 transition-colors"
+                                onInput={(e) => resizeTextareaPreserveScroll(e.target as HTMLTextAreaElement)}
+                            />
+                        ) : data.text ? (
+                            <p className="text-white/80 text-[13px] leading-relaxed whitespace-pre-wrap wrap-break-word">{data.text}</p>
+                        ) : null}
                     </div>
                 </div>
 
@@ -226,15 +232,19 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                     </div>
 
                                     {/* Quantité */}
-                                    <div className="flex items-center gap-1 bg-white/5 border border-white/8 rounded-lg px-1.5 py-1 shrink-0">
-                                        <button onClick={() => updateQuantity(item.id, item.table, -1)} className="p-0.5 text-white/30 hover:text-white rounded hover:bg-white/15 transition-colors">
-                                            <Minus className="w-3 h-3" />
-                                        </button>
-                                        <span className="text-[12px] text-amber-200 font-mono w-5 text-center">{item.quantite}</span>
-                                        <button onClick={() => updateQuantity(item.id, item.table, 1)} className="p-0.5 text-white/30 hover:text-white rounded hover:bg-white/15 transition-colors">
-                                            <Plus className="w-3 h-3" />
-                                        </button>
-                                    </div>
+                                    {isEditing ? (
+                                        <div className="flex items-center gap-1 bg-white/5 border border-white/8 rounded-lg px-1.5 py-1 shrink-0">
+                                            <button onClick={() => updateQuantity(item.id, item.table, -1)} className="p-0.5 text-white/30 hover:text-white rounded hover:bg-white/15 transition-colors">
+                                                <Minus className="w-3 h-3" />
+                                            </button>
+                                            <span className="text-[12px] text-amber-200 font-mono w-5 text-center">{item.quantite}</span>
+                                            <button onClick={() => updateQuantity(item.id, item.table, 1)} className="p-0.5 text-white/30 hover:text-white rounded hover:bg-white/15 transition-colors">
+                                                <Plus className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <span className="text-[12px] text-amber-200 font-mono shrink-0">×{item.quantite}</span>
+                                    )}
 
                                     {/* Attribuer à un PJ */}
                                     <div className="relative shrink-0" ref={isPickerOpen ? assignRef : undefined}>
@@ -275,12 +285,14 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                                     </div>
 
                                     {/* Supprimer */}
-                                    <button
-                                        onClick={() => removeItem(item.id, item.table)}
-                                        className="p-1.5 bg-red-500/5 hover:bg-red-500/20 text-red-400/50 hover:text-red-400 rounded-lg border border-transparent hover:border-red-500/20 transition-all shrink-0 opacity-0 group-hover/item:opacity-100"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    {isEditing && (
+                                        <button
+                                            onClick={() => removeItem(item.id, item.table)}
+                                            className="p-1.5 bg-red-500/5 hover:bg-red-500/20 text-red-400/50 hover:text-red-400 rounded-lg border border-transparent hover:border-red-500/20 transition-all shrink-0 opacity-0 group-hover/item:opacity-100"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -288,6 +300,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                 )}
 
                 {/* RECHERCHE ET CRÉATION */}
+                {isEditing && (
                 <div className="flex flex-col gap-2 mt-2 relative">
                     <div className="relative z-20">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
@@ -339,6 +352,7 @@ export function LootBlock({ campaignId, data, onChange }: LootBlockProps) {
                         <button onClick={() => setWizardType("armure")} className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 hover:bg-amber-500/15 text-[11px] text-white/60 hover:text-amber-100 transition-all border border-white/5 hover:border-amber-500/30"><Shield className="w-3 h-3" /> Armure</button>
                     </div>
                 </div>
+                )}
             </div>
 
             {/* MODALE DE CRÉATION */}
