@@ -3,6 +3,7 @@ import { Swords } from "lucide-react";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type MapToken } from "@/components/scenarios/combat/types";
 import { CONDITION_OPTIONS } from "@/components/scenarios/combat/types";
 import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type BattleMapPing, type FogRevealStamp } from "@/components/scenarios/combat/BattleMap";
+import { StreamRevealOverlay } from "@/components/stream/StreamRevealOverlay";
 
 interface LiveState {
   imageUrl: string | null;
@@ -196,6 +197,8 @@ export function PlayerView() {
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col select-none overflow-hidden">
+      {/* Révélations du MJ (PNJ, rencontre, lieu, image), par-dessus la map */}
+      <StreamRevealOverlay />
       <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between px-4 sm:px-6 py-3 bg-linear-to-b from-black/80 to-transparent pointer-events-none">
         <div className="flex items-center gap-2">
           <Swords className="w-4 h-4 text-amber-400/70" />

@@ -60,6 +60,9 @@ import { ClueBlock } from "./blocks/ClueBlock";
 import { LinkBlock } from "./blocks/LinkBlock";
 import { TableBlock } from "./blocks/TableBlock";
 import { ChapitreHistoryModal } from "./ChapitreHistoryModal";
+import { StreamRevealButton, StreamRevealControl } from "@/components/stream/StreamRevealControl";
+import { useStreamReveal } from "@/hooks/scenarios/useStreamReveal";
+import { createReveal, isCharacterReveal, revealCardsFromBlock } from "@/lib/streamReveal";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -115,6 +118,24 @@ export function ChapitreEditor({
 }: ChapitreEditorProps) {
   const chapitreEditorData = useChapitreEditorData();
   const { openPopup } = useGrimoirePopup();
+
+  // --- Écran streaming : montrer un PNJ, un ennemi, un lieu ou une image aux joueurs ---
+  const streamReveal = useStreamReveal();
+  const renderRevealButton = (block: Block) => {
+    const revealable = revealCardsFromBlock(block);
+    if (!revealable) return null;
+    const source = `block:${block.id}`;
+    return (
+      <StreamRevealButton
+        active={streamReveal.current?.source === source}
+        allowHiddenName={isCharacterReveal(revealable.kind)}
+        onReveal={(nameHidden) =>
+          streamReveal.reveal(createReveal(source, revealable.kind, revealable.cards, nameHidden))
+        }
+        onClear={streamReveal.clear}
+      />
+    );
+  };
   const [chapitre, setChapitre] = useState<any>(null);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const retroLinks = useChapitreRetroLinks({ campaignId, chapitreId, blocks });
@@ -1572,6 +1593,7 @@ export function ChapitreEditor({
                         >
                           <Copy className="w-4 h-4" />
                         </button>
+                        {renderRevealButton(block)}
                         <button
                           onClick={() => removeBlock(block.id)}
                           className="p-1 md:p-1.5 text-white/40 hover:text-red-400 hover:bg-red-400/10 rounded"
@@ -1582,9 +1604,15 @@ export function ChapitreEditor({
                       </div>
                     )}
 
-                    {/* Wrapper factice pour compenser la largeur des actions en mode lecture */}
+                    {/* Mode lecture : colonne d'actions réduite au bouton « Montrer aux joueurs » */}
                     {!isEditing && (
-                      <div className="w-7 md:w-10 shrink-0 hidden md:block" />
+                      <div
+                        className={`w-7 md:w-10 shrink-0 flex-col items-center pt-1 ${
+                          revealCardsFromBlock(block) ? "flex" : "hidden md:flex"
+                        }`}
+                      >
+                        {renderRevealButton(block)}
+                      </div>
                     )}
 
                     {/* Contenu du bloc + post-its attachés */}
@@ -1785,6 +1813,8 @@ export function ChapitreEditor({
           </button>
         </div>
       )}
+
+      <StreamRevealControl api={streamReveal} />
 
       {isHistoryOpen &&
         createPortal(
