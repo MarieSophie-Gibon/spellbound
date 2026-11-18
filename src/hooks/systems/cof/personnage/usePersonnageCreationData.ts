@@ -18,10 +18,13 @@ export function usePersonnageCreationData() {
         return data ?? [];
       },
 
-      async fetchPeuplesWithVoie() {
+      // Peuples disponibles pour la campagne : compendium global + peuples privés de la campagne.
+      // Sans ce filtre, les peuples privés de toutes les autres campagnes apparaissaient (doublons).
+      async fetchPeuplesWithVoie(campaignId: string) {
         const { data } = await supabase
           .from("peuples")
           .select("id, nom, description, data, multi, image_url, voie:voies!peuple_id(id, nom, capacites)")
+          .or(`campaign_id.eq.${campaignId},campaign_id.is.null`)
           .order("nom");
         return data ?? [];
       },

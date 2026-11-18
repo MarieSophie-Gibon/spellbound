@@ -6,7 +6,7 @@ import {
   Coins, Package, Shield, Sword, Target, Backpack,
   Loader2, Plus, Minus, Trash2, X, Save,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CompendiumItemSelect, CUSTOM_ITEM_VALUE } from "@/components/personnage/cof/CompendiumItemSelect";
 import EquipementWizard from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import type { EquipementType } from "@/components/compendium/cof/equipement/MagicalItemWizard";
 import { useInventory, type ItemType } from "@/hooks/systems/cof/personnage/useInventory";
@@ -157,7 +157,6 @@ export default function InventoryTabMobile({
     }
   };
 
-  const selectItemClass = "!text-white **:!text-white hover:!text-white focus:!text-white data-highlighted:!text-white hover:bg-white/10 focus:bg-white/10 data-highlighted:bg-white/10 data-[state=checked]:!text-white";
 
   const handleAddTypeChange = (nextType: ItemType) => {
     setAddType(nextType);
@@ -349,19 +348,19 @@ export default function InventoryTabMobile({
               </div>
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-[#E3CCCD]/60 block mb-1">Objet du Compendium</label>
-                <Select value={editItemId?.toString() || "custom"} onValueChange={(val) => {
-                  if (val === "custom") { setEditItemId(null); setEditNom(""); setEditDesc(""); return; }
-                  const sel = editCompendiumItems.find(i => i.id?.toString() === val);
-                  if (!sel) return;
-                  const desc = sel.notes || sel.description || sel.data?.description || "";
-                  setEditItemId(sel.id); setEditNom(sel.nom); setEditDesc(desc);
-                }} disabled={isFetchingEditCompendium}>
-                  <SelectTrigger className="w-full h-10 bg-white/8 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 disabled:opacity-50"><SelectValue placeholder="Objet personnalisé…" /></SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-60 z-10000">
-                    <SelectItem value="custom" className="text-white! hover:bg-white/10">Objet personnalisé…</SelectItem>
-                    {editCompendiumItems.map(ci => (<SelectItem key={ci.id} value={ci.id.toString()} className="text-white! hover:bg-white/10">{ci.nom}</SelectItem>))}
-                  </SelectContent>
-                </Select>
+                <CompendiumItemSelect
+                  value={editItemId?.toString() || CUSTOM_ITEM_VALUE}
+                  onValueChange={(val) => {
+                    if (val === CUSTOM_ITEM_VALUE) { setEditItemId(null); setEditNom(""); setEditDesc(""); return; }
+                    const sel = editCompendiumItems.find(i => i.id?.toString() === val);
+                    if (!sel) return;
+                    const desc = sel.notes || sel.description || sel.data?.description || "";
+                    setEditItemId(sel.id); setEditNom(sel.nom); setEditDesc(desc);
+                  }}
+                  items={editCompendiumItems}
+                  disabled={isFetchingEditCompendium}
+                  className="h-10 bg-white/8"
+                />
               </div>
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1">Nom</label>
@@ -422,13 +421,12 @@ export default function InventoryTabMobile({
                     <button type="button" onClick={() => setWizardType(addType as EquipementType)} className="flex items-center gap-1 text-[10px] text-[#E3CCCD]/70 border border-[#E3CCCD]/25 bg-[#E3CCCD]/8 hover:bg-[#E3CCCD]/15 rounded px-2 py-0.5 transition-colors"><Plus className="w-3 h-3" /> Créer</button>
                   </div>
                 </div>
-                <Select value={addItemId?.toString() || "custom"} onValueChange={handleCompendiumSelect} disabled={isFetchingCompendium}>
-                  <SelectTrigger className="w-full h-10.5 bg-[#2C255F]/65 border border-white/20 rounded-lg px-2.5 text-white text-sm focus-visible:ring-0 disabled:opacity-50"><SelectValue placeholder="Objet personnalisé..." /></SelectTrigger>
-                  <SelectContent className="bg-[#2A2458] border border-white/18 text-white rounded-lg max-h-72 overflow-hidden z-10000">
-                    <SelectItem value="custom" className={selectItemClass}>Objet personnalisé...</SelectItem>
-                    {compendiumItems.map((item) => (<SelectItem key={item.id} value={item.id.toString()} className={selectItemClass}>{item.nom}</SelectItem>))}
-                  </SelectContent>
-                </Select>
+                <CompendiumItemSelect
+                  value={addItemId?.toString() || CUSTOM_ITEM_VALUE}
+                  onValueChange={handleCompendiumSelect}
+                  items={compendiumItems}
+                  disabled={isFetchingCompendium}
+                />
               </div>
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-white/40 block mb-1">Nom</label>
