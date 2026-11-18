@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { gridFromCalibration } from "./gridMath";
-import { normalizeGrid } from "./types";
+import { DEFAULT_GRID, normalizeGrid, resetGrid } from "./types";
+
+describe("resetGrid", () => {
+  it("désactive la grille et remet taille et décalage par défaut, en gardant l'apparence", () => {
+    const grid = { enabled: true, cellSize: 3.2, offsetX: 1.1, offsetY: 0.7, opacity: 0.8, color: "dark" as const, showToPlayers: false };
+    expect(resetGrid(grid)).toEqual({
+      ...DEFAULT_GRID,
+      opacity: 0.8,
+      color: "dark",
+      showToPlayers: false,
+    });
+  });
+});
 
 describe("gridFromCalibration", () => {
   it("déduit taille et décalage d'une case tracée (image carrée)", () => {

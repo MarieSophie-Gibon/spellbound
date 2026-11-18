@@ -274,7 +274,11 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   // Outil « Caler sur la carte » : rectangle tracé sur cols × rows cases de la carte.
   const [calibration, setCalibration] = useState<{ cols: number; rows: number; start: MapPoint | null; current: MapPoint | null } | null>(null);
   const imgAspect = imgLocalRect && imgLocalRect.width > 0 ? imgLocalRect.height / imgLocalRect.width : null;
-  const playerGrid = useMemo(() => (grid.enabled && grid.showToPlayers ? grid : null), [grid]);
+  const isCalibrating = calibration !== null;
+  const playerGrid = useMemo(
+    () => (grid.enabled && grid.showToPlayers && !isCalibrating ? grid : null),
+    [grid, isCalibrating],
+  );
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
@@ -947,7 +951,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                   height: imgLocalRect.height,
                 } : { inset: 0 }}
               >
-                {grid.enabled && imgAspect && <GridOverlay grid={grid} aspect={imgAspect} className="z-10" />}
+                {/* Masquée pendant le calage : seule la grille dessinée sur la carte doit guider le tracé. */}
+                {grid.enabled && imgAspect && !calibration && <GridOverlay grid={grid} aspect={imgAspect} className="z-10" />}
                 {calibration && (
                   <div
                     className="absolute inset-0 z-40 cursor-crosshair touch-none"

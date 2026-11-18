@@ -221,6 +221,19 @@ export const DEFAULT_GRID: BattleMapGrid = {
   showToPlayers: true,
 };
 
+/**
+ * « Supprimer le quadrillage » : grille désactivée, taille et décalage remis à
+ * zéro ; les préférences d'apparence et de visibilité sont gardées.
+ */
+export function resetGrid(grid: BattleMapGrid): BattleMapGrid {
+  return {
+    ...DEFAULT_GRID,
+    opacity: grid.opacity,
+    color: grid.color,
+    showToPlayers: grid.showToPlayers,
+  };
+}
+
 const clampNumber = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
 

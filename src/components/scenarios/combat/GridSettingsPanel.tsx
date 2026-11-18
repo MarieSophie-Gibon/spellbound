@@ -1,5 +1,6 @@
-import { Minus, Plus, Scan, X } from "lucide-react";
-import { GRID_CELL_MAX, GRID_CELL_MIN, normalizeGrid, type BattleMapGrid } from "./types";
+import { useState } from "react";
+import { Minus, Plus, Scan, Trash2, X } from "lucide-react";
+import { DEFAULT_GRID, GRID_CELL_MAX, GRID_CELL_MIN, normalizeGrid, resetGrid, type BattleMapGrid } from "./types";
 
 interface GridSettingsPanelProps {
   grid: BattleMapGrid;
@@ -68,6 +69,13 @@ function Slider({
 export function GridSettingsPanel({ grid, onChange, onStartCalibration, onClose }: GridSettingsPanelProps) {
   const update = (patch: Partial<BattleMapGrid>) => onChange(normalizeGrid({ ...grid, ...patch }));
   const cellsAcross = 100 / grid.cellSize;
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  // Rien à supprimer : grille désactivée et jamais réglée.
+  const isPristine =
+    !grid.enabled &&
+    grid.cellSize === DEFAULT_GRID.cellSize &&
+    grid.offsetX === DEFAULT_GRID.offsetX &&
+    grid.offsetY === DEFAULT_GRID.offsetY;
 
   return (
     <div
@@ -165,6 +173,43 @@ export function GridSettingsPanel({ grid, onChange, onStartCalibration, onClose 
           className="accent-amber-300 w-4 h-4"
         />
       </label>
+
+      <div className="pt-2 border-t border-white/10">
+        {isConfirmingDelete ? (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-white/60">Supprimer le quadrillage ?</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingDelete(false)}
+                className="px-2 py-1 rounded-md text-[11px] text-white/60 hover:text-white hover:bg-white/10"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(resetGrid(grid));
+                  setIsConfirmingDelete(false);
+                }}
+                className="px-2 py-1 rounded-md text-[11px] font-semibold bg-red-500/15 text-red-300 border border-red-400/30 hover:bg-red-500/25"
+              >
+                Supprimer
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsConfirmingDelete(true)}
+            disabled={isPristine}
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-[12px] text-red-300/80 hover:text-red-200 hover:bg-red-500/10 transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+            title="Désactive la grille et remet sa taille et son décalage à zéro"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Supprimer le quadrillage
+          </button>
+        )}
+      </div>
     </div>
   );
 }
