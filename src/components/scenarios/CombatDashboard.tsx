@@ -111,6 +111,9 @@ function normalizeCombatState(
   };
 }
 
+// Délai minimal entre deux écritures de combat_state en base (voir « Persist »).
+const COMBAT_STATE_PERSIST_INTERVAL_MS = 5000;
+
 export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBackToScenario, sessionRole = "MJ" }: CombatDashboardProps) {
   const combatData = useCombatDashboardData();
   const { openPopup } = useGrimoirePopup();
@@ -441,6 +444,42 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   // battlemapUrl est volontairement exclu de ce blob : il a sa propre colonne
   // et sa propre écriture immédiate (voir handleBattlemapChange), pour ne jamais
   // être écrasé par la réécriture complète de l'état de combat par un autre client.
+  //
+  // Écriture en base limitée à une toutes les COMBAT_STATE_PERSIST_INTERVAL_MS :
+  // chaque UPDATE réécrit tout le blob combat_state (brouillard compris), ce qui
+  // épuisait le budget Disk IO de Supabase pendant les combats. La synchro entre
+  // sessions passe par le WebSocket ; la base ne sert qu'à retrouver l'état au
+  // rechargement. localStorage reste mis à jour à chaque changement, et l'état en
+  // attente est écrit immédiatement quand l'onglet est masqué/fermé ou au démontage.
+  const pendingPersistRef = useRef<PersistedCombatState | null>(null);
+  const persistTimerRef = useRef<number | null>(null);
+  const flushPersist = useCallback(() => {
+    if (persistTimerRef.current !== null) {
+      window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    const payload = pendingPersistRef.current;
+    pendingPersistRef.current = null;
+    // En session partagée, une seule session écrit en base (voir isPrimaryWriter).
+    if (!payload || !isPrimaryWriterRef.current) return;
+    persistCombatState(payload).catch((error) => {
+      console.error("Impossible de sauvegarder l'état du combat:", error);
+    });
+  }, [persistCombatState]);
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushPersist();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", flushPersist);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flushPersist);
+      flushPersist();
+    };
+  }, [flushPersist]);
+
   useEffect(() => {
     if (!isHydrated) return;
     const payload: PersistedCombatState = {
@@ -456,13 +495,13 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       roundTriggers,
     };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
-    const timer = setTimeout(() => {
-      // En session partagée, une seule session écrit en base (voir isPrimaryWriter).
-      if (!isPrimaryWriterRef.current) return;
-      void persistCombatState(payload);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, persistCombatState]);
+    pendingPersistRef.current = payload;
+    // Pas de report à chaque changement : en combat actif, l'écriture partirait sinon
+    // jamais. Le premier changement arme le minuteur, les suivants mettent à jour l'état en attente.
+    if (persistTimerRef.current === null) {
+      persistTimerRef.current = window.setTimeout(flushPersist, COMBAT_STATE_PERSIST_INTERVAL_MS);
+    }
+  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, flushPersist]);
 
   // --- Session partagée MJ / co-MJ (WebSocket) ---
   // La position de la note reste propre à chaque écran : seul son texte est partagé.
