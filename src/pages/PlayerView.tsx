@@ -6,6 +6,8 @@ import { tokenRingClass, BATTLEMAP_CHANNEL, type BattleMapBroadcast, type Battle
 import { StreamRevealOverlay } from "@/components/stream/StreamRevealOverlay";
 import { GridOverlay } from "@/components/scenarios/combat/GridOverlay";
 import { normalizeGrid, type BattleMapGrid } from "@/components/scenarios/combat/types";
+import { MoveTrailsOverlay } from "@/components/scenarios/combat/MoveTrailsOverlay";
+import { computeMoveTrails } from "@/components/scenarios/combat/gridMath";
 
 interface LiveState {
   imageUrl: string | null;
@@ -21,6 +23,8 @@ interface LiveState {
   fogReveals: FogRevealStamp[];
   showNameTags?: boolean;
   grid?: BattleMapGrid | null;
+  moveOrigins?: Record<string, { x: number; y: number }> | null;
+  moveGrid?: BattleMapGrid | null;
   dragPreviewToken?: { combatantId: string; x: number; y: number } | null;
   dragPreviewTokens?: Record<string, { x: number; y: number }> | null;
 }
@@ -68,6 +72,8 @@ export function PlayerView() {
         dragPreviewToken: incoming.dragPreviewToken ?? null,
         dragPreviewTokens: incoming.dragPreviewTokens ?? null,
         grid: incoming.grid ? normalizeGrid(incoming.grid) : null,
+        moveOrigins: incoming.moveOrigins ?? null,
+        moveGrid: incoming.moveGrid ? normalizeGrid(incoming.moveGrid) : null,
       });
     };
     ch.postMessage({ type: "request" });
@@ -188,6 +194,18 @@ export function PlayerView() {
     };
   }, [state, targetTokenPositions]);
 
+  // Trajets du tour envoyés par le MJ, mesurés sur les positions affichées (lissées).
+  const moveTrails = useMemo(() => {
+    if (!state?.moveOrigins || !state.moveGrid || !imgRect || !(imgRect.width > 0)) return [];
+    const positions: Record<string, { x: number; y: number }> = {};
+    for (const token of state.mapTokens) {
+      positions[token.combatantId] =
+        smoothedTokenPositions[token.combatantId] ?? targetTokenPositions[token.combatantId] ?? token;
+    }
+    const dragged = new Set(Object.keys(state.dragPreviewTokens ?? {}));
+    return computeMoveTrails(state.moveOrigins, positions, dragged, state.moveGrid, imgRect.height / imgRect.width);
+  }, [state, imgRect, smoothedTokenPositions, targetTokenPositions]);
+
   const mapTokenSize = useMemo(() => {
     if (!state) return 40;
     if (imgRect && state.tokenSizePct !== undefined) {
@@ -247,6 +265,9 @@ export function PlayerView() {
                 >
                   {state.grid && imgRect && imgRect.width > 0 && (
                     <GridOverlay grid={state.grid} aspect={imgRect.height / imgRect.width} />
+                  )}
+                  {state.moveGrid && (
+                    <MoveTrailsOverlay trails={moveTrails} metersPerCell={state.moveGrid.metersPerCell} tokenSize={mapTokenSize} />
                   )}
                   {state.mapTokens.map(token => {
                     const combatant = state.combatants.find(c => c.id === token.combatantId);

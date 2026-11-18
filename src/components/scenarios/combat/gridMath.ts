@@ -53,6 +53,38 @@ export function gridDistance(a: GridCell, b: GridCell, rule: DiagonalRule): numb
   }
 }
 
+export interface MoveTrail {
+  id: string;
+  origin: MapPoint;
+  position: MapPoint;
+  cells: number;
+  /** Jeton en cours de glissement : trajet mis en avant. */
+  isDragged: boolean;
+}
+
+/**
+ * Trajets du tour : pour chaque jeton qui a un point de départ, la distance en
+ * cases jusqu'à sa position actuelle (ou glissée). Les jetons revenus sur leur
+ * case de départ n'ont pas de trajet.
+ */
+export function computeMoveTrails(
+  origins: Record<string, MapPoint>,
+  positions: Record<string, MapPoint>,
+  draggedIds: ReadonlySet<string>,
+  grid: BattleMapGrid,
+  aspect: number,
+): MoveTrail[] {
+  const trails: MoveTrail[] = [];
+  for (const [id, origin] of Object.entries(origins)) {
+    const position = positions[id];
+    if (!position) continue;
+    const cells = gridDistance(cellAt(origin, grid, aspect), cellAt(position, grid, aspect), grid.diagonalRule);
+    if (cells === 0) continue;
+    trails.push({ id, origin, position, cells, isDragged: draggedIds.has(id) });
+  }
+  return trails;
+}
+
 const numberFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
 /** « 4 cases · 6 m » */

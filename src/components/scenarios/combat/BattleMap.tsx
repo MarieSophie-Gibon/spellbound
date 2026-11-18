@@ -5,7 +5,8 @@ import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type F
 import { CONDITION_OPTIONS, type BattleMapGrid } from "./types";
 import { GridOverlay } from "./GridOverlay";
 import { GridSettingsPanel } from "./GridSettingsPanel";
-import { cellAt, formatGridDistance, gridDistance, gridFromCalibration, snapToCell, type MapPoint } from "./gridMath";
+import { computeMoveTrails, gridFromCalibration, snapToCell, type MapPoint } from "./gridMath";
+import { MoveTrailsOverlay } from "./MoveTrailsOverlay";
 import { StreamRevealButton, StreamRevealControl, StreamRevealPicker } from "@/components/stream/StreamRevealControl";
 import { useStreamReveal } from "@/hooks/scenarios/useStreamReveal";
 import { candidatesFromCombatants, characterRevealKind, createReveal } from "@/lib/streamReveal";
@@ -69,6 +70,10 @@ export interface BattleMapBroadcast {
   dragPreviewTokens?: Record<string, { x: number; y: number }> | null;
   /** Quadrillage à afficher aux joueurs (null : masqué). */
   grid?: BattleMapGrid | null;
+  /** Trajets du tour : points de départ des jetons visibles (null : rien à afficher)… */
+  moveOrigins?: Record<string, { x: number; y: number }> | null;
+  /** …et règles de la grille pour les mesurer (même si la grille est masquée aux joueurs). */
+  moveGrid?: BattleMapGrid | null;
 }
 
 export interface BattleMapPing {
@@ -298,14 +303,27 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     turnKey: null,
     origins: {},
   });
+  // Trajets affichés : ceux du tour en cours, ou celui d'un glissement hors combat.
+  const visibleMoveOrigins = useMemo(() => {
+    const isCurrentTurn = turnMoves.turnKey !== null && turnMoves.turnKey === (activeCombatantId ?? null);
+    return grid.enabled && (isCurrentTurn || isDraggingToken) ? turnMoves.origins : null;
+  }, [grid.enabled, turnMoves, activeCombatantId, isDraggingToken]);
+  // Écran streaming : sans les combattants cachés aux joueurs.
+  const playerMoveOrigins = useMemo(() => {
+    if (!visibleMoveOrigins) return null;
+    const hiddenIds = new Set(combatants.filter((c) => c.hidden).map((c) => c.id));
+    const visible = Object.fromEntries(Object.entries(visibleMoveOrigins).filter(([id]) => !hiddenIds.has(id)));
+    return Object.keys(visible).length ? visible : null;
+  }, [visibleMoveOrigins, combatants]);
+  const moveGrid = grid.enabled ? grid : null;
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid,
+    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid };
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid };
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid, playerMoveOrigins, moveGrid]);
 
   useEffect(() => {
     const pending = pendingCommittedPositionsRef.current;
@@ -408,8 +426,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   }, [onUpdateTokens]);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid });
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid });
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid, playerMoveOrigins, moveGrid]);
 
   useEffect(() => {
     return () => {
@@ -425,22 +443,14 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     return byId;
   }, [combatants]);
 
-  // Trajets du tour : du point de départ du tour à la position actuelle (ou glissée),
-  // avec le nombre de cases. Affichés pendant le tour, ou pendant un glissement hors combat.
+  // Trajets du tour : du point de départ à la position actuelle (ou glissée), en cases.
   const moveTrails = useMemo(() => {
-    if (!grid.enabled || !imgAspect) return [];
-    const isCurrentTurn = turnMoves.turnKey !== null && turnMoves.turnKey === (activeCombatantId ?? null);
-    if (!isCurrentTurn && !isDraggingToken) return [];
-    return Object.entries(turnMoves.origins).flatMap(([id, origin]) => {
-      const token = mapTokens.find((t) => t.combatantId === id);
-      if (!token) return [];
-      const preview = dragPreviewTokens?.[id];
-      const position = preview ?? { x: token.x, y: token.y };
-      const cells = gridDistance(cellAt(origin, grid, imgAspect), cellAt(position, grid, imgAspect), grid.diagonalRule);
-      if (cells === 0) return [];
-      return [{ id, origin, position, cells, isDragged: isDraggingToken && !!preview }];
-    });
-  }, [grid, imgAspect, turnMoves, activeCombatantId, isDraggingToken, mapTokens, dragPreviewTokens]);
+    if (!visibleMoveOrigins || !imgAspect) return [];
+    const positions: Record<string, MapPoint> = {};
+    for (const token of mapTokens) positions[token.combatantId] = dragPreviewTokens?.[token.combatantId] ?? token;
+    const dragged = new Set(isDraggingToken && dragPreviewTokens ? Object.keys(dragPreviewTokens) : []);
+    return computeMoveTrails(visibleMoveOrigins, positions, dragged, grid, imgAspect);
+  }, [visibleMoveOrigins, imgAspect, mapTokens, dragPreviewTokens, isDraggingToken, grid]);
 
   const placedCombatantIds = useMemo(() => new Set(mapTokens.map((t) => t.combatantId)), [mapTokens]);
 
@@ -999,54 +1009,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
               >
                 {/* Masquée pendant le calage : seule la grille dessinée sur la carte doit guider le tracé. */}
                 {grid.enabled && imgAspect && !calibration && <GridOverlay grid={grid} aspect={imgAspect} className="z-10" />}
-                {/* Trajets du tour (MJ uniquement) : départ, ligne pointillée et décompte au-dessus du jeton */}
-                {moveTrails.length > 0 && (
-                  <>
-                    <svg
-                      className="absolute inset-0 w-full h-full pointer-events-none z-15"
-                      viewBox="0 0 100 100"
-                      preserveAspectRatio="none"
-                      aria-hidden
-                    >
-                      {moveTrails.map((trail) => (
-                        <line
-                          key={trail.id}
-                          x1={trail.origin.x}
-                          y1={trail.origin.y}
-                          x2={trail.position.x}
-                          y2={trail.position.y}
-                          stroke={trail.isDragged ? "#fcd34d" : "rgba(253, 230, 138, 0.6)"}
-                          strokeWidth={trail.isDragged ? 3 : 2}
-                          strokeDasharray="7 5"
-                          strokeLinecap="round"
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      ))}
-                    </svg>
-                    {moveTrails.map((trail) => (
-                      <div key={trail.id}>
-                        <div
-                          className="absolute z-15 w-3 h-3 rounded-full border-2 border-amber-300/80 bg-black/40 pointer-events-none"
-                          style={{ left: `${trail.origin.x}%`, top: `${trail.origin.y}%`, transform: "translate(-50%, -50%)" }}
-                        />
-                        <div
-                          className={`absolute z-30 pointer-events-none px-2 py-0.5 rounded-full whitespace-nowrap font-semibold border shadow-lg ${
-                            trail.isDragged
-                              ? "bg-amber-400 text-black border-amber-200 text-[12px]"
-                              : "bg-black/75 text-amber-200 border-amber-300/40 text-[10px]"
-                          }`}
-                          style={{
-                            left: `${trail.position.x}%`,
-                            top: `${trail.position.y}%`,
-                            transform: `translate(-50%, calc(-100% - ${tokenSize / 2 + 6}px))`,
-                          }}
-                        >
-                          {formatGridDistance(trail.cells, grid.metersPerCell)}
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
+                {/* Trajets du tour : départ, ligne pointillée et décompte au-dessus du jeton */}
+                <MoveTrailsOverlay trails={moveTrails} metersPerCell={grid.metersPerCell} tokenSize={tokenSize} />
                 {calibration && (
                   <div
                     className="absolute inset-0 z-40 cursor-crosshair touch-none"

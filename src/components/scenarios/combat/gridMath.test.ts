@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellAt, cellCenter, formatGridDistance, gridDistance, gridFromCalibration, snapToCell } from "./gridMath";
+import { cellAt, cellCenter, computeMoveTrails, formatGridDistance, gridDistance, gridFromCalibration, snapToCell } from "./gridMath";
 import { DEFAULT_GRID, normalizeGrid, resetGrid, type BattleMapGrid } from "./types";
 
 describe("resetGrid", () => {
@@ -115,5 +115,20 @@ describe("normalizeGrid", () => {
   it("accepte une valeur absente ou invalide", () => {
     expect(normalizeGrid(undefined).enabled).toBe(false);
     expect(normalizeGrid("n'importe quoi").cellSize).toBe(5);
+  });
+});
+
+describe("computeMoveTrails", () => {
+  const grid: BattleMapGrid = { ...DEFAULT_GRID, enabled: true, cellSize: 10, offsetX: 0, offsetY: 0 };
+
+  it("mesure chaque jeton depuis son départ et ignore ceux revenus à leur case", () => {
+    const trails = computeMoveTrails(
+      { a: { x: 5, y: 5 }, b: { x: 25, y: 25 }, gone: { x: 5, y: 5 } },
+      { a: { x: 35, y: 5 }, b: { x: 27, y: 22 } },
+      new Set(["a"]),
+      grid,
+      1,
+    );
+    expect(trails).toEqual([{ id: "a", origin: { x: 5, y: 5 }, position: { x: 35, y: 5 }, cells: 3, isDragged: true }]);
   });
 });
