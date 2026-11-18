@@ -19,7 +19,8 @@ export type CombatSlice =
   | "combatNote"
   | "roundTriggers"
   | "battlemapUrl"
-  | "grid";
+  | "grid"
+  | "vision";
 
 export type CombatSnapshot = Partial<Record<CombatSlice, unknown>>;
 

@@ -8,6 +8,8 @@ import { GridOverlay } from "@/components/scenarios/combat/GridOverlay";
 import { normalizeGrid, type BattleMapGrid } from "@/components/scenarios/combat/types";
 import { MoveTrailsOverlay } from "@/components/scenarios/combat/MoveTrailsOverlay";
 import { computeMoveTrails } from "@/components/scenarios/combat/gridMath";
+import { drawVisionReveal } from "@/components/scenarios/combat/visionMath";
+import { normalizeVision, type TokenVision } from "@/components/scenarios/combat/types";
 
 interface LiveState {
   imageUrl: string | null;
@@ -25,6 +27,8 @@ interface LiveState {
   grid?: BattleMapGrid | null;
   moveOrigins?: Record<string, { x: number; y: number }> | null;
   moveGrid?: BattleMapGrid | null;
+  vision?: { explored: string[]; tokens: Record<string, TokenVision> } | null;
+  visionGrid?: BattleMapGrid | null;
   dragPreviewToken?: { combatantId: string; x: number; y: number } | null;
   dragPreviewTokens?: Record<string, { x: number; y: number }> | null;
 }
@@ -74,6 +78,8 @@ export function PlayerView() {
         grid: incoming.grid ? normalizeGrid(incoming.grid) : null,
         moveOrigins: incoming.moveOrigins ?? null,
         moveGrid: incoming.moveGrid ? normalizeGrid(incoming.moveGrid) : null,
+        vision: incoming.vision ? normalizeVision({ enabled: true, ...incoming.vision }) : null,
+        visionGrid: incoming.visionGrid ? normalizeGrid(incoming.visionGrid) : null,
       });
     };
     ch.postMessage({ type: "request" });
@@ -129,8 +135,21 @@ export function PlayerView() {
       ctx.fill();
     }
 
+    // Vision des PJ : cônes sur les positions affichées (lissées), zones déjà vues assombries.
+    if (state.vision && state.visionGrid) {
+      const cones = state.mapTokens.flatMap((token) => {
+        const tokenVision = state.vision?.tokens[token.combatantId];
+        if (!tokenVision) return [];
+        const origin = smoothedTokenPositions[token.combatantId]
+          ?? state.dragPreviewTokens?.[token.combatantId]
+          ?? { x: token.x, y: token.y };
+        return [{ origin, vision: tokenVision }];
+      });
+      drawVisionReveal(ctx, width, height, { grid: state.visionGrid, explored: state.vision.explored, cones });
+    }
+
     ctx.globalCompositeOperation = "source-over";
-  }, [imgRect, state?.fogEnabled, state?.fogReveals]);
+  }, [imgRect, state?.fogEnabled, state?.fogReveals, state?.vision, state?.visionGrid, state?.mapTokens, state?.dragPreviewTokens, smoothedTokenPositions]);
 
   const activeCombatant = state?.combatants.find(c => c.id === state.activeCombatantId);
 

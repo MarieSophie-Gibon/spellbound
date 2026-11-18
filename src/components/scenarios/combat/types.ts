@@ -275,6 +275,76 @@ export function normalizeGrid(raw: unknown): BattleMapGrid {
   };
 }
 
+/** Cône de vision d'un PJ, en cases (unité du quadrillage, même masqué). */
+export interface TokenVision {
+  /** Portée, en cases. */
+  range: number;
+  /** Ouverture du cône, en degrés (360 : vision tout autour). */
+  angle: number;
+  /** Orientation, en degrés : 0 = vers la droite, 90 = vers le bas. */
+  direction: number;
+}
+
+/**
+ * Vision dynamique des PJ dans le brouillard : ce que voient les PJ est net,
+ * ce qu'ils ont déjà vu (`explored`, cases « col,row ») reste visible mais sombre.
+ */
+export interface VisionState {
+  enabled: boolean;
+  tokens: Record<string, TokenVision>;
+  explored: string[];
+  /** Horodatage du dernier « oubli » des zones vues : départage les fusions entre MJ. */
+  exploredResetAt: number;
+}
+
+export const VISION_ANGLES = [60, 90, 120, 180, 360] as const;
+export const VISION_RANGE_MAX = 60;
+export const MAX_EXPLORED_CELLS = 40_000;
+
+export const DEFAULT_VISION: VisionState = { enabled: false, tokens: {}, explored: [], exploredResetAt: 0 };
+
+export function defaultTokenVision(range: number | null | undefined): TokenVision {
+  return { range: range && range > 0 ? Math.min(VISION_RANGE_MAX, Math.round(range)) : 8, angle: 120, direction: -90 };
+}
+
+const isCellKey = (v: unknown): v is string => typeof v === "string" && /^-?\d{1,5},-?\d{1,5}$/.test(v);
+
+/** Valeurs bornées et complétées : utilisé au chargement et à la réception d'un co-MJ. */
+export function normalizeVision(raw: unknown): VisionState {
+  const v = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof VisionState, unknown>>;
+  const tokens: Record<string, TokenVision> = {};
+  if (v.tokens && typeof v.tokens === "object") {
+    for (const [id, t] of Object.entries(v.tokens as Record<string, unknown>)) {
+      if (!t || typeof t !== "object" || id.length > 200) continue;
+      const tv = t as Partial<Record<keyof TokenVision, unknown>>;
+      const direction = clampNumber(tv.direction, -100_000, 100_000, -90);
+      tokens[id] = {
+        range: clampNumber(tv.range, 0.5, VISION_RANGE_MAX, 8),
+        angle: clampNumber(tv.angle, 10, 360, 120),
+        direction: ((((direction + 180) % 360) + 360) % 360) - 180,
+      };
+    }
+  }
+  const explored = Array.isArray(v.explored) ? [...new Set(v.explored.filter(isCellKey))].slice(0, MAX_EXPLORED_CELLS) : [];
+  return {
+    enabled: typeof v.enabled === "boolean" ? v.enabled : false,
+    tokens,
+    explored,
+    exploredResetAt: clampNumber(v.exploredResetAt, 0, Number.MAX_SAFE_INTEGER, 0),
+  };
+}
+
+/**
+ * Fusion avec l'état d'un autre MJ : les cases vues s'additionnent, sauf si l'un
+ * des deux a « oublié » les zones vues plus récemment (son état fait alors foi).
+ */
+export function mergeVision(local: VisionState, remote: VisionState): VisionState {
+  if (remote.exploredResetAt > local.exploredResetAt) return remote;
+  if (remote.exploredResetAt < local.exploredResetAt) return { ...remote, explored: local.explored, exploredResetAt: local.exploredResetAt };
+  const explored = [...new Set([...local.explored, ...remote.explored])].slice(0, MAX_EXPLORED_CELLS);
+  return { ...remote, explored };
+}
+
 export interface PersistedCombatState {
   combatants: Combatant[];
   activeCombatantId: string | null;
@@ -288,6 +358,7 @@ export interface PersistedCombatState {
   combatNotePosition?: { x: number; y: number };
   roundTriggers?: RoundTriggerEvent[];
   grid?: BattleMapGrid;
+  vision?: VisionState;
 }
 
 export const CONDITION_OPTIONS: Array<{ key: ConditionKey; label: string; bg: string; icon: string }> = [

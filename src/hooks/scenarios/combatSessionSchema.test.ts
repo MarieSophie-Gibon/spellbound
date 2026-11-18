@@ -89,3 +89,22 @@ describe("combatSessionSchema – quadrillage", () => {
     expect(sanitizeSnapshot({ grid }).grid).toEqual(grid);
   });
 });
+
+describe("combatSessionSchema – vision", () => {
+  const vision = {
+    enabled: true,
+    exploredResetAt: 0,
+    tokens: { pj1: { range: 8, angle: 90, direction: -90 } },
+    explored: ["1,2", "-1,0"],
+  };
+
+  it("accepte une vision valide", () => {
+    expect(sanitizeSlice("vision", vision)).toEqual({ ok: true, value: vision });
+  });
+
+  it("rejette les réglages hors bornes et les cases mal formées", () => {
+    expect(sanitizeSlice("vision", { ...vision, tokens: { pj1: { range: 999, angle: 90, direction: 0 } } }).ok).toBe(false);
+    expect(sanitizeSlice("vision", { ...vision, explored: ["<script>"] }).ok).toBe(false);
+    expect(sanitizeSlice("vision", { ...vision, enabled: "oui" }).ok).toBe(false);
+  });
+});
