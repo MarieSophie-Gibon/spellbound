@@ -945,13 +945,15 @@ export function ChapitreEditor({
 
       case "loot":
         return (
-          <div className={!isEditing ? "pointer-events-none opacity-90" : ""}>
-            <LootBlock
-              campaignId={campaignId}
-              data={block.data}
-              onChange={(newData) => updateBlock(block.id, newData)}
-            />
-          </div>
+          // Pas de pointer-events-none ici : en lecture, le MJ doit pouvoir
+          // envoyer un objet dans l'inventaire d'un PJ. Le bloc masque lui-même
+          // ses outils d'édition quand isEditing est faux.
+          <LootBlock
+            campaignId={campaignId}
+            data={block.data}
+            isEditing={isEditing}
+            onChange={(newData) => updateBlock(block.id, newData)}
+          />
         );
 
       case "investigation":
