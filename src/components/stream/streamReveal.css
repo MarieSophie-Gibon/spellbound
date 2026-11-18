@@ -1,0 +1,89 @@
+/* Mise en scène des révélations sur l'écran streaming (StreamRevealOverlay). */
+
+@keyframes sr-backdrop-in {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(10px); }
+}
+
+@keyframes sr-fade-out {
+  to { opacity: 0; transform: scale(0.97); }
+}
+
+/* Éclat de lumière derrière les cartes au moment de l'arrivée. */
+@keyframes sr-burst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); }
+}
+
+/* Carte : arrive de loin, tourne sur elle-même et se stabilise avec un léger rebond. */
+@keyframes sr-card-in {
+  0% { opacity: 0; transform: translateY(80px) scale(0.6) rotateY(80deg); filter: blur(14px) brightness(2.2); }
+  55% { opacity: 1; transform: translateY(-8px) scale(1.04) rotateY(-6deg); filter: blur(0) brightness(1.4); }
+  80% { transform: translateY(2px) scale(0.99) rotateY(2deg); filter: brightness(1.05); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+@keyframes sr-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* Reflet qui balaie la carte une fois arrivée, puis sort complètement du cadre
+   (la bande fait 1/4 à 1/3 de la largeur : 500 % de sa largeur la fait sortir). */
+@keyframes sr-shine {
+  from { transform: translateX(-150%) skewX(-18deg); }
+  to { transform: translateX(500%) skewX(-18deg); }
+}
+
+@keyframes sr-glow {
+  0%, 100% { box-shadow: 0 0 28px rgba(251, 191, 36, 0.25), 0 25px 60px rgba(0, 0, 0, 0.7); }
+  50% { box-shadow: 0 0 48px rgba(251, 191, 36, 0.45), 0 25px 60px rgba(0, 0, 0, 0.7); }
+}
+
+/* Titre (« Nouvelle rencontre ») et noms : lettres qui se resserrent. */
+@keyframes sr-label-in {
+  from { opacity: 0; letter-spacing: 0.9em; filter: blur(6px); }
+  to { opacity: 1; filter: none; }
+}
+
+@keyframes sr-line-in {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Lieu / image : apparition puis zoom lent façon « Ken Burns ». */
+@keyframes sr-image-in {
+  from { opacity: 0; transform: scale(1.08); filter: blur(16px) brightness(1.8); }
+  to { opacity: 1; transform: scale(1); filter: none; }
+}
+
+@keyframes sr-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.07); }
+}
+
+.sr-backdrop { animation: sr-backdrop-in 0.6s ease-out both; }
+.sr-leaving { animation: sr-fade-out 0.45s ease-in both; }
+.sr-burst { animation: sr-burst 1.1s ease-out both; }
+.sr-card-in { animation: sr-card-in 1s cubic-bezier(0.2, 0.85, 0.3, 1.1) both; }
+.sr-float { animation: sr-float 6s ease-in-out infinite; }
+.sr-glow { animation: sr-glow 3.5s ease-in-out infinite; }
+.sr-shine { animation: sr-shine 1.1s ease-in-out both; }
+.sr-label-in { animation: sr-label-in 0.9s ease-out both; }
+.sr-line-in { animation: sr-line-in 0.8s ease-out both; }
+.sr-image-in { animation: sr-image-in 1.1s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+.sr-kenburns { animation: sr-kenburns 22s ease-in-out infinite alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sr-card-in,
+  .sr-image-in,
+  .sr-label-in { animation: sr-backdrop-in 0.4s ease-out both; }
+  .sr-float,
+  .sr-glow,
+  .sr-kenburns,
+  .sr-shine,
+  .sr-burst { animation: none; }
+  .sr-shine,
+  .sr-burst { opacity: 0; }
+}

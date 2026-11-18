@@ -3,6 +3,9 @@ import { Brush, Cloud, Crosshair, ImagePlus, Loader2, Minus, MonitorPlay, Plus, 
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type FogRevealStamp, type MapToken } from "./types";
 import { CONDITION_OPTIONS } from "./types";
+import { StreamRevealButton, StreamRevealControl, StreamRevealPicker } from "@/components/stream/StreamRevealControl";
+import { useStreamReveal } from "@/hooks/scenarios/useStreamReveal";
+import { candidatesFromCombatants, characterRevealKind, createReveal } from "@/lib/streamReveal";
 
 interface BattleMapProps {
   chapitreId?: string;
@@ -176,6 +179,12 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const dragCountRef = useRef(0);
   const [isDragOver, setIsDragOver] = useState(false);
   const [playerTabOpen, setPlayerTabOpen] = useState(false);
+
+  // Révélation de la rencontre sur l'écran streaming (monstres et PNJ visibles).
+  const streamReveal = useStreamReveal();
+  const encounterSource = `encounter:${chapitreId ?? "none"}`;
+  const encounterCandidates = useMemo(() => candidatesFromCombatants(combatants), [combatants]);
+  const [isRevealPickerOpen, setIsRevealPickerOpen] = useState(false);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -1006,6 +1015,14 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
               >
                 <MonitorPlay className="w-4 h-4" />
               </button>
+              <StreamRevealButton
+                active={streamReveal.current?.source === encounterSource}
+                disabled={encounterCandidates.length === 0}
+                title={encounterCandidates.length ? "Révéler la rencontre aux joueurs" : "Aucun monstre ni PNJ visible à révéler"}
+                className="rounded-lg! backdrop-blur border bg-black/60 border-white/20"
+                onClick={() => setIsRevealPickerOpen(true)}
+                onClear={streamReveal.clear}
+              />
               <button onClick={() => inputRef.current?.click()} className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-white border border-white/20 transition-colors" title="Remplacer la carte"><ImagePlus className="w-4 h-4" /></button>
               <button
                 onClick={() => {
@@ -1129,6 +1146,19 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       <input ref={inputRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleFile(file); e.target.value = ""; }}
       />
+      <StreamRevealControl api={streamReveal} />
+      {isRevealPickerOpen && (
+        <StreamRevealPicker
+          candidates={encounterCandidates}
+          initialSelected={encounterCandidates.map((c) => c.key)}
+          onClose={() => setIsRevealPickerOpen(false)}
+          onConfirm={(chosen, nameHidden) => {
+            setIsRevealPickerOpen(false);
+            const cards = chosen.map((c) => c.card);
+            streamReveal.reveal(createReveal(encounterSource, characterRevealKind(cards), cards, nameHidden));
+          }}
+        />
+      )}
     </div>
   );
 }
