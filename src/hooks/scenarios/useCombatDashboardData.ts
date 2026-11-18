@@ -177,6 +177,26 @@ export function useCombatDashboardData() {
         return data ?? [];
       },
 
+      // Traits du peuple de chaque PJ (portée de vision par défaut des cônes) : { pjId: traits }.
+      async fetchPjPeupleTraits(pjIds: string[]) {
+        if (!pjIds.length) return {} as Record<string, string>;
+        const { data: pjs, error } = await supabase.from("pj").select("id, peuple_id").in("id", pjIds);
+        if (error) throw error;
+        const peupleIds = [...new Set((pjs ?? []).map((p) => p.peuple_id).filter((id): id is string => !!id))];
+        if (!peupleIds.length) return {} as Record<string, string>;
+        const { data: peuples, error: peuplesError } = await supabase.from("peuples").select("id, data").in("id", peupleIds);
+        if (peuplesError) throw peuplesError;
+        const traitsByPeuple = new Map(
+          (peuples ?? []).map((p) => [p.id, typeof p.data?.traits === "string" ? (p.data.traits as string) : ""]),
+        );
+        const result: Record<string, string> = {};
+        for (const pj of pjs ?? []) {
+          const traits = pj.peuple_id ? traitsByPeuple.get(pj.peuple_id) : undefined;
+          if (traits) result[pj.id] = traits;
+        }
+        return result;
+      },
+
       async fetchCampaignPjsNames(campaignId: string) {
         const { data, error } = await supabase
           .from("pj")

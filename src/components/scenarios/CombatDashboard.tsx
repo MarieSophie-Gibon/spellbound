@@ -20,7 +20,12 @@ import {
   type BattleMapGrid,
   DEFAULT_GRID,
   normalizeGrid,
+  type VisionState,
+  DEFAULT_VISION,
+  normalizeVision,
+  mergeVision,
 } from "./combat/types";
+import { parseVisionMeters } from "./combat/visionMath";
 import { CombatTabButton } from "./combat/CombatTabButton";
 import { CombatantRow } from "./combat/CombatantRow";
 import { CombatantCard } from "./combat/CombatantCard";
@@ -112,6 +117,7 @@ function normalizeCombatState(
     combatNotePosition: raw?.combatNotePosition ?? fallbackNotePosition,
     roundTriggers: raw?.roundTriggers ?? [],
     grid: normalizeGrid(raw?.grid),
+    vision: normalizeVision(raw?.vision),
   };
 }
 
@@ -132,6 +138,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const [fogEnabled, setFogEnabled] = useState(false);
   const [fogReveals, setFogReveals] = useState<FogRevealStamp[]>([]);
   const [grid, setGrid] = useState<BattleMapGrid>(DEFAULT_GRID);
+  const [vision, setVision] = useState<VisionState>(DEFAULT_VISION);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchType, setSearchType] = useState<"monster" | "npc">("monster");
   const [searchTerm, setSearchTerm] = useState("");
@@ -362,6 +369,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
           setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
           setRoundTriggers(normalized.roundTriggers ?? []);
           setGrid(normalized.grid ?? DEFAULT_GRID);
+          setVision(normalized.vision ?? DEFAULT_VISION);
           setIsHydrated(true);
           return;
         }
@@ -388,6 +396,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
         setRoundTriggers(normalized.roundTriggers ?? []);
         setGrid(normalized.grid ?? DEFAULT_GRID);
+        setVision(normalized.vision ?? DEFAULT_VISION);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
@@ -501,6 +510,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       combatNotePosition: notePosition,
       roundTriggers,
       grid,
+      vision,
     };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     pendingPersistRef.current = payload;
@@ -509,7 +519,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     if (persistTimerRef.current === null) {
       persistTimerRef.current = window.setTimeout(flushPersist, COMBAT_STATE_PERSIST_INTERVAL_MS);
     }
-  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, grid, flushPersist]);
+  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, grid, vision, flushPersist]);
 
   // --- Session partagée MJ / co-MJ (WebSocket) ---
   // La position de la note reste propre à chaque écran : seul son texte est partagé.
@@ -522,9 +532,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   useEffect(() => {
     sliceValuesRef.current = {
       combatants, activeCombatantId, round, mapTokens, encounters,
-      fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl, grid,
+      fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl, grid, vision,
     };
-  }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl, grid]);
+  }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl, grid, vision]);
 
   // Combattants : échangés par modifications (patch) plutôt qu'en liste complète.
   // On mémorise ce qui vient du réseau pour ne pas le renvoyer (anti-écho) :
@@ -633,6 +643,19 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       case "roundTriggers": setRoundTriggers(value as RoundTriggerEvent[]); break;
       case "battlemapUrl": setBattlemapUrl(value as string | null); break;
       case "grid": setGrid(normalizeGrid(value)); break;
+      case "vision": {
+        // Les cases vues s'additionnent. Si la fusion n'apporte rien de plus que l'état
+        // reçu, on garde CET objet : l'anti-écho (comparaison par référence) ne le renvoie pas.
+        const incoming = normalizeVision(value);
+        remoteSliceValuesRef.current.vision = incoming;
+        setVision((prev) => {
+          const merged = mergeVision(prev, incoming);
+          return merged.explored.length === incoming.explored.length && merged.exploredResetAt === incoming.exploredResetAt
+            ? incoming
+            : merged;
+        });
+        break;
+      }
     }
   }, [applyRemoteCombatants, applyRemoteTokens]);
 
@@ -793,6 +816,47 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   usePublishSlice("roundTriggers", roundTriggers, publishSlice, remoteSliceValuesRef);
   usePublishSlice("battlemapUrl", battlemapUrl, publishSlice, remoteSliceValuesRef);
   usePublishSlice("grid", grid, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("vision", vision, publishSlice, remoteSliceValuesRef);
+
+  // --- Vision des PJ : portée par défaut lue dans les traits du peuple (« Vision dans le noir à 20m ») ---
+  const [visionMetersByPj, setVisionMetersByPj] = useState<Record<string, number | null>>({});
+  const pjEntityIdsKey = useMemo(
+    () =>
+      [...new Set(combatants.filter((c) => c.type === "pj" && c.entityId).map((c) => c.entityId as string))]
+        .sort()
+        .join(","),
+    [combatants],
+  );
+  useEffect(() => {
+    if (!vision.enabled || !pjEntityIdsKey) return;
+    const missing = pjEntityIdsKey.split(",").filter((id) => !(id in visionMetersByPj));
+    if (!missing.length) return;
+    let cancelled = false;
+    combatData
+      .fetchPjPeupleTraits(missing)
+      .then((traits) => {
+        if (cancelled) return;
+        setVisionMetersByPj((prev) => {
+          const next = { ...prev };
+          for (const id of missing) next[id] = parseVisionMeters(traits[id]);
+          return next;
+        });
+      })
+      .catch((error) => console.error("Portée de vision des peuples indisponible :", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [vision.enabled, pjEntityIdsKey, visionMetersByPj, combatData]);
+  // En cases, pour les cônes : { combattantId: portée }.
+  const visionRangeHints = useMemo(() => {
+    const hints: Record<string, number> = {};
+    for (const c of combatants) {
+      if (c.type !== "pj" || !c.entityId) continue;
+      const meters = visionMetersByPj[c.entityId];
+      if (meters) hints[c.id] = meters / grid.metersPerCell;
+    }
+    return hints;
+  }, [combatants, visionMetersByPj, grid.metersPerCell]);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -1563,6 +1627,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             onFogRevealsChange={setFogReveals}
             grid={grid}
             onGridChange={setGrid}
+            vision={vision}
+            onVisionChange={setVision}
+            visionRangeHints={visionRangeHints}
             onDragPreviewChange={handleLocalDragPreview}
             remoteDragPreview={remoteDragPreview}
             onPing={handleLocalPing}

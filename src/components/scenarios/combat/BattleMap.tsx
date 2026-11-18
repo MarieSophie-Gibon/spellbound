@@ -1,8 +1,10 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { Brush, Cloud, Crosshair, Grid3x3, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
+import { Brush, Cloud, Crosshair, Eye, Grid3x3, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type FogRevealStamp, type MapToken } from "./types";
-import { CONDITION_OPTIONS, type BattleMapGrid } from "./types";
+import { CONDITION_OPTIONS, MAX_EXPLORED_CELLS, defaultTokenVision, type BattleMapGrid, type TokenVision, type VisionState } from "./types";
+import { VisionPanel } from "./VisionPanel";
+import { coneTip, conePolygonPoints, directionFromMove, directionTowards, drawVisionReveal, visibleCellKeys } from "./visionMath";
 import { GridOverlay } from "./GridOverlay";
 import { GridSettingsPanel } from "./GridSettingsPanel";
 import { computeMoveTrails, gridFromCalibration, snapToCell, type MapPoint } from "./gridMath";
@@ -26,6 +28,10 @@ interface BattleMapProps {
   onFogRevealsChange: (reveals: FogRevealStamp[]) => void;
   grid: BattleMapGrid;
   onGridChange: (grid: BattleMapGrid) => void;
+  vision: VisionState;
+  onVisionChange: (vision: VisionState) => void;
+  /** Portée de vision lue dans le peuple de chaque PJ, en cases : { combattantId: portée }. */
+  visionRangeHints?: Record<string, number>;
   // Session partagée : positions des jetons glissés localement (null = fin du glissement)…
   onDragPreviewChange?: (positions: Record<string, { x: number; y: number }> | null) => void;
   // …et positions des jetons glissés par un autre MJ.
@@ -74,6 +80,10 @@ export interface BattleMapBroadcast {
   moveOrigins?: Record<string, { x: number; y: number }> | null;
   /** …et règles de la grille pour les mesurer (même si la grille est masquée aux joueurs). */
   moveGrid?: BattleMapGrid | null;
+  /** Vision des PJ : cases déjà vues et cônes (null : vision dynamique inactive)… */
+  vision?: { explored: string[]; tokens: Record<string, TokenVision> } | null;
+  /** …et géométrie de la grille pour les placer. */
+  visionGrid?: BattleMapGrid | null;
 }
 
 export interface BattleMapPing {
@@ -174,7 +184,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, grid, onGridChange, onDragPreviewChange, remoteDragPreview, onPing, remotePing }: BattleMapProps) {
+function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, grid, onGridChange, vision, onVisionChange, visionRangeHints, onDragPreviewChange, remoteDragPreview, onPing, remotePing }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -317,13 +327,47 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   }, [visibleMoveOrigins, combatants]);
   const moveGrid = grid.enabled ? grid : null;
 
+  // ── Vision des PJ (cônes dans le brouillard) ─────────────────────────────────
+  const visionActive = fogEnabled && vision.enabled && imgAspect !== null;
+  // Orientation en cours de réglage à la poignée : envoyée au relâcher seulement.
+  const [rotatingCone, setRotatingCone] = useState<{ id: string; direction: number } | null>(null);
+  // Cône de chaque PJ visible sur la carte : réglage enregistré, sinon portée du peuple.
+  // Pendant un glissement, il suit le jeton et s'oriente dans le sens du mouvement.
+  const pjCones = useMemo(() => {
+    if (!visionActive || !imgAspect) return [];
+    return mapTokens.flatMap((token) => {
+      const combatant = combatants.find((c) => c.id === token.combatantId);
+      if (!combatant || combatant.type !== "pj" || combatant.hidden) return [];
+      let cone: TokenVision = vision.tokens[token.combatantId] ?? defaultTokenVision(visionRangeHints?.[token.combatantId]);
+      const preview = dragPreviewTokens?.[token.combatantId];
+      const moveDirection = preview ? directionFromMove(token, preview, imgAspect) : null;
+      if (moveDirection !== null) cone = { ...cone, direction: moveDirection };
+      if (rotatingCone?.id === token.combatantId) cone = { ...cone, direction: rotatingCone.direction };
+      return [{ id: token.combatantId, name: combatant.name, origin: preview ?? { x: token.x, y: token.y }, vision: cone }];
+    });
+  }, [visionActive, imgAspect, mapTokens, combatants, vision.tokens, visionRangeHints, dragPreviewTokens, rotatingCone]);
+  const playerVision = useMemo(
+    () => (visionActive ? { explored: vision.explored, tokens: Object.fromEntries(pjCones.map((c) => [c.id, c.vision])) } : null),
+    [visionActive, vision.explored, pjCones],
+  );
+  const visionGrid = visionActive ? grid : null;
+  const selectedCone =
+    visionActive && selectedTokenIds.size === 1 ? pjCones.find((c) => selectedTokenIds.has(c.id)) ?? null : null;
+  const updateTokenVision = useCallback(
+    (id: string, next: TokenVision) => onVisionChange({ ...vision, tokens: { ...vision.tokens, [id]: next } }),
+    [vision, onVisionChange],
+  );
+  const forgetExplored = useCallback(() => {
+    if (vision.explored.length) onVisionChange({ ...vision, explored: [], exploredResetAt: Date.now() });
+  }, [vision, onVisionChange]);
+
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid,
+    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid, vision: playerVision, visionGrid,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid };
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid, playerMoveOrigins, moveGrid]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid, vision: playerVision, visionGrid };
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid, playerMoveOrigins, moveGrid, playerVision, visionGrid]);
 
   useEffect(() => {
     const pending = pendingCommittedPositionsRef.current;
@@ -426,8 +470,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   }, [onUpdateTokens]);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid });
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid, playerMoveOrigins, moveGrid]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid, moveOrigins: playerMoveOrigins, moveGrid, vision: playerVision, visionGrid });
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid, playerMoveOrigins, moveGrid, playerVision, visionGrid]);
 
   useEffect(() => {
     return () => {
@@ -618,6 +662,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     if (url) {
       setFogPaths([]);
       onFogRevealsChange([]);
+      forgetExplored();
       onChange(url);
       resetView();
     }
@@ -696,6 +741,16 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     if (d && positions) {
       pendingCommittedPositionsRef.current = positions;
       onUpdateTokens(nextTokens);
+      if (visionActive && imgAspect) {
+        let tokens = vision.tokens;
+        for (const [id, to] of Object.entries(positions)) {
+          const cone = pjCones.find((c) => c.id === id);
+          const from = mapTokens.find((t) => t.combatantId === id);
+          const direction = cone && from ? directionFromMove(from, to, imgAspect) : null;
+          if (cone && direction !== null) tokens = { ...tokens, [id]: { ...cone.vision, direction } };
+        }
+        if (tokens !== vision.tokens) onVisionChange({ ...vision, tokens });
+      }
       setDragPreviewTokens(positions);
     } else {
       setDragPreviewTokens(null);
@@ -707,7 +762,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     livePositionsRef.current = null;
     isDraggingTokenRef.current = false;
     setIsDraggingToken(false);
-  }, [mapTokens, onUpdateTokens]);
+  }, [mapTokens, onUpdateTokens, visionActive, imgAspect, vision, pjCones, onVisionChange]);
 
   useEffect(() => {
     if (!isDraggingToken) return;
@@ -829,8 +884,28 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       }
     }
 
+    if (visionActive && (pjCones.length || vision.explored.length)) {
+      drawVisionReveal(ctx, width, height, { grid, explored: vision.explored, cones: pjCones });
+    }
+
     ctx.globalCompositeOperation = "source-over";
-  }, [fogEnabled, fogPaths]);
+  }, [fogEnabled, fogPaths, visionActive, pjCones, vision.explored, grid]);
+
+  // Mémoire des zones vues : cases dans le champ des PJ une fois leurs jetons posés.
+  useEffect(() => {
+    if (!visionActive || !imgAspect || isDraggingToken || vision.explored.length >= MAX_EXPLORED_CELLS) return;
+    const known = new Set(vision.explored);
+    const added: string[] = [];
+    for (const cone of pjCones) {
+      for (const key of visibleCellKeys(cone.origin, cone.vision, grid, imgAspect)) {
+        if (!known.has(key)) {
+          known.add(key);
+          added.push(key);
+        }
+      }
+    }
+    if (added.length) onVisionChange({ ...vision, explored: [...vision.explored, ...added].slice(0, MAX_EXPLORED_CELLS) });
+  }, [visionActive, imgAspect, isDraggingToken, pjCones, grid, vision, onVisionChange]);
 
   useEffect(() => {
     drawFog();
@@ -1011,6 +1086,48 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 {grid.enabled && imgAspect && !calibration && <GridOverlay grid={grid} aspect={imgAspect} className="z-10" />}
                 {/* Trajets du tour : départ, ligne pointillée et décompte au-dessus du jeton */}
                 <MoveTrailsOverlay trails={moveTrails} metersPerCell={grid.metersPerCell} tokenSize={tokenSize} />
+                {selectedCone && imgAspect && (
+                  <>
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none z-15" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+                      <polygon
+                        points={conePolygonPoints(selectedCone.origin, selectedCone.vision, grid, imgAspect)}
+                        fill="rgba(252, 211, 77, 0.08)"
+                        stroke="#fcd34d"
+                        strokeOpacity={0.75}
+                        strokeWidth={1.5}
+                        strokeDasharray="6 4"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                    {selectedCone.vision.angle < 360 && (() => {
+                      const tip = coneTip(selectedCone.origin, selectedCone.vision, grid, imgAspect);
+                      const rotateTo = (e: React.PointerEvent<HTMLDivElement>) => {
+                        const point = screenToImagePct(e.clientX, e.clientY);
+                        if (point) setRotatingCone({ id: selectedCone.id, direction: directionTowards(selectedCone.origin, point, imgAspect) });
+                      };
+                      return (
+                        <div
+                          className="absolute z-35 w-4 h-4 rounded-full bg-amber-300 border-2 border-black/60 shadow-lg cursor-grab active:cursor-grabbing touch-none"
+                          style={{ left: `${Math.max(0, Math.min(100, tip.x))}%`, top: `${Math.max(0, Math.min(100, tip.y))}%`, transform: "translate(-50%, -50%)" }}
+                          title="Orienter le regard"
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            e.currentTarget.setPointerCapture(e.pointerId);
+                            rotateTo(e);
+                          }}
+                          onPointerMove={(e) => {
+                            if (e.currentTarget.hasPointerCapture(e.pointerId)) rotateTo(e);
+                          }}
+                          onPointerUp={() => {
+                            if (rotatingCone) updateTokenVision(selectedCone.id, { ...selectedCone.vision, direction: rotatingCone.direction });
+                            setRotatingCone(null);
+                          }}
+                          onPointerCancel={() => setRotatingCone(null)}
+                        />
+                      );
+                    })()}
+                  </>
+                )}
                 {calibration && (
                   <div
                     className="absolute inset-0 z-40 cursor-crosshair touch-none"
@@ -1076,6 +1193,18 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 })}
               </div>
             </div>
+
+            {selectedCone && !isGridPanelOpen && (
+              <div className="absolute top-16 right-3 z-30 pointer-events-auto">
+                <VisionPanel
+                  name={selectedCone.name}
+                  vision={selectedCone.vision}
+                  metersPerCell={grid.metersPerCell}
+                  peupleRange={visionRangeHints?.[selectedCone.id] ?? null}
+                  onChange={(next) => updateTokenVision(selectedCone.id, next)}
+                />
+              </div>
+            )}
 
             {calibration && (
               <div
@@ -1149,6 +1278,14 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                   <Cloud className="w-4 h-4" />
                 </button>
                 <button
+                  onClick={() => onVisionChange({ ...vision, enabled: !vision.enabled })}
+                  disabled={!fogEnabled}
+                  className={`p-1.5 rounded-lg border transition-colors ${vision.enabled && fogEnabled ? "bg-amber-500/25 border-amber-300/40 text-amber-200" : "bg-transparent border-white/10 text-white/60 hover:text-white"} ${!fogEnabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                  title="Vision des PJ : cônes de vision et zones déjà vues"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button
                   onClick={() => {
                     if (!isFogEditMode) setIsPingMode(false);
                     setIsFogEditMode((v) => !v);
@@ -1173,6 +1310,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 <button
                   onClick={() => {
                     setFogPaths([]);
+                    forgetExplored();
                     showFogNotice("Brouillard réinitialisé");
                   }}
                   disabled={!fogEnabled}
@@ -1227,6 +1365,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 onClick={() => {
                   setFogPaths([]);
                   onFogRevealsChange([]);
+                  forgetExplored();
                   onChange(null);
                 }}
                 className="p-1.5 rounded-lg bg-black/60 backdrop-blur text-white/70 hover:text-red-300 border border-white/20 transition-colors"
@@ -1381,7 +1520,10 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.onPing === next.onPing &&
     prev.remotePing === next.remotePing &&
     prev.grid === next.grid &&
-    prev.onGridChange === next.onGridChange
+    prev.onGridChange === next.onGridChange &&
+    prev.vision === next.vision &&
+    prev.onVisionChange === next.onVisionChange &&
+    prev.visionRangeHints === next.visionRangeHints
   );
 }
 

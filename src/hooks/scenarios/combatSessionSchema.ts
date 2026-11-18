@@ -99,6 +99,25 @@ const isGrid = (v: unknown) =>
   (v.metersPerCell === undefined || (isFiniteNumber(v.metersPerCell) && v.metersPerCell >= 0.1 && v.metersPerCell <= 100)) &&
   (v.diagonalRule === undefined || DIAGONAL_RULES.has(v.diagonalRule as string));
 
+// Vision des PJ : mêmes bornes que normalizeVision (types.ts).
+const MAX_VISION_TOKENS = 200;
+const MAX_EXPLORED_CELLS = 40_000;
+const isTokenVision = (v: unknown) =>
+  isObject(v) &&
+  isFiniteNumber(v.range) && v.range >= 0.5 && v.range <= 60 &&
+  isFiniteNumber(v.angle) && v.angle >= 10 && v.angle <= 360 &&
+  isFiniteNumber(v.direction) && v.direction >= -180 && v.direction <= 180;
+const isVision = (v: unknown) =>
+  isObject(v) &&
+  typeof v.enabled === "boolean" &&
+  isFiniteNumber(v.exploredResetAt) && v.exploredResetAt >= 0 &&
+  isObject(v.tokens) &&
+  Object.keys(v.tokens).length <= MAX_VISION_TOKENS &&
+  Object.entries(v.tokens).every(([id, t]) => isId(id) && isTokenVision(t)) &&
+  Array.isArray(v.explored) &&
+  v.explored.length <= MAX_EXPLORED_CELLS &&
+  v.explored.every((k) => typeof k === "string" && /^-?\d{1,5},-?\d{1,5}$/.test(k));
+
 export function sanitizeSlice(slice: CombatSlice, value: unknown): Sanitized {
   switch (slice) {
     case "combatants":
@@ -123,6 +142,8 @@ export function sanitizeSlice(slice: CombatSlice, value: unknown): Sanitized {
       return value === null || isSafeImageUrl(value) ? valid(value) : INVALID;
     case "grid":
       return isGrid(value) ? valid(value) : INVALID;
+    case "vision":
+      return isVision(value) ? valid(value) : INVALID;
     default:
       return INVALID;
   }
@@ -130,7 +151,7 @@ export function sanitizeSlice(slice: CombatSlice, value: unknown): Sanitized {
 
 const SLICES: readonly CombatSlice[] = [
   "combatants", "activeCombatantId", "round", "mapTokens", "encounters",
-  "fogEnabled", "fogReveals", "combatNote", "roundTriggers", "battlemapUrl", "grid",
+  "fogEnabled", "fogReveals", "combatNote", "roundTriggers", "battlemapUrl", "grid", "vision",
 ];
 
 export function isCombatSlice(v: unknown): v is CombatSlice {
