@@ -70,3 +70,22 @@ describe("combatSessionSchema", () => {
     expect(sanitizeEvent("fog-patch", { reset: "yes" }).ok).toBe(false);
   });
 });
+
+describe("combatSessionSchema – quadrillage", () => {
+  const grid = { enabled: true, cellSize: 4, offsetX: 1, offsetY: 2, opacity: 0.4, color: "light", showToPlayers: true };
+
+  it("accepte un quadrillage valide", () => {
+    expect(sanitizeSlice("grid", grid)).toEqual({ ok: true, value: grid });
+  });
+
+  it("rejette les valeurs hors bornes ou mal formées", () => {
+    expect(sanitizeSlice("grid", { ...grid, cellSize: 0 }).ok).toBe(false);
+    expect(sanitizeSlice("grid", { ...grid, opacity: 2 }).ok).toBe(false);
+    expect(sanitizeSlice("grid", { ...grid, color: "red" }).ok).toBe(false);
+    expect(sanitizeSlice("grid", null).ok).toBe(false);
+  });
+
+  it("fait partie de l'état complet", () => {
+    expect(sanitizeSnapshot({ grid }).grid).toEqual(grid);
+  });
+});

@@ -1,8 +1,11 @@
 import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { Brush, Cloud, Crosshair, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
+import { Brush, Cloud, Crosshair, Grid3x3, ImagePlus, Loader2, Minus, MonitorPlay, Plus, RotateCcw, Trash2, Undo2, X, ZoomIn } from "lucide-react";
 import { useScenarioBlocksData } from "@/hooks/scenarios/useScenarioBlocksData";
 import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type FogRevealStamp, type MapToken } from "./types";
-import { CONDITION_OPTIONS } from "./types";
+import { CONDITION_OPTIONS, type BattleMapGrid } from "./types";
+import { GridOverlay } from "./GridOverlay";
+import { GridSettingsPanel } from "./GridSettingsPanel";
+import { gridFromCalibration, type MapPoint } from "./gridMath";
 import { StreamRevealButton, StreamRevealControl, StreamRevealPicker } from "@/components/stream/StreamRevealControl";
 import { useStreamReveal } from "@/hooks/scenarios/useStreamReveal";
 import { candidatesFromCombatants, characterRevealKind, createReveal } from "@/lib/streamReveal";
@@ -20,6 +23,8 @@ interface BattleMapProps {
   fogReveals: FogRevealStamp[];
   onFogEnabledChange: (enabled: boolean) => void;
   onFogRevealsChange: (reveals: FogRevealStamp[]) => void;
+  grid: BattleMapGrid;
+  onGridChange: (grid: BattleMapGrid) => void;
   // Session partagée : positions des jetons glissés localement (null = fin du glissement)…
   onDragPreviewChange?: (positions: Record<string, { x: number; y: number }> | null) => void;
   // …et positions des jetons glissés par un autre MJ.
@@ -62,6 +67,8 @@ export interface BattleMapBroadcast {
   showNameTags?: boolean;
   dragPreviewToken?: { combatantId: string; x: number; y: number } | null;
   dragPreviewTokens?: Record<string, { x: number; y: number }> | null;
+  /** Quadrillage à afficher aux joueurs (null : masqué). */
+  grid?: BattleMapGrid | null;
 }
 
 export interface BattleMapPing {
@@ -162,7 +169,7 @@ function computeContainRect(containerW: number, containerH: number, nw: number, 
   return { left: (containerW - w) / 2, top: (containerH - h) / 2, width: w, height: h };
 }
 
-function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, onDragPreviewChange, remoteDragPreview, onPing, remotePing }: BattleMapProps) {
+function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters, mapTokens, onUpdateTokens, activeCombatantId, fogEnabled, fogReveals: fogRevealsProp, onFogEnabledChange, onFogRevealsChange, grid, onGridChange, onDragPreviewChange, remoteDragPreview, onPing, remotePing }: BattleMapProps) {
   const scenarioBlocksData = useScenarioBlocksData();
   const inputRef = useRef<HTMLInputElement>(null);
   const mapZoneRef = useRef<HTMLDivElement>(null);
@@ -262,13 +269,20 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   const localCommitAtRef = useRef(0);
   const [isDraggingToken, setIsDraggingToken] = useState(false);
 
+  // ── Quadrillage ──────────────────────────────────────────────────────────────
+  const [isGridPanelOpen, setIsGridPanelOpen] = useState(false);
+  // Outil « Caler sur la carte » : rectangle tracé sur cols × rows cases de la carte.
+  const [calibration, setCalibration] = useState<{ cols: number; rows: number; start: MapPoint | null; current: MapPoint | null } | null>(null);
+  const imgAspect = imgLocalRect && imgLocalRect.width > 0 ? imgLocalRect.height / imgLocalRect.width : null;
+  const playerGrid = useMemo(() => (grid.enabled && grid.showToPlayers ? grid : null), [grid]);
+
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
-    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens,
+    type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid,
   });
   useEffect(() => {
-    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens };
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens]);
+    stateRef.current = { type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid };
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid]);
 
   useEffect(() => {
     const pending = pendingCommittedPositionsRef.current;
@@ -371,8 +385,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
   }, [onUpdateTokens]);
 
   useEffect(() => {
-    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens });
-  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens]);
+    channelRef.current?.postMessage({ type: "update", imageUrl, mapTokens, combatants, encounters, activeCombatantId: activeCombatantId ?? null, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, grid: playerGrid });
+  }, [imageUrl, mapTokens, combatants, encounters, activeCombatantId, tokenSize, tokenSizePct, zoom, pan, fogEnabled, fogReveals, showNameTags, dragPreviewTokens, playerGrid]);
 
   useEffect(() => {
     return () => {
@@ -423,6 +437,45 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       y: Math.max(1, Math.min(99, ((clientY - rect.top) / rect.height) * 100)),
     };
   }, []);
+
+  // ── Outil « Caler sur la carte » ─────────────────────────────────────────────
+  // Coordonnées non bornées (0–100 %) : le tracé peut aller jusqu'aux bords de l'image.
+  const screenToImagePct = useCallback((clientX: number, clientY: number): MapPoint | null => {
+    const el = imgContainerRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return {
+      x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
+    };
+  }, []);
+
+  const onCalibrationPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation(); // pas de déplacement de la vue pendant le tracé
+    const point = screenToImagePct(e.clientX, e.clientY);
+    if (!point) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setCalibration((c) => (c ? { ...c, start: point, current: point } : c));
+  }, [screenToImagePct]);
+
+  const onCalibrationPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const point = screenToImagePct(e.clientX, e.clientY);
+    if (!point) return;
+    setCalibration((c) => (c?.start ? { ...c, current: point } : c));
+  }, [screenToImagePct]);
+
+  const onCalibrationPointerUp = useCallback(() => {
+    if (!calibration?.start || !calibration.current || !imgAspect) return;
+    const fitted = gridFromCalibration(calibration.start, calibration.current, imgAspect, calibration.cols, calibration.rows);
+    if (!fitted) {
+      // Tracé trop petit : on laisse le MJ recommencer.
+      setCalibration({ ...calibration, start: null, current: null });
+      return;
+    }
+    onGridChange({ ...grid, ...fitted, enabled: true });
+    setCalibration(null);
+  }, [calibration, imgAspect, grid, onGridChange]);
 
   const onPingRef = useRef(onPing);
   useEffect(() => {
@@ -894,6 +947,28 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                   height: imgLocalRect.height,
                 } : { inset: 0 }}
               >
+                {grid.enabled && imgAspect && <GridOverlay grid={grid} aspect={imgAspect} className="z-10" />}
+                {calibration && (
+                  <div
+                    className="absolute inset-0 z-40 cursor-crosshair touch-none"
+                    onPointerDown={onCalibrationPointerDown}
+                    onPointerMove={onCalibrationPointerMove}
+                    onPointerUp={onCalibrationPointerUp}
+                    onPointerCancel={() => setCalibration((c) => (c ? { ...c, start: null, current: null } : c))}
+                  >
+                    {calibration.start && calibration.current && (
+                      <div
+                        className="absolute border-2 border-amber-300 bg-amber-300/15 pointer-events-none"
+                        style={{
+                          left: `${Math.min(calibration.start.x, calibration.current.x)}%`,
+                          top: `${Math.min(calibration.start.y, calibration.current.y)}%`,
+                          width: `${Math.abs(calibration.current.x - calibration.start.x)}%`,
+                          height: `${Math.abs(calibration.current.y - calibration.start.y)}%`,
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
                 <canvas
                   ref={fogCanvasRef}
                   className="absolute inset-0 z-25"
@@ -938,6 +1013,42 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 })}
               </div>
             </div>
+
+            {calibration && (
+              <div
+                className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-auto flex flex-wrap items-center justify-center gap-2 max-w-[calc(100%-1.5rem)] px-3 py-2 rounded-xl bg-[#1b1738]/95 backdrop-blur border border-amber-300/30 shadow-2xl text-[12px] text-white/80"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <span>Trace un rectangle sur</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={calibration.cols}
+                  onChange={(e) => setCalibration((c) => (c ? { ...c, cols: Math.max(1, Math.min(50, Number(e.target.value) || 1)) } : c))}
+                  className="w-12 px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-center text-white outline-none"
+                  title="Nombre de cases tracées en largeur"
+                />
+                <span>×</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={calibration.rows}
+                  onChange={(e) => setCalibration((c) => (c ? { ...c, rows: Math.max(1, Math.min(50, Number(e.target.value) || 1)) } : c))}
+                  className="w-12 px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-center text-white outline-none"
+                  title="Nombre de cases tracées en hauteur"
+                />
+                <span>case(s) de la carte</span>
+                <span className="text-white/40">(plus il y en a, plus c'est précis)</span>
+                <button
+                  onClick={() => setCalibration(null)}
+                  className="px-2 py-0.5 rounded-md text-white/60 hover:text-white hover:bg-white/10"
+                >
+                  Annuler
+                </button>
+              </div>
+            )}
 
             {isDragOver && (
               <div className="absolute inset-0 border-2 border-dashed border-white/50 rounded-xl bg-white/5 pointer-events-none flex items-center justify-center z-10">
@@ -1007,6 +1118,30 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setIsGridPanelOpen((v) => !v)}
+                  className={`p-1.5 rounded-lg backdrop-blur border transition-colors ${grid.enabled ? "bg-amber-500/25 border-amber-300/40 text-amber-200" : "bg-black/60 border-white/20 text-white/70 hover:text-white"}`}
+                  title="Quadrillage"
+                >
+                  <Grid3x3 className="w-4 h-4" />
+                </button>
+                {isGridPanelOpen && (
+                  <div className="absolute right-0 top-full mt-2 z-40">
+                    <GridSettingsPanel
+                      grid={grid}
+                      onChange={onGridChange}
+                      onStartCalibration={() => {
+                        setIsGridPanelOpen(false);
+                        setIsPingMode(false);
+                        setIsFogEditMode(false);
+                        setCalibration({ cols: 1, rows: 1, start: null, current: null });
+                      }}
+                      onClose={() => setIsGridPanelOpen(false)}
+                    />
+                  </div>
+                )}
               </div>
               <button
                 onClick={openPlayerView}
@@ -1180,7 +1315,9 @@ function areBattleMapPropsEqual(prev: BattleMapProps, next: BattleMapProps): boo
     prev.onDragPreviewChange === next.onDragPreviewChange &&
     prev.remoteDragPreview === next.remoteDragPreview &&
     prev.onPing === next.onPing &&
-    prev.remotePing === next.remotePing
+    prev.remotePing === next.remotePing &&
+    prev.grid === next.grid &&
+    prev.onGridChange === next.onGridChange
   );
 }
 

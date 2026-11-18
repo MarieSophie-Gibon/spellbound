@@ -17,6 +17,9 @@ import {
   type VoieEntry,
   makeCombatantId,
   toNumber,
+  type BattleMapGrid,
+  DEFAULT_GRID,
+  normalizeGrid,
 } from "./combat/types";
 import { CombatTabButton } from "./combat/CombatTabButton";
 import { CombatantRow } from "./combat/CombatantRow";
@@ -108,6 +111,7 @@ function normalizeCombatState(
     combatNote: raw?.combatNote ?? "",
     combatNotePosition: raw?.combatNotePosition ?? fallbackNotePosition,
     roundTriggers: raw?.roundTriggers ?? [],
+    grid: normalizeGrid(raw?.grid),
   };
 }
 
@@ -127,6 +131,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   const [encounters, setEncounters] = useState<EncounterEntry[]>([]);
   const [fogEnabled, setFogEnabled] = useState(false);
   const [fogReveals, setFogReveals] = useState<FogRevealStamp[]>([]);
+  const [grid, setGrid] = useState<BattleMapGrid>(DEFAULT_GRID);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [searchType, setSearchType] = useState<"monster" | "npc">("monster");
   const [searchTerm, setSearchTerm] = useState("");
@@ -356,6 +361,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
           setCombatNote(normalized.combatNote ?? "");
           setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
           setRoundTriggers(normalized.roundTriggers ?? []);
+          setGrid(normalized.grid ?? DEFAULT_GRID);
           setIsHydrated(true);
           return;
         }
@@ -381,6 +387,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
         setCombatNote(normalized.combatNote ?? "");
         setNotePosition(normalized.combatNotePosition ?? getDefaultNotePosition());
         setRoundTriggers(normalized.roundTriggers ?? []);
+        setGrid(normalized.grid ?? DEFAULT_GRID);
       } catch { /* ignore */ } finally { setIsHydrated(true); }
     };
     void bootstrap();
@@ -493,6 +500,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       combatNote,
       combatNotePosition: notePosition,
       roundTriggers,
+      grid,
     };
     localStorage.setItem(getStorageKey(chapitreId), JSON.stringify(payload));
     pendingPersistRef.current = payload;
@@ -501,7 +509,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
     if (persistTimerRef.current === null) {
       persistTimerRef.current = window.setTimeout(flushPersist, COMBAT_STATE_PERSIST_INTERVAL_MS);
     }
-  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, flushPersist]);
+  }, [chapitreId, combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, isHydrated, combatNote, notePosition, roundTriggers, grid, flushPersist]);
 
   // --- Session partagée MJ / co-MJ (WebSocket) ---
   // La position de la note reste propre à chaque écran : seul son texte est partagé.
@@ -514,9 +522,9 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   useEffect(() => {
     sliceValuesRef.current = {
       combatants, activeCombatantId, round, mapTokens, encounters,
-      fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl,
+      fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl, grid,
     };
-  }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl]);
+  }, [combatants, activeCombatantId, round, mapTokens, encounters, fogEnabled, fogReveals, combatNote, roundTriggers, battlemapUrl, grid]);
 
   // Combattants : échangés par modifications (patch) plutôt qu'en liste complète.
   // On mémorise ce qui vient du réseau pour ne pas le renvoyer (anti-écho) :
@@ -624,6 +632,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
       case "combatNote": setCombatNote(value as string); break;
       case "roundTriggers": setRoundTriggers(value as RoundTriggerEvent[]); break;
       case "battlemapUrl": setBattlemapUrl(value as string | null); break;
+      case "grid": setGrid(normalizeGrid(value)); break;
     }
   }, [applyRemoteCombatants, applyRemoteTokens]);
 
@@ -783,6 +792,7 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
   usePublishSlice("combatNote", combatNote, publishSlice, remoteSliceValuesRef);
   usePublishSlice("roundTriggers", roundTriggers, publishSlice, remoteSliceValuesRef);
   usePublishSlice("battlemapUrl", battlemapUrl, publishSlice, remoteSliceValuesRef);
+  usePublishSlice("grid", grid, publishSlice, remoteSliceValuesRef);
 
   // --- Encounter tracking (monstres/PNJ effectivement rencontrés) ---
   useEffect(() => {
@@ -1551,6 +1561,8 @@ export function CombatDashboard({ chapitreId, campaignId, campaignSystem, onBack
             fogReveals={fogReveals}
             onFogEnabledChange={setFogEnabled}
             onFogRevealsChange={setFogReveals}
+            grid={grid}
+            onGridChange={setGrid}
             onDragPreviewChange={handleLocalDragPreview}
             remoteDragPreview={remoteDragPreview}
             onPing={handleLocalPing}
