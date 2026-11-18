@@ -3,6 +3,16 @@ import { supabase } from "@/lib/supabase";
 
 type DeleteTargetType = "scenario" | "chapitre";
 
+// Doit rester aligné avec purge_chapitres_trash() (migration 20261119000000).
+export const TRASH_RETENTION_DAYS = 30;
+
+export interface TrashedChapitre {
+  id: string;
+  scenario_id: string;
+  title: string;
+  deleted_at: string;
+}
+
 export function useScenariosData() {
   return useMemo(
     () => ({
@@ -82,6 +92,30 @@ export function useScenariosData() {
         if (!data?.length) {
           throw new Error("Suppression refusée : vous n'avez pas les droits sur cet élément.");
         }
+      },
+
+      // Corbeille : un chapitre supprimé y reste TRASH_RETENTION_DAYS jours (voir migration).
+      async fetchTrashedChapitres(scenarioIds: string[]) {
+        if (!scenarioIds.length) return [] as TrashedChapitre[];
+        const since = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from("chapitres_trash")
+          .select("id, scenario_id, title, deleted_at")
+          .in("scenario_id", scenarioIds)
+          .gt("deleted_at", since)
+          .order("deleted_at", { ascending: false });
+        if (error) throw error;
+        return (data ?? []) as TrashedChapitre[];
+      },
+
+      async restoreChapitre(chapitreId: string) {
+        const { error } = await supabase.rpc("restore_chapitre", { p_chapitre_id: chapitreId });
+        if (error) throw error;
+      },
+
+      async deleteChapitrePermanently(chapitreId: string) {
+        const { error } = await supabase.rpc("delete_chapitre_permanently", { p_chapitre_id: chapitreId });
+        if (error) throw error;
       },
 
       async saveScenario(input: {

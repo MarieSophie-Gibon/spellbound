@@ -45,6 +45,7 @@ import {
   Link2,
   Dices,
   Table2,
+  History,
 } from "lucide-react";
 import { useGrimoirePopup } from "@/contexts/GrimoirePopupContext";
 import type { RpgSystem } from "@/lib/types/rpgSystem";
@@ -58,6 +59,7 @@ import { MJBlock } from "./blocks/MJBlock";
 import { ClueBlock } from "./blocks/ClueBlock";
 import { LinkBlock } from "./blocks/LinkBlock";
 import { TableBlock } from "./blocks/TableBlock";
+import { ChapitreHistoryModal } from "./ChapitreHistoryModal";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -272,17 +274,23 @@ export function ChapitreEditor({
   // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
     setIsLoading(true);
-    const data = await chapitreEditorData.fetchChapitre(chapitreId);
+    try {
+      const data = await chapitreEditorData.fetchChapitre(chapitreId);
 
-    if (data) {
-      setChapitre(data);
-      const loadedBlocks = data.content || [];
-      setBlocks(loadedBlocks);
-      setHasChanges(false);
-      // Si le chapitre est vide, on passe direct en édition
-      setIsEditing(loadedBlocks.length === 0);
+      if (data) {
+        setChapitre(data);
+        const loadedBlocks = data.content || [];
+        setBlocks(loadedBlocks);
+        setHasChanges(false);
+        // Si le chapitre est vide, on passe direct en édition
+        setIsEditing(loadedBlocks.length === 0);
+      }
+    } catch (err: any) {
+      console.error("Impossible de charger le chapitre :", err?.message ?? err);
+      setSaveError(err?.message ?? "Impossible de charger le chapitre");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [chapitreEditorData, chapitreId]);
 
   useEffect(() => {
@@ -399,6 +407,39 @@ export function ChapitreEditor({
       return () => clearTimeout(timer);
     }
   }, [blocks, hasChanges, isEditing, handleSave]);
+
+  // Au démontage (changement de chapitre, sortie de la page), les modifications
+  // encore en attente de l'autosave sont écrites dans CE chapitre, pas perdues.
+  const pendingSaveRef = useRef({ blocks, hasChanges, isEditing, handleSave });
+  useEffect(() => {
+    pendingSaveRef.current = { blocks, hasChanges, isEditing, handleSave };
+  }, [blocks, hasChanges, isEditing, handleSave]);
+  useEffect(() => () => {
+    const pending = pendingSaveRef.current;
+    if (pending.hasChanges && pending.isEditing) void pending.handleSave(pending.blocks);
+  }, []);
+
+  // --- Historique des versions ---
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const openHistory = async () => {
+    // Les modifications en attente sont enregistrées d'abord : elles font partie
+    // de l'historique et l'autosave ne peut plus écraser une version restaurée.
+    if (hasChanges) await handleSave(blocks);
+    setIsHistoryOpen(true);
+  };
+  const handleVersionRestored = async () => {
+    setIsHistoryOpen(false);
+    try {
+      const data = await chapitreEditorData.fetchChapitre(chapitreId);
+      if (data) {
+        setChapitre(data);
+        setBlocks(data.content || []);
+        setHasChanges(false);
+      }
+    } catch (err: any) {
+      setSaveError(err?.message ?? "Impossible de recharger le chapitre");
+    }
+  };
 
   useEffect(() => {
     if (isEditing) return;
@@ -1226,7 +1267,17 @@ export function ChapitreEditor({
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Bouton Grimoire */}
+          {/* Historique des versions */}
+          <button
+            onClick={openHistory}
+            disabled={isSaving}
+            className="p-1.5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white rounded-lg transition-colors border border-white/5 disabled:opacity-50"
+            title="Historique des versions"
+          >
+            <History className="w-4 h-4" />
+          </button>
+
+          {/* Bouton Combat */}
           <button
             onClick={() => onOpenCombatDashboard?.(chapitreId)}
             className="p-1.5 bg-white/5 hover:bg-red-500/15 text-white/50 hover:text-red-300 rounded-lg transition-colors border border-white/5"
@@ -1734,6 +1785,16 @@ export function ChapitreEditor({
           </button>
         </div>
       )}
+
+      {isHistoryOpen &&
+        createPortal(
+          <ChapitreHistoryModal
+            chapitreId={chapitreId}
+            onClose={() => setIsHistoryOpen(false)}
+            onRestored={handleVersionRestored}
+          />,
+          document.body,
+        )}
     </div>
   );
 }
