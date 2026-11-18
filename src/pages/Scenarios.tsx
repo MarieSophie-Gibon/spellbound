@@ -300,8 +300,11 @@ export function Scenarios({ campaignId, onBack, campaignSystem }: ScenariosProps
     <>
       <BookLayout spineTitle="Scénarios" sidebar={sidebar} hideSidebar={isFullscreen} onOutsideClick={onBack}>
         {selectedChapitreId ? (
-          <ChapitreEditor 
-            chapitreId={selectedChapitreId} 
+          <ChapitreEditor
+            // Une instance par chapitre : l'autosave en attente et les blocs chargés
+            // ne peuvent jamais être réutilisés pour un autre chapitre.
+            key={selectedChapitreId}
+            chapitreId={selectedChapitreId}
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen(v => !v)}
             campaignId={campaignId}

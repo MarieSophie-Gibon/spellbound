@@ -272,17 +272,23 @@ export function ChapitreEditor({
   // --- Chargement initial ---
   const fetchChapitre = useCallback(async () => {
     setIsLoading(true);
-    const data = await chapitreEditorData.fetchChapitre(chapitreId);
+    try {
+      const data = await chapitreEditorData.fetchChapitre(chapitreId);
 
-    if (data) {
-      setChapitre(data);
-      const loadedBlocks = data.content || [];
-      setBlocks(loadedBlocks);
-      setHasChanges(false);
-      // Si le chapitre est vide, on passe direct en édition
-      setIsEditing(loadedBlocks.length === 0);
+      if (data) {
+        setChapitre(data);
+        const loadedBlocks = data.content || [];
+        setBlocks(loadedBlocks);
+        setHasChanges(false);
+        // Si le chapitre est vide, on passe direct en édition
+        setIsEditing(loadedBlocks.length === 0);
+      }
+    } catch (err: any) {
+      console.error("Impossible de charger le chapitre :", err?.message ?? err);
+      setSaveError(err?.message ?? "Impossible de charger le chapitre");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [chapitreEditorData, chapitreId]);
 
   useEffect(() => {
@@ -399,6 +405,17 @@ export function ChapitreEditor({
       return () => clearTimeout(timer);
     }
   }, [blocks, hasChanges, isEditing, handleSave]);
+
+  // Au démontage (changement de chapitre, sortie de la page), les modifications
+  // encore en attente de l'autosave sont écrites dans CE chapitre, pas perdues.
+  const pendingSaveRef = useRef({ blocks, hasChanges, isEditing, handleSave });
+  useEffect(() => {
+    pendingSaveRef.current = { blocks, hasChanges, isEditing, handleSave };
+  }, [blocks, hasChanges, isEditing, handleSave]);
+  useEffect(() => () => {
+    const pending = pendingSaveRef.current;
+    if (pending.hasChanges && pending.isEditing) void pending.handleSave(pending.blocks);
+  }, []);
 
   useEffect(() => {
     if (isEditing) return;
