@@ -65,6 +65,7 @@ export function CompendiumItemSelect({ value, onValueChange, items, disabled, cl
           limitée à la hauteur disponible à l'écran (pas de max-h fixe qui contredit Radix). */}
       <SelectContent
         position="popper"
+        scrollButtons={false}
         className="bg-[#2A2458] border border-white/18 text-white rounded-lg z-10000 max-h-[min(18rem,var(--radix-select-content-available-height))]"
       >
         <SelectItem value={CUSTOM_ITEM_VALUE} className={selectItemClass}>

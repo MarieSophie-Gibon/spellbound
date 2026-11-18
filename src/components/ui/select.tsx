@@ -60,8 +60,15 @@ function SelectContent({
   children,
   position = "item-aligned",
   align = "center",
+  scrollButtons = true,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  /**
+   * Boutons haut/bas de Radix : ils font défiler la liste dès que la souris les
+   * survole. false = défilement natif (molette, toucher) avec barre visible.
+   */
+  scrollButtons?: boolean
+}) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -72,17 +79,19 @@ function SelectContent({
         align={align}
         {...props}
       >
-        <SelectScrollUpButton />
+        {scrollButtons && <SelectScrollUpButton />}
         <SelectPrimitive.Viewport
           data-position={position}
           className={cn(
             "data-[position=popper]:h-(--radix-select-trigger-height) data-[position=popper]:w-full data-[position=popper]:min-w-(--radix-select-trigger-width)",
-            position === "popper" && ""
+            position === "popper" && "",
+            // Radix masque la barre de défilement du viewport ; sans les boutons, on la réaffiche.
+            !scrollButtons && "[scrollbar-width:thin]! [scrollbar-color:rgba(255,255,255,0.25)_transparent]!"
           )}
         >
           {children}
         </SelectPrimitive.Viewport>
-        <SelectScrollDownButton />
+        {scrollButtons && <SelectScrollDownButton />}
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   )
