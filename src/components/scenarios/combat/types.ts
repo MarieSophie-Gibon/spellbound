@@ -193,6 +193,88 @@ export interface RoundTriggerEvent {
   hasFired?: boolean;
 }
 
+/**
+ * Quadrillage de la battlemap. Cases carrées : taille et décalages sont exprimés
+ * en % de la LARGEUR de l'image (y compris le décalage vertical), pour rester
+ * indépendants de la résolution d'affichage.
+ */
+export interface BattleMapGrid {
+  enabled: boolean;
+  cellSize: number;
+  offsetX: number;
+  offsetY: number;
+  opacity: number;
+  color: "light" | "dark";
+  showToPlayers: boolean;
+  /** Les jetons se placent au centre des cases. */
+  snapTokens: boolean;
+  /** Échelle pour le décompte des déplacements. */
+  metersPerCell: number;
+  diagonalRule: DiagonalRule;
+}
+
+/** one : 1 case par diagonale ; alternate : 1-2-1 ; euclidean : distance réelle. */
+export type DiagonalRule = "one" | "alternate" | "euclidean";
+export const DIAGONAL_RULES: readonly DiagonalRule[] = ["one", "alternate", "euclidean"];
+
+export const GRID_CELL_MIN = 0.5;
+export const GRID_CELL_MAX = 25;
+
+export const DEFAULT_GRID: BattleMapGrid = {
+  enabled: false,
+  cellSize: 5,
+  offsetX: 0,
+  offsetY: 0,
+  opacity: 0.35,
+  color: "light",
+  showToPlayers: true,
+  snapTokens: true,
+  metersPerCell: 1.5,
+  diagonalRule: "one",
+};
+
+/**
+ * « Supprimer le quadrillage » : grille désactivée, taille et décalage remis à
+ * zéro ; les préférences (apparence, visibilité, règles de déplacement) sont gardées.
+ */
+export function resetGrid(grid: BattleMapGrid): BattleMapGrid {
+  return {
+    ...DEFAULT_GRID,
+    opacity: grid.opacity,
+    color: grid.color,
+    showToPlayers: grid.showToPlayers,
+    snapTokens: grid.snapTokens,
+    metersPerCell: grid.metersPerCell,
+    diagonalRule: grid.diagonalRule,
+  };
+}
+
+const clampNumber = (v: unknown, min: number, max: number, fallback: number) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+
+/** Valeurs bornées et complétées : utilisé au chargement et à la réception d'un co-MJ. */
+export function normalizeGrid(raw: unknown): BattleMapGrid {
+  const g = (raw && typeof raw === "object" ? raw : {}) as Partial<Record<keyof BattleMapGrid, unknown>>;
+  const cellSize = clampNumber(g.cellSize, GRID_CELL_MIN, GRID_CELL_MAX, DEFAULT_GRID.cellSize);
+  // Le décalage est ramené dans [0, taille de case[ : décaler d'une case entière ne change rien.
+  const wrap = (v: unknown) => {
+    const n = clampNumber(v, -1000, 1000, 0);
+    return ((n % cellSize) + cellSize) % cellSize;
+  };
+  return {
+    enabled: typeof g.enabled === "boolean" ? g.enabled : DEFAULT_GRID.enabled,
+    cellSize,
+    offsetX: wrap(g.offsetX),
+    offsetY: wrap(g.offsetY),
+    opacity: clampNumber(g.opacity, 0.05, 1, DEFAULT_GRID.opacity),
+    color: g.color === "dark" ? "dark" : "light",
+    showToPlayers: typeof g.showToPlayers === "boolean" ? g.showToPlayers : DEFAULT_GRID.showToPlayers,
+    snapTokens: typeof g.snapTokens === "boolean" ? g.snapTokens : DEFAULT_GRID.snapTokens,
+    metersPerCell: clampNumber(g.metersPerCell, 0.1, 100, DEFAULT_GRID.metersPerCell),
+    diagonalRule: DIAGONAL_RULES.includes(g.diagonalRule as DiagonalRule) ? (g.diagonalRule as DiagonalRule) : DEFAULT_GRID.diagonalRule,
+  };
+}
+
 export interface PersistedCombatState {
   combatants: Combatant[];
   activeCombatantId: string | null;
@@ -205,6 +287,7 @@ export interface PersistedCombatState {
   combatNote?: string;
   combatNotePosition?: { x: number; y: number };
   roundTriggers?: RoundTriggerEvent[];
+  grid?: BattleMapGrid;
 }
 
 export const CONDITION_OPTIONS: Array<{ key: ConditionKey; label: string; bg: string; icon: string }> = [

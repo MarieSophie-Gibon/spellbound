@@ -18,7 +18,8 @@ export type CombatSlice =
   | "fogReveals"
   | "combatNote"
   | "roundTriggers"
-  | "battlemapUrl";
+  | "battlemapUrl"
+  | "grid";
 
 export type CombatSnapshot = Partial<Record<CombatSlice, unknown>>;
 
