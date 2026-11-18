@@ -73,7 +73,7 @@ function CharacterCard({
   const offset = index - (total - 1) / 2;
   const step = total > 1 ? Math.min(7, 28 / (total - 1)) : 0;
   const delay = ENTRANCE_DELAY_S + index * STAGGER_S;
-  const Placeholder = kind === "monster" ? Skull : User;
+  const Placeholder = (card.kind ?? kind) === "npc" ? User : Skull;
   // À l'entrée, le nom suit la carte ; quand le MJ le dévoile ensuite, il apparaît aussitôt.
   const [initialNameHidden] = useState(nameHidden);
   const nameDelay = nameHidden === initialNameHidden ? delay + 0.5 : 0;

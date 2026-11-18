@@ -14,6 +14,13 @@ export interface StreamRevealCard {
   imageUrl: string | null;
   /** Plusieurs exemplaires du même monstre dans un groupe (« ×3 »). */
   count?: number;
+  /** PNJ ou monstre (silhouette affichée quand il n'y a pas d'image). */
+  kind?: "npc" | "monster";
+}
+
+/** Une révélation de personnages est « npc » si elle ne contient que des PNJ. */
+export function characterRevealKind(cards: StreamRevealCard[]): "npc" | "monster" {
+  return cards.length > 0 && cards.every((c) => c.kind === "npc") ? "npc" : "monster";
 }
 
 export interface StreamReveal {
@@ -73,12 +80,13 @@ export function revealCardsFromBlock(
   switch (block.type) {
     case "npc": {
       const name = str(data.nom);
-      return name ? { kind: "npc", cards: [{ name, imageUrl: str(data.imageUrl) }] } : null;
+      return name ? { kind: "npc", cards: [{ name, imageUrl: str(data.imageUrl), kind: "npc" }] } : null;
     }
     case "enemy": {
       const name = str(data.nom);
       if (!name) return null;
-      return { kind: data.entityType === "npc" ? "npc" : "monster", cards: [{ name, imageUrl: str(data.imageUrl) }] };
+      const kind = data.entityType === "npc" ? "npc" : "monster";
+      return { kind, cards: [{ name, imageUrl: str(data.imageUrl), kind }] };
     }
     case "location": {
       const imageUrl = str(data.imageUrl);
@@ -101,11 +109,11 @@ function baseName(name: string) {
 /**
  * Regroupe les combattants visibles (monstres et PNJ, pas les PJ ni les familiers
  * ni les combattants cachés) : un même monstre présent plusieurs fois donne une
- * seule carte « ×N ».
+ * seule carte « ×N ». La clé sert aux cases à cocher du choix des révélés.
  */
-export function cardsFromCombatants(
+export function candidatesFromCombatants(
   combatants: Array<{ type: string; name: string; imageUrl?: string; entityId?: string; hidden?: boolean }>,
-): StreamRevealCard[] {
+): Array<{ key: string; card: StreamRevealCard }> {
   const groups = new Map<string, StreamRevealCard>();
   for (const c of combatants) {
     if (c.hidden || (c.type !== "monster" && c.type !== "npc")) continue;
@@ -116,8 +124,40 @@ export function cardsFromCombatants(
       existing.count = (existing.count ?? 1) + 1;
       if (!existing.imageUrl && c.imageUrl) existing.imageUrl = c.imageUrl;
     } else {
-      groups.set(key, { name, imageUrl: c.imageUrl ?? null, count: 1 });
+      groups.set(key, { name, imageUrl: c.imageUrl ?? null, count: 1, kind: c.type === "npc" ? "npc" : "monster" });
     }
   }
-  return [...groups.values()];
+  return [...groups.entries()].map(([key, card]) => ({ key, card }));
+}
+
+export function cardsFromCombatants(combatants: Parameters<typeof candidatesFromCombatants>[0]): StreamRevealCard[] {
+  return candidatesFromCombatants(combatants).map((c) => c.card);
+}
+
+/**
+ * Candidats d'un chapitre : tous les blocs PNJ / ennemis, un même personnage
+ * (même nom et même image) n'apparaissant qu'une fois.
+ */
+export function candidatesFromBlocks(
+  blocks: RevealableBlock[],
+  /** Bloc cliqué : son candidat est renvoyé dans `selectedKey`, même s'il est un doublon. */
+  clickedBlockId?: string,
+): { candidates: Array<{ key: string; card: StreamRevealCard }>; selectedKey: string | null } {
+  const keyByIdentity = new Map<string, string>();
+  const candidates: Array<{ key: string; card: StreamRevealCard }> = [];
+  let selectedKey: string | null = null;
+  for (const block of blocks) {
+    const revealable = revealCardsFromBlock(block);
+    if (!revealable || !isCharacterReveal(revealable.kind)) continue;
+    const card = revealable.cards[0];
+    const identity = `${card.name.toLowerCase()}|${card.imageUrl ?? ""}`;
+    let key = keyByIdentity.get(identity);
+    if (!key) {
+      key = block.id;
+      keyByIdentity.set(identity, key);
+      candidates.push({ key, card });
+    }
+    if (block.id === clickedBlockId) selectedKey = key;
+  }
+  return { candidates, selectedKey };
 }

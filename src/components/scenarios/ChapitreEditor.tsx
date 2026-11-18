@@ -60,9 +60,15 @@ import { ClueBlock } from "./blocks/ClueBlock";
 import { LinkBlock } from "./blocks/LinkBlock";
 import { TableBlock } from "./blocks/TableBlock";
 import { ChapitreHistoryModal } from "./ChapitreHistoryModal";
-import { StreamRevealButton, StreamRevealControl } from "@/components/stream/StreamRevealControl";
+import { StreamRevealButton, StreamRevealControl, StreamRevealPicker } from "@/components/stream/StreamRevealControl";
 import { useStreamReveal } from "@/hooks/scenarios/useStreamReveal";
-import { createReveal, isCharacterReveal, revealCardsFromBlock } from "@/lib/streamReveal";
+import {
+  candidatesFromBlocks,
+  characterRevealKind,
+  createReveal,
+  isCharacterReveal,
+  revealCardsFromBlock,
+} from "@/lib/streamReveal";
 
 interface ChapitreEditorProps {
   chapitreId: string;
@@ -121,17 +127,24 @@ export function ChapitreEditor({
 
   // --- Écran streaming : montrer un PNJ, un ennemi, un lieu ou une image aux joueurs ---
   const streamReveal = useStreamReveal();
+  // PNJ / ennemi : ouvre le choix des personnages du chapitre à montrer (bloc cliqué pré-coché).
+  const [revealPickerBlockId, setRevealPickerBlockId] = useState<string | null>(null);
+  // Source des révélations de personnages : « chars:<id>,<id> » (blocs cochés).
+  const isBlockRevealed = (blockId: string) => {
+    const source = streamReveal.current?.source ?? "";
+    if (source === `block:${blockId}`) return true;
+    return source.startsWith("chars:") && source.slice(6).split(",").includes(blockId);
+  };
   const renderRevealButton = (block: Block) => {
     const revealable = revealCardsFromBlock(block);
     if (!revealable) return null;
-    const source = `block:${block.id}`;
     return (
       <StreamRevealButton
-        active={streamReveal.current?.source === source}
-        allowHiddenName={isCharacterReveal(revealable.kind)}
-        onReveal={(nameHidden) =>
-          streamReveal.reveal(createReveal(source, revealable.kind, revealable.cards, nameHidden))
-        }
+        active={isBlockRevealed(block.id)}
+        onClick={() => {
+          if (isCharacterReveal(revealable.kind)) return setRevealPickerBlockId(block.id);
+          streamReveal.reveal(createReveal(`block:${block.id}`, revealable.kind, revealable.cards));
+        }}
         onClear={streamReveal.clear}
       />
     );
@@ -1815,6 +1828,30 @@ export function ChapitreEditor({
       )}
 
       <StreamRevealControl api={streamReveal} />
+
+      {revealPickerBlockId &&
+        (() => {
+          const { candidates, selectedKey } = candidatesFromBlocks(blocks, revealPickerBlockId);
+          return (
+            <StreamRevealPicker
+              candidates={candidates}
+              initialSelected={selectedKey ? [selectedKey] : []}
+              onClose={() => setRevealPickerBlockId(null)}
+              onConfirm={(chosen, nameHidden) => {
+                setRevealPickerBlockId(null);
+                const cards = chosen.map((c) => c.card);
+                streamReveal.reveal(
+                  createReveal(
+                    `chars:${chosen.map((c) => c.key).join(",")}`,
+                    characterRevealKind(cards),
+                    cards,
+                    nameHidden,
+                  ),
+                );
+              }}
+            />
+          );
+        })()}
 
       {isHistoryOpen &&
         createPortal(
