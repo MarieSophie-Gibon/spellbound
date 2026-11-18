@@ -1218,7 +1218,8 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
                   <RotateCcw className="w-4 h-4" />
                 </button>
               </div>
-              <div className="relative">
+              {/* flex : le bouton s'étire à la hauteur de la barre, comme ses voisins directs */}
+              <div className="relative flex">
                 <button
                   onClick={() => setIsGridPanelOpen((v) => !v)}
                   className={`p-1.5 rounded-lg backdrop-blur border transition-colors ${grid.enabled ? "bg-amber-500/25 border-amber-300/40 text-amber-200" : "bg-black/60 border-white/20 text-white/70 hover:text-white"}`}
