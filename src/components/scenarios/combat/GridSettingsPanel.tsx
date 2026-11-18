@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { Minus, Plus, Scan, Trash2, X } from "lucide-react";
-import { DEFAULT_GRID, GRID_CELL_MAX, GRID_CELL_MIN, normalizeGrid, resetGrid, type BattleMapGrid } from "./types";
+import {
+  DEFAULT_GRID,
+  GRID_CELL_MAX,
+  GRID_CELL_MIN,
+  normalizeGrid,
+  resetGrid,
+  type BattleMapGrid,
+  type DiagonalRule,
+} from "./types";
 
 interface GridSettingsPanelProps {
   grid: BattleMapGrid;
@@ -10,6 +18,12 @@ interface GridSettingsPanelProps {
 }
 
 const FINE_STEP = 0.05;
+
+const DIAGONAL_OPTIONS: Array<{ rule: DiagonalRule; label: string; title: string }> = [
+  { rule: "one", label: "1 case", title: "Une diagonale compte 1 case" },
+  { rule: "alternate", label: "1-2-1", title: "Une diagonale sur deux compte double" },
+  { rule: "euclidean", label: "Réelle", title: "Distance réelle (≈ 1,4 case par diagonale)" },
+];
 
 function Slider({
   label,
@@ -79,7 +93,7 @@ export function GridSettingsPanel({ grid, onChange, onStartCalibration, onClose 
 
   return (
     <div
-      className="w-64 rounded-xl bg-[#1b1738]/95 backdrop-blur border border-white/15 shadow-2xl p-3 space-y-3"
+      className="w-64 max-h-[70vh] overflow-y-auto rounded-xl bg-[#1b1738]/95 backdrop-blur border border-white/15 shadow-2xl p-3 space-y-3"
       onPointerDown={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
     >
@@ -173,6 +187,52 @@ export function GridSettingsPanel({ grid, onChange, onStartCalibration, onClose 
           className="accent-amber-300 w-4 h-4"
         />
       </label>
+
+      <div className="pt-2 border-t border-white/10 space-y-3">
+        <span className="block text-[10px] uppercase tracking-widest text-white/40">Déplacements</span>
+        <label className="flex items-center justify-between gap-2 cursor-pointer">
+          <span className="text-[12px] text-white/80">Jetons au centre des cases</span>
+          <input
+            type="checkbox"
+            checked={grid.snapTokens}
+            onChange={(e) => update({ snapTokens: e.target.checked })}
+            className="accent-amber-300 w-4 h-4"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-2">
+          <span className="text-[12px] text-white/80">Mètres par case</span>
+          <input
+            type="number"
+            min={0.1}
+            max={100}
+            step={0.5}
+            value={grid.metersPerCell}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (Number.isFinite(value) && value > 0) update({ metersPerCell: value });
+            }}
+            className="w-16 px-1.5 py-0.5 rounded bg-white/10 border border-white/15 text-center text-[12px] text-white outline-none"
+          />
+        </label>
+        <div className="space-y-1.5">
+          <span className="text-[12px] text-white/80">Diagonales</span>
+          <div className="grid grid-cols-3 p-0.5 rounded-lg bg-black/40 border border-white/10">
+            {DIAGONAL_OPTIONS.map(({ rule, label, title }) => (
+              <button
+                key={rule}
+                type="button"
+                onClick={() => update({ diagonalRule: rule })}
+                title={title}
+                className={`px-1.5 py-1 rounded-md text-[11px] transition-colors ${
+                  grid.diagonalRule === rule ? "bg-white/15 text-white" : "text-white/45 hover:text-white/80"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
 
       <div className="pt-2 border-t border-white/10">
         {isConfirmingDelete ? (

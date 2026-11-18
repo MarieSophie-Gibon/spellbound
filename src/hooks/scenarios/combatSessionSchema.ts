@@ -82,6 +82,8 @@ const isEncounter = (v: unknown) =>
   isObject(v) && isText(v.key, 500) && isText(v.name, 300) && COMBATANT_TYPES.has(v.type as string) &&
   isFiniteNumber(v.firstSeenAt) && isOptionalId(v.entityId) && isOptionalImage(v.imageUrl);
 
+const DIAGONAL_RULES = new Set(["one", "alternate", "euclidean"]);
+
 // Quadrillage : mêmes bornes que normalizeGrid (types.ts).
 const isGrid = (v: unknown) =>
   isObject(v) &&
@@ -91,7 +93,11 @@ const isGrid = (v: unknown) =>
   isFiniteNumber(v.cellSize) && v.cellSize >= 0.5 && v.cellSize <= 25 &&
   isFiniteNumber(v.offsetX) && v.offsetX >= 0 && v.offsetX <= 25 &&
   isFiniteNumber(v.offsetY) && v.offsetY >= 0 && v.offsetY <= 25 &&
-  isFiniteNumber(v.opacity) && v.opacity >= 0.05 && v.opacity <= 1;
+  isFiniteNumber(v.opacity) && v.opacity >= 0.05 && v.opacity <= 1 &&
+  // Réglages de déplacement : facultatifs (session ouverte avec une version antérieure).
+  (v.snapTokens === undefined || typeof v.snapTokens === "boolean") &&
+  (v.metersPerCell === undefined || (isFiniteNumber(v.metersPerCell) && v.metersPerCell >= 0.1 && v.metersPerCell <= 100)) &&
+  (v.diagonalRule === undefined || DIAGONAL_RULES.has(v.diagonalRule as string));
 
 export function sanitizeSlice(slice: CombatSlice, value: unknown): Sanitized {
   switch (slice) {

@@ -5,7 +5,7 @@ import { readTokenFaceFromCombatant, type Combatant, type EncounterEntry, type F
 import { CONDITION_OPTIONS, type BattleMapGrid } from "./types";
 import { GridOverlay } from "./GridOverlay";
 import { GridSettingsPanel } from "./GridSettingsPanel";
-import { gridFromCalibration, type MapPoint } from "./gridMath";
+import { cellAt, formatGridDistance, gridDistance, gridFromCalibration, snapToCell, type MapPoint } from "./gridMath";
 import { StreamRevealButton, StreamRevealControl, StreamRevealPicker } from "@/components/stream/StreamRevealControl";
 import { useStreamReveal } from "@/hooks/scenarios/useStreamReveal";
 import { candidatesFromCombatants, characterRevealKind, createReveal } from "@/lib/streamReveal";
@@ -262,7 +262,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     return (tokenSize / base) * 100;
   }, [imgLocalRect, tokenSize]);
 
-  const draggingRef = useRef<{ tokenIds: string[]; offsets: Record<string, { x: number; y: number }> } | null>(null);
+  const draggingRef = useRef<{ tokenIds: string[]; primaryId: string; offsets: Record<string, { x: number; y: number }> } | null>(null);
   const livePositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null);
   const pendingCommittedPositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null);
   const isDraggingTokenRef = useRef(false);
@@ -279,6 +279,25 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     () => (grid.enabled && grid.showToPlayers && !isCalibrating ? grid : null),
     [grid, isCalibrating],
   );
+
+  // ── Déplacements sur la grille ───────────────────────────────────────────────
+  const snapActive = grid.enabled && grid.snapTokens && imgAspect !== null && !isCalibrating;
+  const snapPosition = useCallback(
+    (p: MapPoint): MapPoint => (snapActive && imgAspect ? snapToCell(p, grid, imgAspect) : p),
+    [snapActive, grid, imgAspect],
+  );
+  // Lu par le gestionnaire de glissement (abonné une seule fois par glissement).
+  const snapPositionRef = useRef(snapPosition);
+  useEffect(() => {
+    snapPositionRef.current = snapPosition;
+  }, [snapPosition]);
+
+  // Point de départ de chaque jeton depuis le début du tour du combattant actif :
+  // le décompte cumule les glissements successifs et repart à zéro au tour suivant.
+  const [turnMoves, setTurnMoves] = useState<{ turnKey: string | null; origins: Record<string, MapPoint> }>({
+    turnKey: null,
+    origins: {},
+  });
 
   // ── Broadcast ────────────────────────────────────────────────────────────────
   const stateRef = useRef<BattleMapBroadcast>({
@@ -405,6 +424,23 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
     combatants.forEach((c) => byId.set(c.id, c));
     return byId;
   }, [combatants]);
+
+  // Trajets du tour : du point de départ du tour à la position actuelle (ou glissée),
+  // avec le nombre de cases. Affichés pendant le tour, ou pendant un glissement hors combat.
+  const moveTrails = useMemo(() => {
+    if (!grid.enabled || !imgAspect) return [];
+    const isCurrentTurn = turnMoves.turnKey !== null && turnMoves.turnKey === (activeCombatantId ?? null);
+    if (!isCurrentTurn && !isDraggingToken) return [];
+    return Object.entries(turnMoves.origins).flatMap(([id, origin]) => {
+      const token = mapTokens.find((t) => t.combatantId === id);
+      if (!token) return [];
+      const preview = dragPreviewTokens?.[id];
+      const position = preview ?? { x: token.x, y: token.y };
+      const cells = gridDistance(cellAt(origin, grid, imgAspect), cellAt(position, grid, imgAspect), grid.diagonalRule);
+      if (cells === 0) return [];
+      return [{ id, origin, position, cells, isDragged: isDraggingToken && !!preview }];
+    });
+  }, [grid, imgAspect, turnMoves, activeCombatantId, isDraggingToken, mapTokens, dragPreviewTokens]);
 
   const placedCombatantIds = useMemo(() => new Set(mapTokens.map((t) => t.combatantId)), [mapTokens]);
 
@@ -587,7 +623,7 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
         const { combatantId } = JSON.parse(raw) as { combatantId: string };
         if (combatantId) {
           const pos = screenToMapPct(e.clientX, e.clientY);
-          if (pos) { onUpdateTokens([...mapTokens.filter(t => t.combatantId !== combatantId), { combatantId, x: pos.x, y: pos.y }]); return; }
+          if (pos) { const p = snapPosition(pos); onUpdateTokens([...mapTokens.filter(t => t.combatantId !== combatantId), { combatantId, x: p.x, y: p.y }]); return; }
         }
       } catch { /* pas un jeton */ }
     }
@@ -677,10 +713,10 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       for (const tokenId of d.tokenIds) {
         const offset = d.offsets[tokenId];
         if (!offset) continue;
-        nextPositions[tokenId] = {
+        nextPositions[tokenId] = snapPositionRef.current({
           x: Math.max(1, Math.min(99, px - offset.x)),
           y: Math.max(1, Math.min(99, py - offset.y)),
-        };
+        });
       }
       livePositionsRef.current = nextPositions;
       setDragPreviewTokens(nextPositions);
@@ -731,12 +767,22 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
       initialPositions[selectedToken.combatantId] = { x: selectedToken.x, y: selectedToken.y };
     }
     setSelectedTokenIds(new Set(selectedIds));
-    draggingRef.current = { tokenIds: tokensToDrag.map((item) => item.combatantId), offsets };
+    draggingRef.current = { tokenIds: tokensToDrag.map((item) => item.combatantId), primaryId: token.combatantId, offsets };
+    // Hors combat (aucun combattant actif), le décompte part du début de chaque glissement.
+    const turnKey = activeCombatantId ?? null;
+    setTurnMoves((prev) => {
+      const sameTurn = turnKey !== null && prev.turnKey === turnKey;
+      const origins = sameTurn ? { ...prev.origins } : {};
+      for (const [id, position] of Object.entries(initialPositions)) {
+        if (!origins[id]) origins[id] = snapPosition(position);
+      }
+      return { turnKey, origins };
+    });
     livePositionsRef.current = initialPositions;
     isDraggingTokenRef.current = true;
     setDragPreviewTokens(initialPositions);
     setIsDraggingToken(true);
-  }, [emitMapPing, isPingMode, mapTokens, screenToMapPct, selectedTokenIds]);
+  }, [activeCombatantId, emitMapPing, isPingMode, mapTokens, screenToMapPct, selectedTokenIds, snapPosition]);
 
   const setTokenEl = useCallback((id: string) => (el: HTMLDivElement | null) => {
     if (el) tokenElsRef.current.set(id, el); else tokenElsRef.current.delete(id);
@@ -953,6 +999,54 @@ function BattleMapInner({ chapitreId, imageUrl, onChange, combatants, encounters
               >
                 {/* Masquée pendant le calage : seule la grille dessinée sur la carte doit guider le tracé. */}
                 {grid.enabled && imgAspect && !calibration && <GridOverlay grid={grid} aspect={imgAspect} className="z-10" />}
+                {/* Trajets du tour (MJ uniquement) : départ, ligne pointillée et décompte au-dessus du jeton */}
+                {moveTrails.length > 0 && (
+                  <>
+                    <svg
+                      className="absolute inset-0 w-full h-full pointer-events-none z-15"
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      aria-hidden
+                    >
+                      {moveTrails.map((trail) => (
+                        <line
+                          key={trail.id}
+                          x1={trail.origin.x}
+                          y1={trail.origin.y}
+                          x2={trail.position.x}
+                          y2={trail.position.y}
+                          stroke={trail.isDragged ? "#fcd34d" : "rgba(253, 230, 138, 0.6)"}
+                          strokeWidth={trail.isDragged ? 3 : 2}
+                          strokeDasharray="7 5"
+                          strokeLinecap="round"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      ))}
+                    </svg>
+                    {moveTrails.map((trail) => (
+                      <div key={trail.id}>
+                        <div
+                          className="absolute z-15 w-3 h-3 rounded-full border-2 border-amber-300/80 bg-black/40 pointer-events-none"
+                          style={{ left: `${trail.origin.x}%`, top: `${trail.origin.y}%`, transform: "translate(-50%, -50%)" }}
+                        />
+                        <div
+                          className={`absolute z-30 pointer-events-none px-2 py-0.5 rounded-full whitespace-nowrap font-semibold border shadow-lg ${
+                            trail.isDragged
+                              ? "bg-amber-400 text-black border-amber-200 text-[12px]"
+                              : "bg-black/75 text-amber-200 border-amber-300/40 text-[10px]"
+                          }`}
+                          style={{
+                            left: `${trail.position.x}%`,
+                            top: `${trail.position.y}%`,
+                            transform: `translate(-50%, calc(-100% - ${tokenSize / 2 + 6}px))`,
+                          }}
+                        >
+                          {formatGridDistance(trail.cells, grid.metersPerCell)}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
                 {calibration && (
                   <div
                     className="absolute inset-0 z-40 cursor-crosshair touch-none"

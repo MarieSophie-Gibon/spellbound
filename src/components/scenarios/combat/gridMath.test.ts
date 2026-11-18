@@ -1,16 +1,76 @@
 import { describe, expect, it } from "vitest";
-import { gridFromCalibration } from "./gridMath";
-import { DEFAULT_GRID, normalizeGrid, resetGrid } from "./types";
+import { cellAt, cellCenter, formatGridDistance, gridDistance, gridFromCalibration, snapToCell } from "./gridMath";
+import { DEFAULT_GRID, normalizeGrid, resetGrid, type BattleMapGrid } from "./types";
 
 describe("resetGrid", () => {
-  it("désactive la grille et remet taille et décalage par défaut, en gardant l'apparence", () => {
-    const grid = { enabled: true, cellSize: 3.2, offsetX: 1.1, offsetY: 0.7, opacity: 0.8, color: "dark" as const, showToPlayers: false };
+  it("désactive la grille et remet taille et décalage par défaut, en gardant les préférences", () => {
+    const grid: BattleMapGrid = {
+      enabled: true, cellSize: 3.2, offsetX: 1.1, offsetY: 0.7, opacity: 0.8, color: "dark", showToPlayers: false,
+      snapTokens: false, metersPerCell: 2, diagonalRule: "alternate",
+    };
     expect(resetGrid(grid)).toEqual({
       ...DEFAULT_GRID,
       opacity: 0.8,
       color: "dark",
       showToPlayers: false,
+      snapTokens: false,
+      metersPerCell: 2,
+      diagonalRule: "alternate",
     });
+  });
+});
+
+describe("cases et aimantation", () => {
+  // Cases de 10 % de la largeur, décalées de 2 ; image 2:1 (aspect 0,5).
+  const grid: BattleMapGrid = { ...DEFAULT_GRID, enabled: true, cellSize: 10, offsetX: 2, offsetY: 2 };
+  const aspect = 0.5;
+
+  it("trouve la case d'un point (y converti en unités de largeur)", () => {
+    expect(cellAt({ x: 13, y: 30 }, grid, aspect)).toEqual({ col: 1, row: 1 }); // y : 30 % de hauteur = 15 de largeur
+    expect(cellAt({ x: 1, y: 1 }, grid, aspect)).toEqual({ col: -1, row: -1 }); // bande partielle avant le décalage
+  });
+
+  it("centre d'une case et aimantation", () => {
+    expect(cellCenter({ col: 1, row: 1 }, grid, aspect)).toEqual({ x: 17, y: 34 });
+    expect(snapToCell({ x: 13, y: 30 }, grid, aspect)).toEqual({ x: 17, y: 34 });
+  });
+
+  it("l'aimantation ne sort jamais de l'image", () => {
+    const snapped = snapToCell({ x: 1, y: 1 }, grid, aspect);
+    expect(snapped.x).toBeGreaterThanOrEqual(0);
+    expect(snapped.y).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("gridDistance", () => {
+  const o = { col: 0, row: 0 };
+  it("lignes droites : identique pour toutes les règles", () => {
+    for (const rule of ["one", "alternate", "euclidean"] as const) {
+      expect(gridDistance(o, { col: 4, row: 0 }, rule)).toBe(4);
+      expect(gridDistance(o, { col: 0, row: -3 }, rule)).toBe(3);
+    }
+  });
+  it("diagonales : 1 case", () => {
+    expect(gridDistance(o, { col: 3, row: 3 }, "one")).toBe(3);
+    expect(gridDistance(o, { col: 5, row: 2 }, "one")).toBe(5);
+  });
+  it("diagonales : alternance 1-2-1", () => {
+    expect(gridDistance(o, { col: 1, row: 1 }, "alternate")).toBe(1);
+    expect(gridDistance(o, { col: 2, row: 2 }, "alternate")).toBe(3);
+    expect(gridDistance(o, { col: 3, row: 3 }, "alternate")).toBe(4);
+    expect(gridDistance(o, { col: 5, row: 2 }, "alternate")).toBe(6); // 3 droites + 2 diagonales (1 + 2)
+  });
+  it("diagonales : distance réelle", () => {
+    expect(gridDistance(o, { col: 3, row: 4 }, "euclidean")).toBe(5);
+    expect(gridDistance(o, { col: 1, row: 1 }, "euclidean")).toBe(1.4);
+  });
+});
+
+describe("formatGridDistance", () => {
+  it("cases et mètres", () => {
+    expect(formatGridDistance(1, 1.5)).toBe("1 case · 1,5 m");
+    expect(formatGridDistance(4, 1.5)).toBe("4 cases · 6 m");
+    expect(formatGridDistance(1.4, 1.5)).toBe("1,4 case · 2,1 m");
   });
 });
 

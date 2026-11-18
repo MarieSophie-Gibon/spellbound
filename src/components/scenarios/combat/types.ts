@@ -206,7 +206,16 @@ export interface BattleMapGrid {
   opacity: number;
   color: "light" | "dark";
   showToPlayers: boolean;
+  /** Les jetons se placent au centre des cases. */
+  snapTokens: boolean;
+  /** Échelle pour le décompte des déplacements. */
+  metersPerCell: number;
+  diagonalRule: DiagonalRule;
 }
+
+/** one : 1 case par diagonale ; alternate : 1-2-1 ; euclidean : distance réelle. */
+export type DiagonalRule = "one" | "alternate" | "euclidean";
+export const DIAGONAL_RULES: readonly DiagonalRule[] = ["one", "alternate", "euclidean"];
 
 export const GRID_CELL_MIN = 0.5;
 export const GRID_CELL_MAX = 25;
@@ -219,11 +228,14 @@ export const DEFAULT_GRID: BattleMapGrid = {
   opacity: 0.35,
   color: "light",
   showToPlayers: true,
+  snapTokens: true,
+  metersPerCell: 1.5,
+  diagonalRule: "one",
 };
 
 /**
  * « Supprimer le quadrillage » : grille désactivée, taille et décalage remis à
- * zéro ; les préférences d'apparence et de visibilité sont gardées.
+ * zéro ; les préférences (apparence, visibilité, règles de déplacement) sont gardées.
  */
 export function resetGrid(grid: BattleMapGrid): BattleMapGrid {
   return {
@@ -231,6 +243,9 @@ export function resetGrid(grid: BattleMapGrid): BattleMapGrid {
     opacity: grid.opacity,
     color: grid.color,
     showToPlayers: grid.showToPlayers,
+    snapTokens: grid.snapTokens,
+    metersPerCell: grid.metersPerCell,
+    diagonalRule: grid.diagonalRule,
   };
 }
 
@@ -254,6 +269,9 @@ export function normalizeGrid(raw: unknown): BattleMapGrid {
     opacity: clampNumber(g.opacity, 0.05, 1, DEFAULT_GRID.opacity),
     color: g.color === "dark" ? "dark" : "light",
     showToPlayers: typeof g.showToPlayers === "boolean" ? g.showToPlayers : DEFAULT_GRID.showToPlayers,
+    snapTokens: typeof g.snapTokens === "boolean" ? g.snapTokens : DEFAULT_GRID.snapTokens,
+    metersPerCell: clampNumber(g.metersPerCell, 0.1, 100, DEFAULT_GRID.metersPerCell),
+    diagonalRule: DIAGONAL_RULES.includes(g.diagonalRule as DiagonalRule) ? (g.diagonalRule as DiagonalRule) : DEFAULT_GRID.diagonalRule,
   };
 }
 
